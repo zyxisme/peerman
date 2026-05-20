@@ -1,12 +1,15 @@
+use tonic::transport::Endpoint;
 use tonic::{Request, Response, Status};
 
 use super::generated::{
+    cluster_service_client::ClusterServiceClient,
     peer_service_server::PeerService, ConfigResponse, CreatePeerRequest, DeletePeerRequest,
     DeletePeerResponse, ExportAllRequest, GenerateKeypairRequest, GenerateKeypairResponse,
     GetConfigRequest, GetPeerRequest, ListPeersRequest, ListPeersResponse, Peer,
-    TogglePeerRequest, UpdatePeerRequest,
+    PushPeerRequest, TogglePeerRequest, UpdatePeerRequest,
 };
 
+use crate::models::node::NodeRepository;
 use crate::models::peer::PeerRepository;
 use crate::models::settings::SettingsRepository;
 use crate::services;
@@ -15,6 +18,44 @@ pub struct PeerServiceImpl {
     pub peer_repo: PeerRepository,
     pub settings_repo: SettingsRepository,
     pub jwt_secret: std::sync::Arc<String>,
+    pub node_repo: NodeRepository,
+    pub cluster_key: std::sync::Arc<String>,
+    pub listen_addr: String,
+}
+
+impl PeerServiceImpl {
+    async fn proxy_push_peer(
+        &self,
+        target_addr: &str,
+        peer: Peer,
+    ) -> Result<Peer, Status> {
+        let uri = format!("http://{}", target_addr);
+        let channel = Endpoint::from_shared(uri)
+            .map_err(|e| Status::internal(format!("invalid uri: {e}")))?
+            .connect()
+            .await
+            .map_err(|e| Status::internal(format!("connect failed: {e}")))?;
+        let mut client = ClusterServiceClient::new(channel);
+
+        let mut req = Request::new(PushPeerRequest {
+            peer: Some(peer.clone()),
+            origin_node_id: peer.origin_node_id.clone(),
+        });
+
+        if !self.cluster_key.is_empty() {
+            if let Ok(v) = self.cluster_key.parse() {
+                req.metadata_mut().insert("x-cluster-key", v);
+            }
+        }
+
+        let _resp = client
+            .push_peer(req)
+            .await
+            .map_err(|e| Status::internal(format!("proxy push failed: {e}")))?;
+
+        // PushPeerResponse has no peer field — return the peer we sent
+        Ok(peer)
+    }
 }
 
 pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
@@ -58,6 +99,21 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<Peer>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
+        let origin = req.origin_node_id.clone();
+
+        // If targeting a remote node, proxy the write
+        if !origin.is_empty() && origin != self.listen_addr {
+            let target_node = self
+                .node_repo
+                .find_by_id(&origin)
+                .await
+                .map_err(|_| Status::not_found("target node not found"))?;
+
+            let proto = create_request_to_proto(&req);
+            let proxied = self.proxy_push_peer(&target_node.listen_addr, proto).await?;
+            return Ok(Response::new(proxied));
+        }
+
         validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
             &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
             &req.ipv6_tunnel_local, &req.ipv6_tunnel_remote)
@@ -86,6 +142,21 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<Peer>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
+        let origin = req.origin_node_id.clone();
+
+        // If targeting a remote node, proxy the write
+        if !origin.is_empty() && origin != self.listen_addr {
+            let target_node = self
+                .node_repo
+                .find_by_id(&origin)
+                .await
+                .map_err(|_| Status::not_found("target node not found"))?;
+
+            let proto = update_request_to_proto(&req);
+            let proxied = self.proxy_push_peer(&target_node.listen_addr, proto).await?;
+            return Ok(Response::new(proxied));
+        }
+
         validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
             &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
             &req.ipv6_tunnel_local, &req.ipv6_tunnel_remote)

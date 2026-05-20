@@ -234,6 +234,9 @@ async fn main() -> anyhow::Result<()> {
         peer_repo: state.peer_repo.clone(),
         settings_repo: state.settings_repo.clone(),
         jwt_secret: jwt_secret.clone(),
+        node_repo: state.node_repo.clone(),
+        cluster_key: Arc::new(cluster_key.clone()),
+        listen_addr: listen_addr.clone(),
     };
     let settings_svc = SettingsServiceImpl {
         settings_repo: state.settings_repo.clone(),
