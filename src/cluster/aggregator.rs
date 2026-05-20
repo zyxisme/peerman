@@ -83,9 +83,7 @@ impl ClusterAggregator {
             match timeout(FANOUT_TIMEOUT, client.pull_peers(req)).await {
                 Ok(Ok(response)) => {
                     let peers: Vec<Peer> = response.into_inner().peers;
-                    self.cache
-                        .update(&node_addr, peers.clone(), vec![], vec![])
-                        .await;
+                    self.cache.update_peers(&node_addr, peers.clone()).await;
                     all.extend(peers);
                     statuses.push(NodeStatus::online(&node_name, &node_addr));
                 }
@@ -129,10 +127,12 @@ impl ClusterAggregator {
 
             let mut client = match Self::connect(&node_addr).await {
                 Ok(c) => c,
-                Err(_) => {
+                Err(e) => {
                     if let Some(entry) = self.cache.get(&node_addr).await {
                         all.extend(entry.probe_results);
                         statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
+                    } else {
+                        statuses.push(NodeStatus::unknown(&node_name, &node_addr, &e));
                     }
                     self.cache.mark_stale(&node_addr).await;
                     continue;
@@ -149,14 +149,21 @@ impl ClusterAggregator {
             match timeout(FANOUT_TIMEOUT, client.list_probe_results(req)).await {
                 Ok(Ok(response)) => {
                     let results: Vec<ProbeResult> = response.into_inner().results;
+                    self.cache.update_probe_results(&node_addr, results.clone()).await;
                     all.extend(results);
                     statuses.push(NodeStatus::online(&node_name, &node_addr));
                 }
                 _ => {
+                    let mut served = false;
                     if let Some(entry) = self.cache.get(&node_addr).await {
                         all.extend(entry.probe_results);
+                        served = true;
                     }
-                    statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
+                    statuses.push(if served {
+                        NodeStatus::offline(&node_name, &node_addr, "stale")
+                    } else {
+                        NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
+                    });
                     self.cache.mark_stale(&node_addr).await;
                 }
             }
@@ -186,10 +193,12 @@ impl ClusterAggregator {
 
             let mut client = match Self::connect(&node_addr).await {
                 Ok(c) => c,
-                Err(_) => {
+                Err(e) => {
                     if let Some(entry) = self.cache.get(&node_addr).await {
                         all.extend(entry.community_rules);
                         statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
+                    } else {
+                        statuses.push(NodeStatus::unknown(&node_name, &node_addr, &e));
                     }
                     self.cache.mark_stale(&node_addr).await;
                     continue;
@@ -202,14 +211,21 @@ impl ClusterAggregator {
             match timeout(FANOUT_TIMEOUT, client.list_community_rules(req)).await {
                 Ok(Ok(response)) => {
                     let rules: Vec<CommunityRule> = response.into_inner().rules;
+                    self.cache.update_community_rules(&node_addr, rules.clone()).await;
                     all.extend(rules);
                     statuses.push(NodeStatus::online(&node_name, &node_addr));
                 }
                 _ => {
+                    let mut served = false;
                     if let Some(entry) = self.cache.get(&node_addr).await {
                         all.extend(entry.community_rules);
+                        served = true;
                     }
-                    statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
+                    statuses.push(if served {
+                        NodeStatus::offline(&node_name, &node_addr, "stale")
+                    } else {
+                        NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
+                    });
                     self.cache.mark_stale(&node_addr).await;
                 }
             }

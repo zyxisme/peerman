@@ -24,24 +24,46 @@ impl ClusterCache {
         }
     }
 
-    pub async fn update(
-        &self,
-        node_addr: &str,
-        peers: Vec<Peer>,
-        probe_results: Vec<ProbeResult>,
-        community_rules: Vec<CommunityRule>,
-    ) {
+    pub async fn update_peers(&self, node_addr: &str, peers: Vec<Peer>) {
         let mut map = self.by_node.write().await;
-        map.insert(
-            node_addr.to_string(),
-            NodeCacheEntry {
-                peers,
-                probe_results,
-                community_rules,
-                fetched_at: Instant::now(),
-                stale: false,
-            },
-        );
+        let entry = map.entry(node_addr.to_string()).or_insert_with(|| NodeCacheEntry {
+            peers: vec![],
+            probe_results: vec![],
+            community_rules: vec![],
+            fetched_at: Instant::now(),
+            stale: false,
+        });
+        entry.peers = peers;
+        entry.fetched_at = Instant::now();
+        entry.stale = false;
+    }
+
+    pub async fn update_probe_results(&self, node_addr: &str, results: Vec<ProbeResult>) {
+        let mut map = self.by_node.write().await;
+        let entry = map.entry(node_addr.to_string()).or_insert_with(|| NodeCacheEntry {
+            peers: vec![],
+            probe_results: vec![],
+            community_rules: vec![],
+            fetched_at: Instant::now(),
+            stale: false,
+        });
+        entry.probe_results = results;
+        entry.fetched_at = Instant::now();
+        entry.stale = false;
+    }
+
+    pub async fn update_community_rules(&self, node_addr: &str, rules: Vec<CommunityRule>) {
+        let mut map = self.by_node.write().await;
+        let entry = map.entry(node_addr.to_string()).or_insert_with(|| NodeCacheEntry {
+            peers: vec![],
+            probe_results: vec![],
+            community_rules: vec![],
+            fetched_at: Instant::now(),
+            stale: false,
+        });
+        entry.community_rules = rules;
+        entry.fetched_at = Instant::now();
+        entry.stale = false;
     }
 
     pub async fn get(&self, node_addr: &str) -> Option<NodeCacheEntry> {
