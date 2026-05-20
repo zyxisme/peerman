@@ -2,15 +2,20 @@ use crate::models::peer::Peer;
 use crate::models::settings::Settings;
 
 /// Generate a single BIRD2 protocol block for a peer (for inclusion in existing config).
-pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
+/// Optional communities: IPv4 and IPv6 community strings for export filters.
+pub fn generate_peer_block_with_communities(
+    peer: &Peer,
+    settings: &Settings,
+    communities_v4: &[String],
+    communities_v6: &[String],
+) -> String {
     let name = sanitize_name(&peer.name);
     let mut block = String::new();
 
     let has_ipv4 = peer.ipv4_tunnel_remote.is_some();
     let has_ipv6 = peer.ipv6_tunnel_remote.is_some();
 
-    let use_ipv4_session = peer.sessions == 0 || peer.sessions == 2;
-    let use_ipv6_session = peer.sessions == 1 || peer.sessions == 2;
+    let has_communities = !communities_v4.is_empty() || !communities_v6.is_empty();
 
     // Mode 1 or 2: Multiprotocol — single protocol block
     if peer.multiprotocol {
@@ -32,10 +37,7 @@ pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
         ));
 
         if !neighbor.is_empty() {
-            block.push_str(&format!(
-                "    neighbor {neighbor} as {};\n",
-                peer.asn
-            ));
+            block.push_str(&format!("    neighbor {neighbor} as {};\n", peer.asn));
         }
 
         if peer.extended_nexthop && has_ipv6 {
@@ -50,9 +52,19 @@ pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
             block.push_str(&format!("    ipv4 import limit {limit};\n"));
         }
 
+        if has_communities {
+            block.push_str(&crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                communities_v4,
+                communities_v6,
+            ));
+        }
+
         block.push_str("}\n\n");
     } else {
         // Mode 3: Separate IPv4 and IPv6 sessions
+        let use_ipv4_session = peer.sessions == 0 || peer.sessions == 2;
+        let use_ipv6_session = peer.sessions == 1 || peer.sessions == 2;
+
         if use_ipv4_session && has_ipv4 {
             block.push_str(&format!(
                 "protocol bgp peer_{name}_v4 from {tpl} {{\n",
@@ -65,6 +77,14 @@ pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
             ));
             if peer.passive {
                 block.push_str("    passive on;\n");
+            }
+            if !communities_v4.is_empty() {
+                // Only include the v4 export filter lines
+                let v4_filter = crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                    communities_v4,
+                    &[],
+                );
+                block.push_str(&v4_filter);
             }
             block.push_str("}\n\n");
         }
@@ -83,11 +103,23 @@ pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
             if peer.passive {
                 block.push_str("    passive on;\n");
             }
+            if !communities_v6.is_empty() {
+                let v6_filter = crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                    &[],
+                    communities_v6,
+                );
+                block.push_str(&v6_filter);
+            }
             block.push_str("}\n\n");
         }
     }
 
     block
+}
+
+/// Generate a single BIRD2 protocol block for a peer (for inclusion in existing config).
+pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
+    generate_peer_block_with_communities(peer, settings, &[], &[])
 }
 
 /// Generate a complete BIRD2 configuration with template, filters, and all peer blocks.

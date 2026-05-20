@@ -30,6 +30,7 @@ pub struct Peer {
     pub enabled: bool,
     pub created_at: String,
     pub updated_at: String,
+    pub origin_node_id: Option<String>,
 }
 
 #[derive(Clone)]
@@ -49,7 +50,7 @@ impl PeerRepository {
              ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
              multiprotocol, extended_nexthop, sessions, passive,
              import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at
+             enabled, created_at, updated_at, origin_node_id
              FROM peers ORDER BY name",
         )
         .fetch_all(&self.pool)
@@ -65,7 +66,7 @@ impl PeerRepository {
              ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
              multiprotocol, extended_nexthop, sessions, passive,
              import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at
+             enabled, created_at, updated_at, origin_node_id
              FROM peers WHERE id = ?",
         )
         .bind(id)
@@ -92,7 +93,7 @@ impl PeerRepository {
              ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
              multiprotocol, extended_nexthop, sessions, passive,
              import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at",
+             enabled, created_at, updated_at, origin_node_id",
         )
         .bind(&id)
         .bind(name)
@@ -116,14 +117,14 @@ impl PeerRepository {
              ipv4_tunnel_local = ?, ipv4_tunnel_remote = ?, ipv6_tunnel_local = ?, ipv6_tunnel_remote = ?,
              multiprotocol = ?, extended_nexthop = ?, sessions = ?, passive = ?,
              import_max_prefix = ?, export_max_prefix = ?,
-             updated_at = ?
+             origin_node_id = ?, updated_at = ?
              WHERE id = ?
              RETURNING id, name, description, asn, local_asn,
              wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name,
              ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
              multiprotocol, extended_nexthop, sessions, passive,
              import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at",
+             enabled, created_at, updated_at, origin_node_id",
         )
         .bind(&peer.name)
         .bind(&peer.description)
@@ -145,6 +146,7 @@ impl PeerRepository {
         .bind(peer.passive)
         .bind(peer.import_max_prefix)
         .bind(peer.export_max_prefix)
+        .bind(&peer.origin_node_id)
         .bind(&now)
         .bind(&peer.id)
         .fetch_one(&self.pool)
@@ -177,7 +179,7 @@ impl PeerRepository {
              ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
              multiprotocol, extended_nexthop, sessions, passive,
              import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at",
+             enabled, created_at, updated_at, origin_node_id",
         )
         .bind(new_enabled)
         .bind(&now)

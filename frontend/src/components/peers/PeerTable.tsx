@@ -1,11 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { Pencil, Trash2, Eye, Cable } from 'lucide-react';
 import { usePeers } from '../../hooks/usePeers';
+import { useNodes } from '../../hooks/useNodes';
 import { peerClient } from '../../lib/grpc';
 
 export default function PeerTable() {
   const { peers, loading, error, refetch } = usePeers();
+  const { nodes } = useNodes();
   const navigate = useNavigate();
+
+  const nodeName = (id: string) => nodes.find(n => n.id === id)?.name ?? id.slice(0, 8);
 
   const handleToggle = async (id: string) => {
     await peerClient.togglePeer({ id });
@@ -57,6 +61,7 @@ export default function PeerTable() {
             <th>Endpoint</th>
             <th>Tunnel</th>
             <th>Sessions</th>
+            <th>Origin Node</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -84,6 +89,9 @@ export default function PeerTable() {
                   {peer.sessions === 0 ? 'IPv4' : peer.sessions === 1 ? 'IPv6' : 'Both'}
                   {peer.multiprotocol ? ' MP' : ''}
                 </span>
+              </td>
+              <td className="text-caption text-mute">
+                {peer.originNodeId ? nodeName(peer.originNodeId) : 'local'}
               </td>
               <td>
                 <button

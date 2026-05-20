@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file peerman.proto.
  */
 export const file_peerman: GenFile = /*@__PURE__*/
-  fileDesc("Cg1wZWVybWFuLnByb3RvEgdwZWVybWFuIrUECgRQZWVyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSCwoDYXNuGAQgASgDEhEKCWxvY2FsX2FzbhgFIAEoAxIWCg53Z19wcml2YXRlX2tleRgGIAEoCRIVCg13Z19wdWJsaWNfa2V5GAcgASgJEhkKEXdnX3JlbW90ZV9hZGRyZXNzGAggASgJEhYKDndnX3JlbW90ZV9wb3J0GAkgASgNEhYKDndnX2xpc3Rlbl9wb3J0GAogASgNEhkKEXdnX2ludGVyZmFjZV9uYW1lGAsgASgJEhkKEWlwdjRfdHVubmVsX2xvY2FsGAwgASgJEhoKEmlwdjRfdHVubmVsX3JlbW90ZRgNIAEoCRIZChFpcHY2X3R1bm5lbF9sb2NhbBgOIAEoCRIaChJpcHY2X3R1bm5lbF9yZW1vdGUYDyABKAkSFQoNbXVsdGlwcm90b2NvbBgQIAEoCBIYChBleHRlbmRlZF9uZXh0aG9wGBEgASgIEioKCHNlc3Npb25zGBIgASgOMhgucGVlcm1hbi5TZXNzaW9uUHJvdG9jb2wSDwoHcGFzc2l2ZRgTIAEoCBIZChFpbXBvcnRfbWF4X3ByZWZpeBgUIAEoBRIZChFleHBvcnRfbWF4X3ByZWZpeBgVIAEoBRIPCgdlbmFibGVkGBYgASgIEhIKCmNyZWF0ZWRfYXQYFyABKAkSEgoKdXBkYXRlZF9hdBgYIAEoCSK3AQoIU2V0dGluZ3MSEQoJbG9jYWxfYXNuGAEgASgDEhoKEmJpcmRfdGVtcGxhdGVfbmFtZRgCIAEoCRIWCg5iaXJkX3JvdXRlcl9pZBgDIAEoCRIeChZ3Z19kZWZhdWx0X2xpc3Rlbl9wb3J0GAQgASgNEhgKEGRuNDJfaXB2NF9wcmVmaXgYBSABKAkSGAoQZG40Ml9pcHY2X3ByZWZpeBgGIAEoCRIQCgh3Z190YWJsZRgHIAEoCSISChBMaXN0UGVlcnNSZXF1ZXN0IjEKEUxpc3RQZWVyc1Jlc3BvbnNlEhwKBXBlZXJzGAEgAygLMg0ucGVlcm1hbi5QZWVyIhwKDkdldFBlZXJSZXF1ZXN0EgoKAmlkGAEgASgJIv0DChFDcmVhdGVQZWVyUmVxdWVzdBIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEgsKA2FzbhgDIAEoAxIRCglsb2NhbF9hc24YBCABKAMSFgoOd2dfcHJpdmF0ZV9rZXkYBSABKAkSFQoNd2dfcHVibGljX2tleRgGIAEoCRIZChF3Z19yZW1vdGVfYWRkcmVzcxgHIAEoCRIWCg53Z19yZW1vdGVfcG9ydBgIIAEoDRIWCg53Z19saXN0ZW5fcG9ydBgJIAEoDRIZChF3Z19pbnRlcmZhY2VfbmFtZRgKIAEoCRIZChFpcHY0X3R1bm5lbF9sb2NhbBgLIAEoCRIaChJpcHY0X3R1bm5lbF9yZW1vdGUYDCABKAkSGQoRaXB2Nl90dW5uZWxfbG9jYWwYDSABKAkSGgoSaXB2Nl90dW5uZWxfcmVtb3RlGA4gASgJEhUKDW11bHRpcHJvdG9jb2wYDyABKAgSGAoQZXh0ZW5kZWRfbmV4dGhvcBgQIAEoCBIqCghzZXNzaW9ucxgRIAEoDjIYLnBlZXJtYW4uU2Vzc2lvblByb3RvY29sEg8KB3Bhc3NpdmUYEiABKAgSGQoRaW1wb3J0X21heF9wcmVmaXgYEyABKAUSGQoRZXhwb3J0X21heF9wcmVmaXgYFCABKAUiiQQKEVVwZGF0ZVBlZXJSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSCwoDYXNuGAQgASgDEhEKCWxvY2FsX2FzbhgFIAEoAxIWCg53Z19wcml2YXRlX2tleRgGIAEoCRIVCg13Z19wdWJsaWNfa2V5GAcgASgJEhkKEXdnX3JlbW90ZV9hZGRyZXNzGAggASgJEhYKDndnX3JlbW90ZV9wb3J0GAkgASgNEhYKDndnX2xpc3Rlbl9wb3J0GAogASgNEhkKEXdnX2ludGVyZmFjZV9uYW1lGAsgASgJEhkKEWlwdjRfdHVubmVsX2xvY2FsGAwgASgJEhoKEmlwdjRfdHVubmVsX3JlbW90ZRgNIAEoCRIZChFpcHY2X3R1bm5lbF9sb2NhbBgOIAEoCRIaChJpcHY2X3R1bm5lbF9yZW1vdGUYDyABKAkSFQoNbXVsdGlwcm90b2NvbBgQIAEoCBIYChBleHRlbmRlZF9uZXh0aG9wGBEgASgIEioKCHNlc3Npb25zGBIgASgOMhgucGVlcm1hbi5TZXNzaW9uUHJvdG9jb2wSDwoHcGFzc2l2ZRgTIAEoCBIZChFpbXBvcnRfbWF4X3ByZWZpeBgUIAEoBRIZChFleHBvcnRfbWF4X3ByZWZpeBgVIAEoBSIfChFEZWxldGVQZWVyUmVxdWVzdBIKCgJpZBgBIAEoCSIUChJEZWxldGVQZWVyUmVzcG9uc2UiHwoRVG9nZ2xlUGVlclJlcXVlc3QSCgoCaWQYASABKAkiGAoWR2VuZXJhdGVLZXlwYWlyUmVxdWVzdCJCChdHZW5lcmF0ZUtleXBhaXJSZXNwb25zZRITCgtwcml2YXRlX2tleRgBIAEoCRISCgpwdWJsaWNfa2V5GAIgASgJIh4KEEdldENvbmZpZ1JlcXVlc3QSCgoCaWQYASABKAkiIQoOQ29uZmlnUmVzcG9uc2USDwoHY29udGVudBgBIAEoCSISChBFeHBvcnRBbGxSZXF1ZXN0IhQKEkdldFNldHRpbmdzUmVxdWVzdCI6ChNTYXZlU2V0dGluZ3NSZXF1ZXN0EiMKCHNldHRpbmdzGAEgASgLMhEucGVlcm1hbi5TZXR0aW5ncypHCg9TZXNzaW9uUHJvdG9jb2wSEAoMU0VTU0lPTl9JUFY0EAASEAoMU0VTU0lPTl9JUFY2EAESEAoMU0VTU0lPTl9CT1RIEAIy6gUKC1BlZXJTZXJ2aWNlEkIKCUxpc3RQZWVycxIZLnBlZXJtYW4uTGlzdFBlZXJzUmVxdWVzdBoaLnBlZXJtYW4uTGlzdFBlZXJzUmVzcG9uc2USMQoHR2V0UGVlchIXLnBlZXJtYW4uR2V0UGVlclJlcXVlc3QaDS5wZWVybWFuLlBlZXISNwoKQ3JlYXRlUGVlchIaLnBlZXJtYW4uQ3JlYXRlUGVlclJlcXVlc3QaDS5wZWVybWFuLlBlZXISNwoKVXBkYXRlUGVlchIaLnBlZXJtYW4uVXBkYXRlUGVlclJlcXVlc3QaDS5wZWVybWFuLlBlZXISRQoKRGVsZXRlUGVlchIaLnBlZXJtYW4uRGVsZXRlUGVlclJlcXVlc3QaGy5wZWVybWFuLkRlbGV0ZVBlZXJSZXNwb25zZRI3CgpUb2dnbGVQZWVyEhoucGVlcm1hbi5Ub2dnbGVQZWVyUmVxdWVzdBoNLnBlZXJtYW4uUGVlchJUCg9HZW5lcmF0ZUtleXBhaXISHy5wZWVybWFuLkdlbmVyYXRlS2V5cGFpclJlcXVlc3QaIC5wZWVybWFuLkdlbmVyYXRlS2V5cGFpclJlc3BvbnNlEkgKEkdldFdpcmVHdWFyZENvbmZpZxIZLnBlZXJtYW4uR2V0Q29uZmlnUmVxdWVzdBoXLnBlZXJtYW4uQ29uZmlnUmVzcG9uc2USQwoNR2V0QmlyZENvbmZpZxIZLnBlZXJtYW4uR2V0Q29uZmlnUmVxdWVzdBoXLnBlZXJtYW4uQ29uZmlnUmVzcG9uc2USSAoSRXhwb3J0QWxsV2lyZUd1YXJkEhkucGVlcm1hbi5FeHBvcnRBbGxSZXF1ZXN0GhcucGVlcm1hbi5Db25maWdSZXNwb25zZRJDCg1FeHBvcnRBbGxCaXJkEhkucGVlcm1hbi5FeHBvcnRBbGxSZXF1ZXN0GhcucGVlcm1hbi5Db25maWdSZXNwb25zZTKRAQoPU2V0dGluZ3NTZXJ2aWNlEj0KC0dldFNldHRpbmdzEhsucGVlcm1hbi5HZXRTZXR0aW5nc1JlcXVlc3QaES5wZWVybWFuLlNldHRpbmdzEj8KDFNhdmVTZXR0aW5ncxIcLnBlZXJtYW4uU2F2ZVNldHRpbmdzUmVxdWVzdBoRLnBlZXJtYW4uU2V0dGluZ3NiBnByb3RvMw");
+  fileDesc("Cg1wZWVybWFuLnByb3RvEgdwZWVybWFuIs0ECgRQZWVyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSCwoDYXNuGAQgASgDEhEKCWxvY2FsX2FzbhgFIAEoAxIWCg53Z19wcml2YXRlX2tleRgGIAEoCRIVCg13Z19wdWJsaWNfa2V5GAcgASgJEhkKEXdnX3JlbW90ZV9hZGRyZXNzGAggASgJEhYKDndnX3JlbW90ZV9wb3J0GAkgASgNEhYKDndnX2xpc3Rlbl9wb3J0GAogASgNEhkKEXdnX2ludGVyZmFjZV9uYW1lGAsgASgJEhkKEWlwdjRfdHVubmVsX2xvY2FsGAwgASgJEhoKEmlwdjRfdHVubmVsX3JlbW90ZRgNIAEoCRIZChFpcHY2X3R1bm5lbF9sb2NhbBgOIAEoCRIaChJpcHY2X3R1bm5lbF9yZW1vdGUYDyABKAkSFQoNbXVsdGlwcm90b2NvbBgQIAEoCBIYChBleHRlbmRlZF9uZXh0aG9wGBEgASgIEioKCHNlc3Npb25zGBIgASgOMhgucGVlcm1hbi5TZXNzaW9uUHJvdG9jb2wSDwoHcGFzc2l2ZRgTIAEoCBIZChFpbXBvcnRfbWF4X3ByZWZpeBgUIAEoBRIZChFleHBvcnRfbWF4X3ByZWZpeBgVIAEoBRIPCgdlbmFibGVkGBYgASgIEhIKCmNyZWF0ZWRfYXQYFyABKAkSEgoKdXBkYXRlZF9hdBgYIAEoCRIWCg5vcmlnaW5fbm9kZV9pZBgZIAEoCSK3AQoIU2V0dGluZ3MSEQoJbG9jYWxfYXNuGAEgASgDEhoKEmJpcmRfdGVtcGxhdGVfbmFtZRgCIAEoCRIWCg5iaXJkX3JvdXRlcl9pZBgDIAEoCRIeChZ3Z19kZWZhdWx0X2xpc3Rlbl9wb3J0GAQgASgNEhgKEGRuNDJfaXB2NF9wcmVmaXgYBSABKAkSGAoQZG40Ml9pcHY2X3ByZWZpeBgGIAEoCRIQCgh3Z190YWJsZRgHIAEoCSISChBMaXN0UGVlcnNSZXF1ZXN0IjEKEUxpc3RQZWVyc1Jlc3BvbnNlEhwKBXBlZXJzGAEgAygLMg0ucGVlcm1hbi5QZWVyIhwKDkdldFBlZXJSZXF1ZXN0EgoKAmlkGAEgASgJIpUEChFDcmVhdGVQZWVyUmVxdWVzdBIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEgsKA2FzbhgDIAEoAxIRCglsb2NhbF9hc24YBCABKAMSFgoOd2dfcHJpdmF0ZV9rZXkYBSABKAkSFQoNd2dfcHVibGljX2tleRgGIAEoCRIZChF3Z19yZW1vdGVfYWRkcmVzcxgHIAEoCRIWCg53Z19yZW1vdGVfcG9ydBgIIAEoDRIWCg53Z19saXN0ZW5fcG9ydBgJIAEoDRIZChF3Z19pbnRlcmZhY2VfbmFtZRgKIAEoCRIZChFpcHY0X3R1bm5lbF9sb2NhbBgLIAEoCRIaChJpcHY0X3R1bm5lbF9yZW1vdGUYDCABKAkSGQoRaXB2Nl90dW5uZWxfbG9jYWwYDSABKAkSGgoSaXB2Nl90dW5uZWxfcmVtb3RlGA4gASgJEhUKDW11bHRpcHJvdG9jb2wYDyABKAgSGAoQZXh0ZW5kZWRfbmV4dGhvcBgQIAEoCBIqCghzZXNzaW9ucxgRIAEoDjIYLnBlZXJtYW4uU2Vzc2lvblByb3RvY29sEg8KB3Bhc3NpdmUYEiABKAgSGQoRaW1wb3J0X21heF9wcmVmaXgYEyABKAUSGQoRZXhwb3J0X21heF9wcmVmaXgYFCABKAUSFgoOb3JpZ2luX25vZGVfaWQYFSABKAkioQQKEVVwZGF0ZVBlZXJSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSCwoDYXNuGAQgASgDEhEKCWxvY2FsX2FzbhgFIAEoAxIWCg53Z19wcml2YXRlX2tleRgGIAEoCRIVCg13Z19wdWJsaWNfa2V5GAcgASgJEhkKEXdnX3JlbW90ZV9hZGRyZXNzGAggASgJEhYKDndnX3JlbW90ZV9wb3J0GAkgASgNEhYKDndnX2xpc3Rlbl9wb3J0GAogASgNEhkKEXdnX2ludGVyZmFjZV9uYW1lGAsgASgJEhkKEWlwdjRfdHVubmVsX2xvY2FsGAwgASgJEhoKEmlwdjRfdHVubmVsX3JlbW90ZRgNIAEoCRIZChFpcHY2X3R1bm5lbF9sb2NhbBgOIAEoCRIaChJpcHY2X3R1bm5lbF9yZW1vdGUYDyABKAkSFQoNbXVsdGlwcm90b2NvbBgQIAEoCBIYChBleHRlbmRlZF9uZXh0aG9wGBEgASgIEioKCHNlc3Npb25zGBIgASgOMhgucGVlcm1hbi5TZXNzaW9uUHJvdG9jb2wSDwoHcGFzc2l2ZRgTIAEoCBIZChFpbXBvcnRfbWF4X3ByZWZpeBgUIAEoBRIZChFleHBvcnRfbWF4X3ByZWZpeBgVIAEoBRIWCg5vcmlnaW5fbm9kZV9pZBgWIAEoCSIfChFEZWxldGVQZWVyUmVxdWVzdBIKCgJpZBgBIAEoCSIUChJEZWxldGVQZWVyUmVzcG9uc2UiHwoRVG9nZ2xlUGVlclJlcXVlc3QSCgoCaWQYASABKAkiGAoWR2VuZXJhdGVLZXlwYWlyUmVxdWVzdCJCChdHZW5lcmF0ZUtleXBhaXJSZXNwb25zZRITCgtwcml2YXRlX2tleRgBIAEoCRISCgpwdWJsaWNfa2V5GAIgASgJIh4KEEdldENvbmZpZ1JlcXVlc3QSCgoCaWQYASABKAkiIQoOQ29uZmlnUmVzcG9uc2USDwoHY29udGVudBgBIAEoCSISChBFeHBvcnRBbGxSZXF1ZXN0IhQKEkdldFNldHRpbmdzUmVxdWVzdCI6ChNTYXZlU2V0dGluZ3NSZXF1ZXN0EiMKCHNldHRpbmdzGAEgASgLMhEucGVlcm1hbi5TZXR0aW5ncyKrAQoETm9kZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC2xpc3Rlbl9hZGRyGAMgASgJEhEKCWxvY2FsX2FzbhgEIAEoAxITCgtkZXNjcmlwdGlvbhgFIAEoCRIOCgZvbmxpbmUYBiABKAgSFAoMbGFzdF9zZWVuX2F0GAcgASgJEhIKCmNyZWF0ZWRfYXQYCCABKAkSEgoKdXBkYXRlZF9hdBgJIAEoCSLnAQoLUHJvYmVSZXN1bHQSCgoCaWQYASABKAkSFAoMZnJvbV9ub2RlX2lkGAIgASgJEhIKCnRvX25vZGVfaWQYAyABKAkSFgoOYXZnX2xhdGVuY3lfbXMYBCABKAESFgoObWluX2xhdGVuY3lfbXMYBSABKAESFgoObWF4X2xhdGVuY3lfbXMYBiABKAESFwoPcGFja2V0X2xvc3NfcGN0GAcgASgBEhQKDHBhY2tldHNfc2VudBgIIAEoBRIYChBwYWNrZXRzX3JlY2VpdmVkGAkgASgFEhEKCXByb2JlZF9hdBgKIAEoCSKmAQoNQ29tbXVuaXR5UnVsZRIKCgJpZBgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIWCg5tYXhfbGF0ZW5jeV9tcxgDIAEoARIbChNtYXhfcGFja2V0X2xvc3NfcGN0GAQgASgBEhYKDmNvbW11bml0eV9pcHY0GAUgASgJEhYKDmNvbW11bml0eV9pcHY2GAYgASgJEg8KB2VuYWJsZWQYByABKAgiEgoQTGlzdE5vZGVzUmVxdWVzdCIxChFMaXN0Tm9kZXNSZXNwb25zZRIcCgVub2RlcxgBIAMoCzINLnBlZXJtYW4uTm9kZSJgChNSZWdpc3Rlck5vZGVSZXF1ZXN0EgwKBG5hbWUYASABKAkSEwoLbGlzdGVuX2FkZHIYAiABKAkSEQoJbG9jYWxfYXNuGAMgASgDEhMKC2Rlc2NyaXB0aW9uGAQgASgJImoKEVVwZGF0ZU5vZGVSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLbGlzdGVuX2FkZHIYAyABKAkSEQoJbG9jYWxfYXNuGAQgASgDEhMKC2Rlc2NyaXB0aW9uGAUgASgJIh8KEURlbGV0ZU5vZGVSZXF1ZXN0EgoKAmlkGAEgASgJIhQKEkRlbGV0ZU5vZGVSZXNwb25zZSJGCg9QdXNoUGVlclJlcXVlc3QSGwoEcGVlchgBIAEoCzINLnBlZXJtYW4uUGVlchIWCg5vcmlnaW5fbm9kZV9pZBgCIAEoCSISChBQdXNoUGVlclJlc3BvbnNlIiEKEFB1bGxQZWVyc1JlcXVlc3QSDQoFc2luY2UYASABKAkiMQoRUHVsbFBlZXJzUmVzcG9uc2USHAoFcGVlcnMYASADKAsyDS5wZWVybWFuLlBlZXIiPgoWUHVzaFByb2JlUmVzdWx0UmVxdWVzdBIkCgZyZXN1bHQYASABKAsyFC5wZWVybWFuLlByb2JlUmVzdWx0IhkKF1B1c2hQcm9iZVJlc3VsdFJlc3BvbnNlIlIKF0xpc3RQcm9iZVJlc3VsdHNSZXF1ZXN0EhQKDGZyb21fbm9kZV9pZBgBIAEoCRISCgp0b19ub2RlX2lkGAIgASgJEg0KBWxpbWl0GAMgASgFIkEKGExpc3RQcm9iZVJlc3VsdHNSZXNwb25zZRIlCgdyZXN1bHRzGAEgAygLMhQucGVlcm1hbi5Qcm9iZVJlc3VsdCI7Cg9SdW5Qcm9iZVJlcXVlc3QSFAoMZnJvbV9ub2RlX2lkGAEgASgJEhIKCnRvX25vZGVfaWQYAiABKAkiOAoQUnVuUHJvYmVSZXNwb25zZRIkCgZyZXN1bHQYASABKAsyFC5wZWVybWFuLlByb2JlUmVzdWx0IhsKGUxpc3RDb21tdW5pdHlSdWxlc1JlcXVlc3QiQwoaTGlzdENvbW11bml0eVJ1bGVzUmVzcG9uc2USJQoFcnVsZXMYASADKAsyFi5wZWVybWFuLkNvbW11bml0eVJ1bGUiQAoYU2F2ZUNvbW11bml0eVJ1bGVSZXF1ZXN0EiQKBHJ1bGUYASABKAsyFi5wZWVybWFuLkNvbW11bml0eVJ1bGUiKAoaRGVsZXRlQ29tbXVuaXR5UnVsZVJlcXVlc3QSCgoCaWQYASABKAkiHQobRGVsZXRlQ29tbXVuaXR5UnVsZVJlc3BvbnNlIiwKGUdldFBlZXJDb21tdW5pdGllc1JlcXVlc3QSDwoHcGVlcl9pZBgBIAEoCSJMChpHZXRQZWVyQ29tbXVuaXRpZXNSZXNwb25zZRIWCg5jb21tdW5pdHlfaXB2NBgBIAMoCRIWCg5jb21tdW5pdHlfaXB2NhgCIAMoCSpHCg9TZXNzaW9uUHJvdG9jb2wSEAoMU0VTU0lPTl9JUFY0EAASEAoMU0VTU0lPTl9JUFY2EAESEAoMU0VTU0lPTl9CT1RIEAIy6gUKC1BlZXJTZXJ2aWNlEkIKCUxpc3RQZWVycxIZLnBlZXJtYW4uTGlzdFBlZXJzUmVxdWVzdBoaLnBlZXJtYW4uTGlzdFBlZXJzUmVzcG9uc2USMQoHR2V0UGVlchIXLnBlZXJtYW4uR2V0UGVlclJlcXVlc3QaDS5wZWVybWFuLlBlZXISNwoKQ3JlYXRlUGVlchIaLnBlZXJtYW4uQ3JlYXRlUGVlclJlcXVlc3QaDS5wZWVybWFuLlBlZXISNwoKVXBkYXRlUGVlchIaLnBlZXJtYW4uVXBkYXRlUGVlclJlcXVlc3QaDS5wZWVybWFuLlBlZXISRQoKRGVsZXRlUGVlchIaLnBlZXJtYW4uRGVsZXRlUGVlclJlcXVlc3QaGy5wZWVybWFuLkRlbGV0ZVBlZXJSZXNwb25zZRI3CgpUb2dnbGVQZWVyEhoucGVlcm1hbi5Ub2dnbGVQZWVyUmVxdWVzdBoNLnBlZXJtYW4uUGVlchJUCg9HZW5lcmF0ZUtleXBhaXISHy5wZWVybWFuLkdlbmVyYXRlS2V5cGFpclJlcXVlc3QaIC5wZWVybWFuLkdlbmVyYXRlS2V5cGFpclJlc3BvbnNlEkgKEkdldFdpcmVHdWFyZENvbmZpZxIZLnBlZXJtYW4uR2V0Q29uZmlnUmVxdWVzdBoXLnBlZXJtYW4uQ29uZmlnUmVzcG9uc2USQwoNR2V0QmlyZENvbmZpZxIZLnBlZXJtYW4uR2V0Q29uZmlnUmVxdWVzdBoXLnBlZXJtYW4uQ29uZmlnUmVzcG9uc2USSAoSRXhwb3J0QWxsV2lyZUd1YXJkEhkucGVlcm1hbi5FeHBvcnRBbGxSZXF1ZXN0GhcucGVlcm1hbi5Db25maWdSZXNwb25zZRJDCg1FeHBvcnRBbGxCaXJkEhkucGVlcm1hbi5FeHBvcnRBbGxSZXF1ZXN0GhcucGVlcm1hbi5Db25maWdSZXNwb25zZTKRAQoPU2V0dGluZ3NTZXJ2aWNlEj0KC0dldFNldHRpbmdzEhsucGVlcm1hbi5HZXRTZXR0aW5nc1JlcXVlc3QaES5wZWVybWFuLlNldHRpbmdzEj8KDFNhdmVTZXR0aW5ncxIcLnBlZXJtYW4uU2F2ZVNldHRpbmdzUmVxdWVzdBoRLnBlZXJtYW4uU2V0dGluZ3My9gcKDkNsdXN0ZXJTZXJ2aWNlEkIKCUxpc3ROb2RlcxIZLnBlZXJtYW4uTGlzdE5vZGVzUmVxdWVzdBoaLnBlZXJtYW4uTGlzdE5vZGVzUmVzcG9uc2USOwoMUmVnaXN0ZXJOb2RlEhwucGVlcm1hbi5SZWdpc3Rlck5vZGVSZXF1ZXN0Gg0ucGVlcm1hbi5Ob2RlEjcKClVwZGF0ZU5vZGUSGi5wZWVybWFuLlVwZGF0ZU5vZGVSZXF1ZXN0Gg0ucGVlcm1hbi5Ob2RlEkUKCkRlbGV0ZU5vZGUSGi5wZWVybWFuLkRlbGV0ZU5vZGVSZXF1ZXN0GhsucGVlcm1hbi5EZWxldGVOb2RlUmVzcG9uc2USPwoIUHVzaFBlZXISGC5wZWVybWFuLlB1c2hQZWVyUmVxdWVzdBoZLnBlZXJtYW4uUHVzaFBlZXJSZXNwb25zZRJCCglQdWxsUGVlcnMSGS5wZWVybWFuLlB1bGxQZWVyc1JlcXVlc3QaGi5wZWVybWFuLlB1bGxQZWVyc1Jlc3BvbnNlElQKD1B1c2hQcm9iZVJlc3VsdBIfLnBlZXJtYW4uUHVzaFByb2JlUmVzdWx0UmVxdWVzdBogLnBlZXJtYW4uUHVzaFByb2JlUmVzdWx0UmVzcG9uc2USVwoQTGlzdFByb2JlUmVzdWx0cxIgLnBlZXJtYW4uTGlzdFByb2JlUmVzdWx0c1JlcXVlc3QaIS5wZWVybWFuLkxpc3RQcm9iZVJlc3VsdHNSZXNwb25zZRI/CghSdW5Qcm9iZRIYLnBlZXJtYW4uUnVuUHJvYmVSZXF1ZXN0GhkucGVlcm1hbi5SdW5Qcm9iZVJlc3BvbnNlEl0KEkxpc3RDb21tdW5pdHlSdWxlcxIiLnBlZXJtYW4uTGlzdENvbW11bml0eVJ1bGVzUmVxdWVzdBojLnBlZXJtYW4uTGlzdENvbW11bml0eVJ1bGVzUmVzcG9uc2USTgoRU2F2ZUNvbW11bml0eVJ1bGUSIS5wZWVybWFuLlNhdmVDb21tdW5pdHlSdWxlUmVxdWVzdBoWLnBlZXJtYW4uQ29tbXVuaXR5UnVsZRJgChNEZWxldGVDb21tdW5pdHlSdWxlEiMucGVlcm1hbi5EZWxldGVDb21tdW5pdHlSdWxlUmVxdWVzdBokLnBlZXJtYW4uRGVsZXRlQ29tbXVuaXR5UnVsZVJlc3BvbnNlEl0KEkdldFBlZXJDb21tdW5pdGllcxIiLnBlZXJtYW4uR2V0UGVlckNvbW11bml0aWVzUmVxdWVzdBojLnBlZXJtYW4uR2V0UGVlckNvbW11bml0aWVzUmVzcG9uc2ViBnByb3RvMw");
 
 /**
  * @generated from message peerman.Peer
@@ -143,6 +143,13 @@ export type Peer = Message<"peerman.Peer"> & {
    * @generated from field: string updated_at = 24;
    */
   updatedAt: string;
+
+  /**
+   * Cluster
+   *
+   * @generated from field: string origin_node_id = 25;
+   */
+  originNodeId: string;
 };
 
 /**
@@ -349,6 +356,11 @@ export type CreatePeerRequest = Message<"peerman.CreatePeerRequest"> & {
    * @generated from field: int32 export_max_prefix = 20;
    */
   exportMaxPrefix: number;
+
+  /**
+   * @generated from field: string origin_node_id = 21;
+   */
+  originNodeId: string;
 };
 
 /**
@@ -466,6 +478,11 @@ export type UpdatePeerRequest = Message<"peerman.UpdatePeerRequest"> & {
    * @generated from field: int32 export_max_prefix = 21;
    */
   exportMaxPrefix: number;
+
+  /**
+   * @generated from field: string origin_node_id = 22;
+   */
+  originNodeId: string;
 };
 
 /**
@@ -635,6 +652,607 @@ export const SaveSettingsRequestSchema: GenMessage<SaveSettingsRequest> = /*@__P
   messageDesc(file_peerman, 16);
 
 /**
+ * @generated from message peerman.Node
+ */
+export type Node = Message<"peerman.Node"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string listen_addr = 3;
+   */
+  listenAddr: string;
+
+  /**
+   * @generated from field: int64 local_asn = 4;
+   */
+  localAsn: bigint;
+
+  /**
+   * @generated from field: string description = 5;
+   */
+  description: string;
+
+  /**
+   * @generated from field: bool online = 6;
+   */
+  online: boolean;
+
+  /**
+   * @generated from field: string last_seen_at = 7;
+   */
+  lastSeenAt: string;
+
+  /**
+   * @generated from field: string created_at = 8;
+   */
+  createdAt: string;
+
+  /**
+   * @generated from field: string updated_at = 9;
+   */
+  updatedAt: string;
+};
+
+/**
+ * Describes the message peerman.Node.
+ * Use `create(NodeSchema)` to create a new message.
+ */
+export const NodeSchema: GenMessage<Node> = /*@__PURE__*/
+  messageDesc(file_peerman, 17);
+
+/**
+ * @generated from message peerman.ProbeResult
+ */
+export type ProbeResult = Message<"peerman.ProbeResult"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string from_node_id = 2;
+   */
+  fromNodeId: string;
+
+  /**
+   * @generated from field: string to_node_id = 3;
+   */
+  toNodeId: string;
+
+  /**
+   * @generated from field: double avg_latency_ms = 4;
+   */
+  avgLatencyMs: number;
+
+  /**
+   * @generated from field: double min_latency_ms = 5;
+   */
+  minLatencyMs: number;
+
+  /**
+   * @generated from field: double max_latency_ms = 6;
+   */
+  maxLatencyMs: number;
+
+  /**
+   * @generated from field: double packet_loss_pct = 7;
+   */
+  packetLossPct: number;
+
+  /**
+   * @generated from field: int32 packets_sent = 8;
+   */
+  packetsSent: number;
+
+  /**
+   * @generated from field: int32 packets_received = 9;
+   */
+  packetsReceived: number;
+
+  /**
+   * @generated from field: string probed_at = 10;
+   */
+  probedAt: string;
+};
+
+/**
+ * Describes the message peerman.ProbeResult.
+ * Use `create(ProbeResultSchema)` to create a new message.
+ */
+export const ProbeResultSchema: GenMessage<ProbeResult> = /*@__PURE__*/
+  messageDesc(file_peerman, 18);
+
+/**
+ * @generated from message peerman.CommunityRule
+ */
+export type CommunityRule = Message<"peerman.CommunityRule"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string description = 2;
+   */
+  description: string;
+
+  /**
+   * @generated from field: double max_latency_ms = 3;
+   */
+  maxLatencyMs: number;
+
+  /**
+   * @generated from field: double max_packet_loss_pct = 4;
+   */
+  maxPacketLossPct: number;
+
+  /**
+   * @generated from field: string community_ipv4 = 5;
+   */
+  communityIpv4: string;
+
+  /**
+   * @generated from field: string community_ipv6 = 6;
+   */
+  communityIpv6: string;
+
+  /**
+   * @generated from field: bool enabled = 7;
+   */
+  enabled: boolean;
+};
+
+/**
+ * Describes the message peerman.CommunityRule.
+ * Use `create(CommunityRuleSchema)` to create a new message.
+ */
+export const CommunityRuleSchema: GenMessage<CommunityRule> = /*@__PURE__*/
+  messageDesc(file_peerman, 19);
+
+/**
+ * Node CRUD
+ *
+ * @generated from message peerman.ListNodesRequest
+ */
+export type ListNodesRequest = Message<"peerman.ListNodesRequest"> & {
+};
+
+/**
+ * Describes the message peerman.ListNodesRequest.
+ * Use `create(ListNodesRequestSchema)` to create a new message.
+ */
+export const ListNodesRequestSchema: GenMessage<ListNodesRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 20);
+
+/**
+ * @generated from message peerman.ListNodesResponse
+ */
+export type ListNodesResponse = Message<"peerman.ListNodesResponse"> & {
+  /**
+   * @generated from field: repeated peerman.Node nodes = 1;
+   */
+  nodes: Node[];
+};
+
+/**
+ * Describes the message peerman.ListNodesResponse.
+ * Use `create(ListNodesResponseSchema)` to create a new message.
+ */
+export const ListNodesResponseSchema: GenMessage<ListNodesResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 21);
+
+/**
+ * @generated from message peerman.RegisterNodeRequest
+ */
+export type RegisterNodeRequest = Message<"peerman.RegisterNodeRequest"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string listen_addr = 2;
+   */
+  listenAddr: string;
+
+  /**
+   * @generated from field: int64 local_asn = 3;
+   */
+  localAsn: bigint;
+
+  /**
+   * @generated from field: string description = 4;
+   */
+  description: string;
+};
+
+/**
+ * Describes the message peerman.RegisterNodeRequest.
+ * Use `create(RegisterNodeRequestSchema)` to create a new message.
+ */
+export const RegisterNodeRequestSchema: GenMessage<RegisterNodeRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 22);
+
+/**
+ * @generated from message peerman.UpdateNodeRequest
+ */
+export type UpdateNodeRequest = Message<"peerman.UpdateNodeRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string listen_addr = 3;
+   */
+  listenAddr: string;
+
+  /**
+   * @generated from field: int64 local_asn = 4;
+   */
+  localAsn: bigint;
+
+  /**
+   * @generated from field: string description = 5;
+   */
+  description: string;
+};
+
+/**
+ * Describes the message peerman.UpdateNodeRequest.
+ * Use `create(UpdateNodeRequestSchema)` to create a new message.
+ */
+export const UpdateNodeRequestSchema: GenMessage<UpdateNodeRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 23);
+
+/**
+ * @generated from message peerman.DeleteNodeRequest
+ */
+export type DeleteNodeRequest = Message<"peerman.DeleteNodeRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message peerman.DeleteNodeRequest.
+ * Use `create(DeleteNodeRequestSchema)` to create a new message.
+ */
+export const DeleteNodeRequestSchema: GenMessage<DeleteNodeRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 24);
+
+/**
+ * @generated from message peerman.DeleteNodeResponse
+ */
+export type DeleteNodeResponse = Message<"peerman.DeleteNodeResponse"> & {
+};
+
+/**
+ * Describes the message peerman.DeleteNodeResponse.
+ * Use `create(DeleteNodeResponseSchema)` to create a new message.
+ */
+export const DeleteNodeResponseSchema: GenMessage<DeleteNodeResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 25);
+
+/**
+ * Sync
+ *
+ * @generated from message peerman.PushPeerRequest
+ */
+export type PushPeerRequest = Message<"peerman.PushPeerRequest"> & {
+  /**
+   * @generated from field: peerman.Peer peer = 1;
+   */
+  peer?: Peer | undefined;
+
+  /**
+   * @generated from field: string origin_node_id = 2;
+   */
+  originNodeId: string;
+};
+
+/**
+ * Describes the message peerman.PushPeerRequest.
+ * Use `create(PushPeerRequestSchema)` to create a new message.
+ */
+export const PushPeerRequestSchema: GenMessage<PushPeerRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 26);
+
+/**
+ * @generated from message peerman.PushPeerResponse
+ */
+export type PushPeerResponse = Message<"peerman.PushPeerResponse"> & {
+};
+
+/**
+ * Describes the message peerman.PushPeerResponse.
+ * Use `create(PushPeerResponseSchema)` to create a new message.
+ */
+export const PushPeerResponseSchema: GenMessage<PushPeerResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 27);
+
+/**
+ * @generated from message peerman.PullPeersRequest
+ */
+export type PullPeersRequest = Message<"peerman.PullPeersRequest"> & {
+  /**
+   * @generated from field: string since = 1;
+   */
+  since: string;
+};
+
+/**
+ * Describes the message peerman.PullPeersRequest.
+ * Use `create(PullPeersRequestSchema)` to create a new message.
+ */
+export const PullPeersRequestSchema: GenMessage<PullPeersRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 28);
+
+/**
+ * @generated from message peerman.PullPeersResponse
+ */
+export type PullPeersResponse = Message<"peerman.PullPeersResponse"> & {
+  /**
+   * @generated from field: repeated peerman.Peer peers = 1;
+   */
+  peers: Peer[];
+};
+
+/**
+ * Describes the message peerman.PullPeersResponse.
+ * Use `create(PullPeersResponseSchema)` to create a new message.
+ */
+export const PullPeersResponseSchema: GenMessage<PullPeersResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 29);
+
+/**
+ * @generated from message peerman.PushProbeResultRequest
+ */
+export type PushProbeResultRequest = Message<"peerman.PushProbeResultRequest"> & {
+  /**
+   * @generated from field: peerman.ProbeResult result = 1;
+   */
+  result?: ProbeResult | undefined;
+};
+
+/**
+ * Describes the message peerman.PushProbeResultRequest.
+ * Use `create(PushProbeResultRequestSchema)` to create a new message.
+ */
+export const PushProbeResultRequestSchema: GenMessage<PushProbeResultRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 30);
+
+/**
+ * @generated from message peerman.PushProbeResultResponse
+ */
+export type PushProbeResultResponse = Message<"peerman.PushProbeResultResponse"> & {
+};
+
+/**
+ * Describes the message peerman.PushProbeResultResponse.
+ * Use `create(PushProbeResultResponseSchema)` to create a new message.
+ */
+export const PushProbeResultResponseSchema: GenMessage<PushProbeResultResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 31);
+
+/**
+ * Probe
+ *
+ * @generated from message peerman.ListProbeResultsRequest
+ */
+export type ListProbeResultsRequest = Message<"peerman.ListProbeResultsRequest"> & {
+  /**
+   * @generated from field: string from_node_id = 1;
+   */
+  fromNodeId: string;
+
+  /**
+   * @generated from field: string to_node_id = 2;
+   */
+  toNodeId: string;
+
+  /**
+   * @generated from field: int32 limit = 3;
+   */
+  limit: number;
+};
+
+/**
+ * Describes the message peerman.ListProbeResultsRequest.
+ * Use `create(ListProbeResultsRequestSchema)` to create a new message.
+ */
+export const ListProbeResultsRequestSchema: GenMessage<ListProbeResultsRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 32);
+
+/**
+ * @generated from message peerman.ListProbeResultsResponse
+ */
+export type ListProbeResultsResponse = Message<"peerman.ListProbeResultsResponse"> & {
+  /**
+   * @generated from field: repeated peerman.ProbeResult results = 1;
+   */
+  results: ProbeResult[];
+};
+
+/**
+ * Describes the message peerman.ListProbeResultsResponse.
+ * Use `create(ListProbeResultsResponseSchema)` to create a new message.
+ */
+export const ListProbeResultsResponseSchema: GenMessage<ListProbeResultsResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 33);
+
+/**
+ * @generated from message peerman.RunProbeRequest
+ */
+export type RunProbeRequest = Message<"peerman.RunProbeRequest"> & {
+  /**
+   * @generated from field: string from_node_id = 1;
+   */
+  fromNodeId: string;
+
+  /**
+   * @generated from field: string to_node_id = 2;
+   */
+  toNodeId: string;
+};
+
+/**
+ * Describes the message peerman.RunProbeRequest.
+ * Use `create(RunProbeRequestSchema)` to create a new message.
+ */
+export const RunProbeRequestSchema: GenMessage<RunProbeRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 34);
+
+/**
+ * @generated from message peerman.RunProbeResponse
+ */
+export type RunProbeResponse = Message<"peerman.RunProbeResponse"> & {
+  /**
+   * @generated from field: peerman.ProbeResult result = 1;
+   */
+  result?: ProbeResult | undefined;
+};
+
+/**
+ * Describes the message peerman.RunProbeResponse.
+ * Use `create(RunProbeResponseSchema)` to create a new message.
+ */
+export const RunProbeResponseSchema: GenMessage<RunProbeResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 35);
+
+/**
+ * Community
+ *
+ * @generated from message peerman.ListCommunityRulesRequest
+ */
+export type ListCommunityRulesRequest = Message<"peerman.ListCommunityRulesRequest"> & {
+};
+
+/**
+ * Describes the message peerman.ListCommunityRulesRequest.
+ * Use `create(ListCommunityRulesRequestSchema)` to create a new message.
+ */
+export const ListCommunityRulesRequestSchema: GenMessage<ListCommunityRulesRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 36);
+
+/**
+ * @generated from message peerman.ListCommunityRulesResponse
+ */
+export type ListCommunityRulesResponse = Message<"peerman.ListCommunityRulesResponse"> & {
+  /**
+   * @generated from field: repeated peerman.CommunityRule rules = 1;
+   */
+  rules: CommunityRule[];
+};
+
+/**
+ * Describes the message peerman.ListCommunityRulesResponse.
+ * Use `create(ListCommunityRulesResponseSchema)` to create a new message.
+ */
+export const ListCommunityRulesResponseSchema: GenMessage<ListCommunityRulesResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 37);
+
+/**
+ * @generated from message peerman.SaveCommunityRuleRequest
+ */
+export type SaveCommunityRuleRequest = Message<"peerman.SaveCommunityRuleRequest"> & {
+  /**
+   * @generated from field: peerman.CommunityRule rule = 1;
+   */
+  rule?: CommunityRule | undefined;
+};
+
+/**
+ * Describes the message peerman.SaveCommunityRuleRequest.
+ * Use `create(SaveCommunityRuleRequestSchema)` to create a new message.
+ */
+export const SaveCommunityRuleRequestSchema: GenMessage<SaveCommunityRuleRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 38);
+
+/**
+ * @generated from message peerman.DeleteCommunityRuleRequest
+ */
+export type DeleteCommunityRuleRequest = Message<"peerman.DeleteCommunityRuleRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message peerman.DeleteCommunityRuleRequest.
+ * Use `create(DeleteCommunityRuleRequestSchema)` to create a new message.
+ */
+export const DeleteCommunityRuleRequestSchema: GenMessage<DeleteCommunityRuleRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 39);
+
+/**
+ * @generated from message peerman.DeleteCommunityRuleResponse
+ */
+export type DeleteCommunityRuleResponse = Message<"peerman.DeleteCommunityRuleResponse"> & {
+};
+
+/**
+ * Describes the message peerman.DeleteCommunityRuleResponse.
+ * Use `create(DeleteCommunityRuleResponseSchema)` to create a new message.
+ */
+export const DeleteCommunityRuleResponseSchema: GenMessage<DeleteCommunityRuleResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 40);
+
+/**
+ * @generated from message peerman.GetPeerCommunitiesRequest
+ */
+export type GetPeerCommunitiesRequest = Message<"peerman.GetPeerCommunitiesRequest"> & {
+  /**
+   * @generated from field: string peer_id = 1;
+   */
+  peerId: string;
+};
+
+/**
+ * Describes the message peerman.GetPeerCommunitiesRequest.
+ * Use `create(GetPeerCommunitiesRequestSchema)` to create a new message.
+ */
+export const GetPeerCommunitiesRequestSchema: GenMessage<GetPeerCommunitiesRequest> = /*@__PURE__*/
+  messageDesc(file_peerman, 41);
+
+/**
+ * @generated from message peerman.GetPeerCommunitiesResponse
+ */
+export type GetPeerCommunitiesResponse = Message<"peerman.GetPeerCommunitiesResponse"> & {
+  /**
+   * @generated from field: repeated string community_ipv4 = 1;
+   */
+  communityIpv4: string[];
+
+  /**
+   * @generated from field: repeated string community_ipv6 = 2;
+   */
+  communityIpv6: string[];
+};
+
+/**
+ * Describes the message peerman.GetPeerCommunitiesResponse.
+ * Use `create(GetPeerCommunitiesResponseSchema)` to create a new message.
+ */
+export const GetPeerCommunitiesResponseSchema: GenMessage<GetPeerCommunitiesResponse> = /*@__PURE__*/
+  messageDesc(file_peerman, 42);
+
+/**
  * @generated from enum peerman.SessionProtocol
  */
 export enum SessionProtocol {
@@ -777,4 +1395,115 @@ export const SettingsService: GenService<{
   },
 }> = /*@__PURE__*/
   serviceDesc(file_peerman, 1);
+
+/**
+ * @generated from service peerman.ClusterService
+ */
+export const ClusterService: GenService<{
+  /**
+   * @generated from rpc peerman.ClusterService.ListNodes
+   */
+  listNodes: {
+    methodKind: "unary";
+    input: typeof ListNodesRequestSchema;
+    output: typeof ListNodesResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.RegisterNode
+   */
+  registerNode: {
+    methodKind: "unary";
+    input: typeof RegisterNodeRequestSchema;
+    output: typeof NodeSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.UpdateNode
+   */
+  updateNode: {
+    methodKind: "unary";
+    input: typeof UpdateNodeRequestSchema;
+    output: typeof NodeSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.DeleteNode
+   */
+  deleteNode: {
+    methodKind: "unary";
+    input: typeof DeleteNodeRequestSchema;
+    output: typeof DeleteNodeResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.PushPeer
+   */
+  pushPeer: {
+    methodKind: "unary";
+    input: typeof PushPeerRequestSchema;
+    output: typeof PushPeerResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.PullPeers
+   */
+  pullPeers: {
+    methodKind: "unary";
+    input: typeof PullPeersRequestSchema;
+    output: typeof PullPeersResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.PushProbeResult
+   */
+  pushProbeResult: {
+    methodKind: "unary";
+    input: typeof PushProbeResultRequestSchema;
+    output: typeof PushProbeResultResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.ListProbeResults
+   */
+  listProbeResults: {
+    methodKind: "unary";
+    input: typeof ListProbeResultsRequestSchema;
+    output: typeof ListProbeResultsResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.RunProbe
+   */
+  runProbe: {
+    methodKind: "unary";
+    input: typeof RunProbeRequestSchema;
+    output: typeof RunProbeResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.ListCommunityRules
+   */
+  listCommunityRules: {
+    methodKind: "unary";
+    input: typeof ListCommunityRulesRequestSchema;
+    output: typeof ListCommunityRulesResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.SaveCommunityRule
+   */
+  saveCommunityRule: {
+    methodKind: "unary";
+    input: typeof SaveCommunityRuleRequestSchema;
+    output: typeof CommunityRuleSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.DeleteCommunityRule
+   */
+  deleteCommunityRule: {
+    methodKind: "unary";
+    input: typeof DeleteCommunityRuleRequestSchema;
+    output: typeof DeleteCommunityRuleResponseSchema;
+  },
+  /**
+   * @generated from rpc peerman.ClusterService.GetPeerCommunities
+   */
+  getPeerCommunities: {
+    methodKind: "unary";
+    input: typeof GetPeerCommunitiesRequestSchema;
+    output: typeof GetPeerCommunitiesResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_peerman, 2);
 

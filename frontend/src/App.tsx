@@ -6,6 +6,11 @@ import PeerDetail from './components/peers/PeerDetail';
 import SettingsPage from './components/settings/SettingsForm';
 import WireGuardAllConfig from './components/config/WireGuardConfig';
 import BirdAllConfig from './components/config/BirdConfig';
+import NodesTable from './components/nodes/NodesTable';
+import NodeForm from './components/nodes/NodeForm';
+import NodeDetail from './components/nodes/NodeDetail';
+import ProbeDashboard from './components/probes/ProbeDashboard';
+import CommunityRules from './components/communities/CommunityRules';
 
 function ExportPage() {
   return (
@@ -40,6 +45,12 @@ export default function App() {
           <Route path="/peers/:id/edit" element={<PeerForm />} />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/nodes" element={<NodesTable />} />
+          <Route path="/nodes/new" element={<NodeForm />} />
+          <Route path="/nodes/:id" element={<NodeDetail />} />
+          <Route path="/nodes/:id/edit" element={<NodeForm />} />
+          <Route path="/probes" element={<ProbeDashboard />} />
+          <Route path="/communities" element={<CommunityRules />} />
         </Routes>
       </div>
     </Layout>

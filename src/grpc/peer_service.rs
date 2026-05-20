@@ -16,7 +16,7 @@ pub struct PeerServiceImpl {
     pub settings_repo: SettingsRepository,
 }
 
-fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
+pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
     Peer {
         id: p.id.clone(),
         name: p.name.clone(),
@@ -42,6 +42,7 @@ fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
         enabled: p.enabled,
         created_at: p.created_at.clone(),
         updated_at: p.updated_at.clone(),
+        origin_node_id: p.origin_node_id.clone().unwrap_or_default(),
     }
 }
 
@@ -66,6 +67,7 @@ fn apply_create_fields(peer: &mut crate::models::peer::Peer, req: &CreatePeerReq
     peer.passive = req.passive;
     peer.import_max_prefix = if req.import_max_prefix == 0 { None } else { Some(req.import_max_prefix as i64) };
     peer.export_max_prefix = if req.export_max_prefix == 0 { None } else { Some(req.export_max_prefix as i64) };
+    peer.origin_node_id = if req.origin_node_id.is_empty() { None } else { Some(req.origin_node_id.clone()) };
 }
 
 #[tonic::async_trait]
@@ -157,6 +159,7 @@ impl PeerService for PeerServiceImpl {
         peer.passive = req.passive;
         peer.import_max_prefix = if req.import_max_prefix == 0 { None } else { Some(req.import_max_prefix as i64) };
         peer.export_max_prefix = if req.export_max_prefix == 0 { None } else { Some(req.export_max_prefix as i64) };
+        peer.origin_node_id = if req.origin_node_id.is_empty() { None } else { Some(req.origin_node_id.clone()) };
 
         let peer = self
             .peer_repo

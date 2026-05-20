@@ -63,6 +63,8 @@ message Peer {
   bool enabled = 22;
   string created_at = 23;
   string updated_at = 24;
+  // Cluster
+  string origin_node_id = 25;
 }
 
 message Settings {
@@ -108,6 +110,7 @@ message CreatePeerRequest {
   bool passive = 18;
   int32 import_max_prefix = 19;
   int32 export_max_prefix = 20;
+  string origin_node_id = 21;
 }
 
 message UpdatePeerRequest {
@@ -132,6 +135,7 @@ message UpdatePeerRequest {
   bool passive = 19;
   int32 import_max_prefix = 20;
   int32 export_max_prefix = 21;
+  string origin_node_id = 22;
 }
 
 message DeletePeerRequest {
@@ -167,4 +171,114 @@ message GetSettingsRequest {}
 
 message SaveSettingsRequest {
   Settings settings = 1;
+}
+
+// ── Cluster Service ──
+
+service ClusterService {
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+  rpc RegisterNode(RegisterNodeRequest) returns (Node);
+  rpc UpdateNode(UpdateNodeRequest) returns (Node);
+  rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
+  rpc PushPeer(PushPeerRequest) returns (PushPeerResponse);
+  rpc PullPeers(PullPeersRequest) returns (PullPeersResponse);
+  rpc PushProbeResult(PushProbeResultRequest) returns (PushProbeResultResponse);
+  rpc ListProbeResults(ListProbeResultsRequest) returns (ListProbeResultsResponse);
+  rpc RunProbe(RunProbeRequest) returns (RunProbeResponse);
+  rpc ListCommunityRules(ListCommunityRulesRequest) returns (ListCommunityRulesResponse);
+  rpc SaveCommunityRule(SaveCommunityRuleRequest) returns (CommunityRule);
+  rpc DeleteCommunityRule(DeleteCommunityRuleRequest) returns (DeleteCommunityRuleResponse);
+  rpc GetPeerCommunities(GetPeerCommunitiesRequest) returns (GetPeerCommunitiesResponse);
+}
+
+message Node {
+  string id = 1;
+  string name = 2;
+  string listen_addr = 3;
+  int64 local_asn = 4;
+  string description = 5;
+  bool online = 6;
+  string last_seen_at = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message ProbeResult {
+  string id = 1;
+  string from_node_id = 2;
+  string to_node_id = 3;
+  double avg_latency_ms = 4;
+  double min_latency_ms = 5;
+  double max_latency_ms = 6;
+  double packet_loss_pct = 7;
+  int32 packets_sent = 8;
+  int32 packets_received = 9;
+  string probed_at = 10;
+}
+
+message CommunityRule {
+  string id = 1;
+  string description = 2;
+  double max_latency_ms = 3;
+  double max_packet_loss_pct = 4;
+  string community_ipv4 = 5;
+  string community_ipv6 = 6;
+  bool enabled = 7;
+}
+
+// Node CRUD
+message ListNodesRequest {}
+message ListNodesResponse { repeated Node nodes = 1; }
+message RegisterNodeRequest {
+  string name = 1;
+  string listen_addr = 2;
+  int64 local_asn = 3;
+  string description = 4;
+}
+message UpdateNodeRequest {
+  string id = 1;
+  string name = 2;
+  string listen_addr = 3;
+  int64 local_asn = 4;
+  string description = 5;
+}
+message DeleteNodeRequest { string id = 1; }
+message DeleteNodeResponse {}
+
+// Sync
+message PushPeerRequest {
+  Peer peer = 1;
+  string origin_node_id = 2;
+}
+message PushPeerResponse {}
+message PullPeersRequest { string since = 1; }
+message PullPeersResponse { repeated Peer peers = 1; }
+
+message PushProbeResultRequest { ProbeResult result = 1; }
+message PushProbeResultResponse {}
+
+// Probe
+message ListProbeResultsRequest {
+  string from_node_id = 1;
+  string to_node_id = 2;
+  int32 limit = 3;
+}
+message ListProbeResultsResponse { repeated ProbeResult results = 1; }
+message RunProbeRequest {
+  string from_node_id = 1;
+  string to_node_id = 2;
+}
+message RunProbeResponse { ProbeResult result = 1; }
+
+// Community
+message ListCommunityRulesRequest {}
+message ListCommunityRulesResponse { repeated CommunityRule rules = 1; }
+message SaveCommunityRuleRequest { CommunityRule rule = 1; }
+message DeleteCommunityRuleRequest { string id = 1; }
+message DeleteCommunityRuleResponse {}
+
+message GetPeerCommunitiesRequest { string peer_id = 1; }
+message GetPeerCommunitiesResponse {
+  repeated string community_ipv4 = 1;
+  repeated string community_ipv6 = 2;
 }

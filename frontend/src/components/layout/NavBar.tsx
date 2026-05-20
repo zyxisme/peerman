@@ -1,10 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Settings, Download, Home, Cable } from 'lucide-react';
+import { Plus, Settings, Download, Home, Cable, Server, Activity, Tag } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const links = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/peers/new', label: 'New Peer', icon: Plus },
+  { to: '/nodes', label: 'Nodes', icon: Server },
+  { to: '/probes', label: 'Probes', icon: Activity },
+  { to: '/communities', label: 'Communities', icon: Tag },
   { to: '/export', label: 'Export', icon: Download },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];

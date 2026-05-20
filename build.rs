@@ -5,7 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Compile proto → Rust (tonic + prost)
     tonic_build::configure()
         .build_server(true)
-        .build_client(false)
+        .build_client(true)
         .compile_protos(&["proto/peerman.proto"], &["proto"])?;
 
     // 2. Build frontend (skip if no package.json or if SKIP_FRONTEND_BUILD is set)

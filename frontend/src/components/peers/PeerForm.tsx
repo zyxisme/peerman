@@ -5,6 +5,7 @@ import { create } from '@bufbuild/protobuf';
 import { CreatePeerRequestSchema, UpdatePeerRequestSchema } from '../../lib/peerman_pb';
 import { peerClient } from '../../lib/grpc';
 import { usePeer, useGenerateKeypair } from '../../hooks/usePeers';
+import { useNodes } from '../../hooks/useNodes';
 
 export default function PeerForm() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +13,7 @@ export default function PeerForm() {
   const isEdit = Boolean(id);
   const { peer: existingPeer, loading: loadingPeer } = usePeer(id);
   const { generate, loading: genLoading } = useGenerateKeypair();
+  const { nodes } = useNodes();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,6 +21,7 @@ export default function PeerForm() {
   const [description, setDescription] = useState('');
   const [asn, setAsn] = useState('0');
   const [localAsn, setLocalAsn] = useState('4242420000');
+  const [originNodeId, setOriginNodeId] = useState('');
   const [wgPrivateKey, setWgPrivateKey] = useState('');
   const [wgPublicKey, setWgPublicKey] = useState('');
   const [wgRemoteAddress, setWgRemoteAddress] = useState('');
@@ -58,6 +61,7 @@ export default function PeerForm() {
       setPassive(existingPeer.passive);
       setImportMaxPrefix(String(existingPeer.importMaxPrefix || '0'));
       setExportMaxPrefix(String(existingPeer.exportMaxPrefix || '0'));
+      setOriginNodeId(existingPeer.originNodeId);
     }
   }, [existingPeer]);
 
@@ -95,6 +99,7 @@ export default function PeerForm() {
       passive,
       importMaxPrefix: Number(importMaxPrefix || '0'),
       exportMaxPrefix: Number(exportMaxPrefix || '0'),
+      originNodeId,
     };
 
     try {
@@ -139,6 +144,15 @@ export default function PeerForm() {
             <Input label="Description" value={description} onChange={setDescription} />
             <Input label="Remote ASN" value={asn} onChange={setAsn} placeholder="424242XXXX" />
             <Input label="Local ASN" value={localAsn} onChange={setLocalAsn} />
+            <div className="flex flex-col gap-1">
+              <label className="text-caption text-mute">Origin Node</label>
+              <select value={originNodeId} onChange={(e) => setOriginNodeId(e.target.value)} className="form-input">
+                <option value="">This node (local)</option>
+                {nodes.filter(n => n.online).map(n => (
+                  <option key={n.id} value={n.id}>{n.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </fieldset>
 

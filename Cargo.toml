@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 # gRPC
-tonic = "0.12"
+tonic = { version = "0.12", features = ["transport"] }
 tonic-web = "0.12"
 prost = "0.13"
 
@@ -34,6 +34,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Cryptography (WireGuard key generation)
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 rand = "0.8"
+regex = "1"
 
 [build-dependencies]
 tonic-build = "0.12"
