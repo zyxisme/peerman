@@ -290,7 +290,7 @@ async fn main() -> anyhow::Result<()> {
             local_asn
         );
 
-        // Mark known peer nodes (add them if not already present)
+        // Seed bootstrap peers into local nodes table
         for addr in &peer_nodes {
             let addr = addr.trim();
             if addr.is_empty() {
@@ -298,13 +298,69 @@ async fn main() -> anyhow::Result<()> {
             }
             if state.node_repo.find_by_listen_addr(addr).await?.is_none() {
                 let name = format!("node-{}", addr.replace([':', '.'], "-"));
-                match state
-                    .node_repo
-                    .create(&name, addr, 0, "bootstrap node")
-                    .await
+                let _ = state.node_repo.create(&name, addr, 0, "bootstrap").await;
+            }
+        }
+
+        // Exchange node lists with bootstrap peers to discover the full cluster
+        if !peer_nodes.is_empty() {
+            let local_nodes = state.node_repo.list_all().await.unwrap_or_default();
+            let my_info: Vec<crate::grpc::generated::NodeInfo> = local_nodes
+                .iter()
+                .map(|n| crate::grpc::generated::NodeInfo {
+                    name: n.name.clone(),
+                    listen_addr: n.listen_addr.clone(),
+                    local_asn: n.local_asn,
+                    description: n.description.clone().unwrap_or_default(),
+                    last_seen_at: n.last_seen_at.clone(),
+                })
+                .collect();
+
+            for addr in &peer_nodes {
+                let addr = addr.trim();
+                if addr.is_empty() || addr == listen_addr.as_str() {
+                    continue;
+                }
+                match crate::cluster::aggregator::ClusterAggregator::exchange_with(
+                    addr,
+                    &cluster_key,
+                    my_info.clone(),
+                )
+                .await
                 {
-                    Ok(n) => tracing::info!("Added bootstrap node: {} ({})", name, n.id),
-                    Err(e) => tracing::warn!("Failed to add bootstrap node {}: {}", addr, e),
+                    Ok(remote_nodes) => {
+                        for info in &remote_nodes {
+                            if info.listen_addr == listen_addr {
+                                continue;
+                            }
+                            if state
+                                .node_repo
+                                .find_by_listen_addr(&info.listen_addr)
+                                .await?
+                                .is_some()
+                            {
+                                continue;
+                            }
+                            let _ = state.node_repo.create(
+                                &info.name,
+                                &info.listen_addr,
+                                info.local_asn,
+                                &info.description,
+                            ).await;
+                        }
+                        tracing::info!(
+                            "Discovered {} nodes from bootstrap peer {}",
+                            remote_nodes.len(),
+                            addr
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to exchange nodes with bootstrap peer {}: {}",
+                            addr,
+                            e
+                        );
+                    }
                 }
             }
         }
@@ -329,42 +385,88 @@ async fn main() -> anyhow::Result<()> {
             }
         });
 
-        // Spawn periodic probe task
+        // Spawn flap-suppressed health check + ICMP probe task
         if probe_interval > 0 {
-            let probe_state = state.clone();
-            let probe_node_name = node_name.clone();
-            let probe_token = shutdown.clone();
+            let probe_ct = shutdown.clone();
+            let probe_interval_dur = Duration::from_secs(probe_interval);
+            let node_repo_probe = state.node_repo.clone();
+            let probe_repo_probe = state.probe_repo.clone();
+            let node_name_probe = node_name.clone();
+            let cluster_key_probe = cluster_key.clone();
+            let cluster_cache = state.cluster_cache.clone();
 
             tokio::spawn(async move {
+                let mut fail_streaks: std::collections::HashMap<String, u32> =
+                    std::collections::HashMap::new();
+                let mut interval = tokio::time::interval(probe_interval_dur);
+                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
                 loop {
                     tokio::select! {
-                        _ = probe_token.cancelled() => {
-                            tracing::info!("Probe task shutting down");
-                            return;
-                        }
-                        _ = tokio::time::sleep(Duration::from_secs(probe_interval)) => {}
+                        _ = probe_ct.cancelled() => break,
+                        _ = interval.tick() => {}
                     }
 
-                    let nodes = match probe_state.node_repo.list_all().await {
+                    let nodes = match node_repo_probe.list_all().await {
                         Ok(n) => n,
                         Err(e) => {
-                            tracing::warn!("Failed to list nodes for probe: {}", e);
+                            tracing::warn!("Failed to list nodes for health check: {e}");
                             continue;
                         }
                     };
 
-                    let local_node = nodes.iter().find(|n| n.name == probe_node_name);
-                    let local = match local_node {
-                        Some(n) => n.clone(),
-                        None => continue,
-                    };
+                    let local = nodes.iter().find(|n| n.name == node_name_probe);
 
-                    let results =
-                        crate::services::probe::probe_all(&local, &nodes, &probe_state.probe_repo)
-                            .await;
+                    for node in &nodes {
+                        if node.name == node_name_probe {
+                            continue;
+                        }
 
-                    if !results.is_empty() {
-                        tracing::info!("Completed {} probes", results.len());
+                        let healthy = crate::cluster::aggregator::ClusterAggregator::health_check(
+                            &node.listen_addr,
+                            &cluster_key_probe,
+                        )
+                        .await;
+
+                        let prev_fails =
+                            fail_streaks.get(&node.listen_addr).copied().unwrap_or(0);
+
+                        if healthy {
+                            if prev_fails >= 2 {
+                                let _ = node_repo_probe.mark_online(&node.id).await;
+                                cluster_cache.invalidate(&node.listen_addr).await;
+                                tracing::info!(
+                                    "Node {} ({}) is back online",
+                                    node.name,
+                                    node.listen_addr
+                                );
+                            }
+                            fail_streaks.insert(node.listen_addr.clone(), 0);
+
+                            // Also run ICMP probe for latency data
+                            if let Some(ref local_node) = local {
+                                let _ = crate::services::probe::probe_between(
+                                    local_node,
+                                    node,
+                                    &probe_repo_probe,
+                                )
+                                .await;
+                            }
+                        } else {
+                            let new_fails = prev_fails + 1;
+                            fail_streaks.insert(node.listen_addr.clone(), new_fails);
+
+                            if new_fails >= 2 && prev_fails < 2 {
+                                let _ = node_repo_probe.mark_stale_node(&node.id).await;
+                                cluster_cache.mark_stale(&node.listen_addr).await;
+                                tracing::warn!(
+                                    "Node {} ({}) went offline after {} consecutive failures",
+                                    node.name,
+                                    node.listen_addr,
+                                    new_fails
+                                );
+                            }
+                        }
                     }
                 }
             });
