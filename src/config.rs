@@ -136,8 +136,8 @@ impl Default for ClusterConfig {
             node_name: String::new(),
             cluster_key: String::new(),
             peer_nodes: Vec::new(),
-            probe_interval_secs: 60,
-            sync_interval_secs: 30,
+            probe_interval_secs: default_probe_interval(),
+            sync_interval_secs: default_sync_interval(),
         }
     }
 }

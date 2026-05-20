@@ -286,7 +286,7 @@ async fn main() -> anyhow::Result<()> {
             local_asn
         );
 
-        // Mark known bootstrap nodes (add them if not already present)
+        // Mark known peer nodes (add them if not already present)
         for addr in &peer_nodes {
             let addr = addr.trim();
             if addr.is_empty() {
