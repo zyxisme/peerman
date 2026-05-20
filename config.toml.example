@@ -1,0 +1,24 @@
+# Peerman configuration
+# Copy this file to config.toml and edit as needed.
+
+[server]
+# Address to listen on
+listen_addr = "0.0.0.0:3000"
+
+[storage]
+# Path to SQLite database
+db_path = "data/peerman.db"
+
+[logging]
+# trace, debug, info, warn, error
+level = "info"
+
+[cluster]
+# Node name — leave empty for standalone mode (no cluster features)
+node_name = ""
+# Bootstrap cluster nodes
+bootstrap_nodes = []
+# ICMP probe interval in seconds (0 = disabled)
+probe_interval_secs = 60
+# Stale-node sync interval in seconds
+sync_interval_secs = 30
