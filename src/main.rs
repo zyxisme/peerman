@@ -1,5 +1,6 @@
 mod app_state;
 mod auth;
+mod cluster;
 mod config;
 mod db;
 mod error;
