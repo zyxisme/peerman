@@ -17,6 +17,12 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 - `sqlx` with `sqlite` feature = bundled SQLite (compiled from C, no system lib needed)
 - Frontend uses pnpm (not npm), `packageManager: "pnpm@11.1.3"` in package.json
 
+## Config
+
+- Config via TOML file: `cargo run -- -c config.toml` (defaults to `./config.toml`). Copy `config.toml.example` as a starting point.
+- `Cli` struct (clap) handles only `-c`/`--config`. `Config` struct (serde + toml) has four nested sections: `[server]`, `[storage]`, `[logging]`, `[cluster]`.
+- **Serde default gotcha:** `#[serde(default)]` on a struct only fills in when the entire section is absent from TOML. For partial sections, missing fields ERROR unless annotated with `#[serde(default = "fn_name")]` pointing to a function. See `default_listen_addr()` etc. in `src/config.rs` for the pattern.
+
 ## sqlx — use runtime API, not macros
 
 sqlx macros (`query_as!`, `query!`) need DATABASE_URL at compile time. Use runtime versions instead:

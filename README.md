@@ -60,6 +60,9 @@ migrations/     # SQLite schema migrations
 - **Multi-mode BGP** — MP-BGP with extended nexthop, separate IPv4/IPv6 sessions
 - **Batch export** — Export all peer configs at once
 - **Settings** — Global defaults (ASN, BIRD template name, port, prefixes)
+- **Cluster mode** — Multi-machine deployment with node management, ICMP probing, and BGP community auto-config
+- **Looking Glass** — Query BIRD routing table across cluster nodes via Unix socket or gRPC
+- **BGP route flap detection** — Real-time iBGP listener + BIRD socket polling fallback
 
 ## Configuration
 
@@ -101,5 +104,18 @@ service PeerService {
 
 service SettingsService {
   rpc GetSettings, SaveSettings
+}
+
+service ClusterService {
+  rpc ListNodes, GetNode, CreateNode, UpdateNode, DeleteNode,
+      ListProbeResults, ExecuteCommand
+}
+
+service BirdService {
+  rpc ExecuteCommand
+}
+
+service FlapService {
+  rpc ListFlapEvents
 }
 ```
