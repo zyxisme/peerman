@@ -4,7 +4,36 @@ import { create } from '@bufbuild/protobuf';
 import { CommunityRuleSchema } from '../../lib/peerman_pb';
 import type { CommunityRule } from '../../lib/peerman_pb';
 import { useCommunityRules, useSaveCommunityRule, useDeleteCommunityRule } from '../../hooks/useCommunities';
-import { cn } from '../../lib/utils';
+
+type Form = {
+  description: string;
+  maxLatencyMs: string;
+  maxPacketLossPct: string;
+  communityIpv4: string;
+  communityIpv6: string;
+  minBandwidthMbps: string;
+  cryptoWeight: string;
+  medPenalty: string;
+};
+
+const emptyForm: Form = {
+  description: '', maxLatencyMs: '', maxPacketLossPct: '100',
+  communityIpv4: '', communityIpv6: '',
+  minBandwidthMbps: '0', cryptoWeight: '0', medPenalty: '0',
+};
+
+function ruleToForm(r: CommunityRule): Form {
+  return {
+    description: r.description,
+    maxLatencyMs: String(r.maxLatencyMs),
+    maxPacketLossPct: String(r.maxPacketLossPct),
+    communityIpv4: r.communityIpv4,
+    communityIpv6: r.communityIpv6,
+    minBandwidthMbps: String(r.minBandwidthMbps),
+    cryptoWeight: String(r.cryptoWeight),
+    medPenalty: String(r.medPenalty),
+  };
+}
 
 export default function CommunityRules() {
   const { rules, loading, error, refetch } = useCommunityRules();
@@ -12,30 +41,20 @@ export default function CommunityRules() {
   const { del, loading: deleting } = useDeleteCommunityRule();
 
   const [editing, setEditing] = useState<CommunityRule | null>(null);
-  const [form, setForm] = useState({ description: '', maxLatencyMs: '', maxPacketLossPct: '', communityIpv4: '', communityIpv6: '' });
+  const [form, setForm] = useState<Form>(emptyForm);
 
   const startNew = () => {
     setEditing(create(CommunityRuleSchema, {
-      id: '',
-      description: '',
-      maxLatencyMs: 0,
-      maxPacketLossPct: 100,
-      communityIpv4: '',
-      communityIpv6: '',
-      enabled: true,
+      id: '', description: '', maxLatencyMs: 0, maxPacketLossPct: 100,
+      communityIpv4: '', communityIpv6: '', enabled: true,
+      minBandwidthMbps: 0, cryptoWeight: 0, medPenalty: 0,
     }));
-    setForm({ description: '', maxLatencyMs: '', maxPacketLossPct: '100', communityIpv4: '', communityIpv6: '' });
+    setForm(emptyForm);
   };
 
   const startEdit = (rule: CommunityRule) => {
     setEditing(rule);
-    setForm({
-      description: rule.description,
-      maxLatencyMs: String(rule.maxLatencyMs),
-      maxPacketLossPct: String(rule.maxPacketLossPct),
-      communityIpv4: rule.communityIpv4,
-      communityIpv6: rule.communityIpv6,
-    });
+    setForm(ruleToForm(rule));
   };
 
   const handleSave = async () => {
@@ -48,6 +67,9 @@ export default function CommunityRules() {
       communityIpv4: form.communityIpv4,
       communityIpv6: form.communityIpv6,
       enabled: true,
+      minBandwidthMbps: parseFloat(form.minBandwidthMbps) || 0,
+      cryptoWeight: parseInt(form.cryptoWeight) || 0,
+      medPenalty: parseInt(form.medPenalty) || 0,
     });
     await save(rule);
     setEditing(null);
@@ -63,13 +85,15 @@ export default function CommunityRules() {
   if (loading) return <div className="text-mute p-lg">Loading...</div>;
   if (error) return <div className="text-error p-lg">{error}</div>;
 
+  const fmtInf = (n: number, suffix: string) => n <= 0 ? '∞' : `${n}${suffix}`;
+
   return (
     <div className="space-y-lg animate-fade-in max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-display-md text-ink">Community Rules</h1>
           <p className="text-body-sm text-mute mt-xxs">
-            Auto-tag BGP communities based on network latency
+            Auto-tag BGP communities based on latency, bandwidth, and crypto weight
           </p>
         </div>
         <button onClick={startNew} className="btn-primary inline-flex items-center gap-1.5">
@@ -89,7 +113,7 @@ export default function CommunityRules() {
                 placeholder="e.g., Metro (<5ms)" />
             </div>
             <div>
-              <label className="block text-caption-mono text-mute mb-xxs">Max Latency (ms, 0=inf)</label>
+              <label className="block text-caption-mono text-mute mb-xxs">Max Latency (ms, 0=∞)</label>
               <input className="form-input w-full" type="number" value={form.maxLatencyMs}
                 onChange={e => setForm({ ...form, maxLatencyMs: e.target.value })} />
             </div>
@@ -97,6 +121,21 @@ export default function CommunityRules() {
               <label className="block text-caption-mono text-mute mb-xxs">Max Packet Loss (%)</label>
               <input className="form-input w-full" type="number" value={form.maxPacketLossPct}
                 onChange={e => setForm({ ...form, maxPacketLossPct: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-caption-mono text-mute mb-xxs">Min Bandwidth (Mbps, 0=∞)</label>
+              <input className="form-input w-full" type="number" value={form.minBandwidthMbps}
+                onChange={e => setForm({ ...form, minBandwidthMbps: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-caption-mono text-mute mb-xxs">Crypto Weight</label>
+              <input className="form-input w-full" type="number" value={form.cryptoWeight}
+                onChange={e => setForm({ ...form, cryptoWeight: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-caption-mono text-mute mb-xxs">MED Penalty</label>
+              <input className="form-input w-full" type="number" value={form.medPenalty}
+                onChange={e => setForm({ ...form, medPenalty: e.target.value })} />
             </div>
             <div>
               <label className="block text-caption-mono text-mute mb-xxs">IPv4 Community</label>
@@ -128,10 +167,13 @@ export default function CommunityRules() {
           <thead>
             <tr>
               <th>Description</th>
-              <th>Max Latency</th>
-              <th>Max Loss</th>
-              <th>IPv4 Community</th>
-              <th>IPv6 Community</th>
+              <th>Latency</th>
+              <th>Loss</th>
+              <th>Bandwidth</th>
+              <th>Crypto</th>
+              <th>MED</th>
+              <th>IPv4</th>
+              <th>IPv6</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -139,8 +181,11 @@ export default function CommunityRules() {
             {rules.map(r => (
               <tr key={r.id}>
                 <td className="text-body-sm font-medium">{r.description}</td>
-                <td className="text-body-sm text-mute">{r.maxLatencyMs <= 0 ? '∞' : `${r.maxLatencyMs}ms`}</td>
+                <td className="text-body-sm text-mute">{fmtInf(r.maxLatencyMs, 'ms')}</td>
                 <td className="text-body-sm text-mute">{r.maxPacketLossPct}%</td>
+                <td className="text-body-sm text-mute">{fmtInf(r.minBandwidthMbps, ' Mbps')}</td>
+                <td className="text-body-sm text-mute">{r.cryptoWeight || '-'}</td>
+                <td className="text-body-sm text-mute">{r.medPenalty || '-'}</td>
                 <td><code className="text-code text-body-sm">{r.communityIpv4}</code></td>
                 <td><code className="text-code text-body-sm">{r.communityIpv6}</code></td>
                 <td>
