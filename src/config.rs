@@ -54,7 +54,9 @@ pub struct ClusterConfig {
     #[serde(default)]
     pub node_name: String,
     #[serde(default)]
-    pub bootstrap_nodes: Vec<String>,
+    pub cluster_key: String,
+    #[serde(default)]
+    pub peer_nodes: Vec<String>,
     #[serde(default = "default_probe_interval")]
     pub probe_interval_secs: u64,
     #[serde(default = "default_sync_interval")]
@@ -132,9 +134,10 @@ impl Default for ClusterConfig {
     fn default() -> Self {
         Self {
             node_name: String::new(),
-            bootstrap_nodes: Vec::new(),
-            probe_interval_secs: default_probe_interval(),
-            sync_interval_secs: default_sync_interval(),
+            cluster_key: String::new(),
+            peer_nodes: Vec::new(),
+            probe_interval_secs: 60,
+            sync_interval_secs: 30,
         }
     }
 }

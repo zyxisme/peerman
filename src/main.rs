@@ -207,7 +207,7 @@ async fn main() -> anyhow::Result<()> {
     let node_name = cfg.cluster.node_name.clone();
     let sync_interval = cfg.cluster.sync_interval_secs;
     let probe_interval = cfg.cluster.probe_interval_secs;
-    let bootstrap_nodes = cfg.cluster.bootstrap_nodes.clone();
+    let peer_nodes = cfg.cluster.peer_nodes.clone();
     let cfg_arc = Arc::new(cfg);
     APP_CONFIG.set(cfg_arc.clone())
         .map_err(|_| anyhow::anyhow!("APP_CONFIG already set"))?;
@@ -287,7 +287,7 @@ async fn main() -> anyhow::Result<()> {
         );
 
         // Mark known bootstrap nodes (add them if not already present)
-        for addr in &bootstrap_nodes {
+        for addr in &peer_nodes {
             let addr = addr.trim();
             if addr.is_empty() {
                 continue;
