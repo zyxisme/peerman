@@ -75,6 +75,21 @@ message Settings {
   string dn42_ipv4_prefix = 5;
   string dn42_ipv6_prefix = 6;
   string wg_table = 7;
+  // WireGuard advanced
+  uint32 wg_mtu = 8;
+  uint32 wg_fwmark = 9;
+  string wg_post_up = 10;
+  string wg_post_down = 11;
+  // ROA/RPKI
+  string roa_mode = 12;
+  string roa_static_v4_url = 13;
+  string roa_static_v6_url = 14;
+  string roa_rtr_address = 15;
+  uint32 roa_rtr_port = 16;
+  // BIRD filter
+  uint32 bird_import_limit = 17;
+  string bird_export_filter = 18;
+  string bird_import_filter = 19;
 }
 
 // ── Peer Service Requests / Responses ──
@@ -224,6 +239,9 @@ message CommunityRule {
   string community_ipv4 = 5;
   string community_ipv6 = 6;
   bool enabled = 7;
+  double min_bandwidth_mbps = 8;
+  int32 crypto_weight = 9;
+  int32 med_penalty = 10;
 }
 
 // Node CRUD
