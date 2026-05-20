@@ -113,7 +113,7 @@ export default function NodesTable() {
               <tr>
                 <td colSpan={6} className="text-center text-mute py-4xl">
                   <Server className="w-8 h-8 mx-auto mb-sm opacity-30" />
-                  No nodes registered yet. Start by registering this node with <code className="text-code">--node-name</code>.
+                  No nodes registered yet. Start by setting <code className="text-code">node_name</code> in the <code className="text-code">[cluster]</code> section of your config.toml.
                 </td>
               </tr>
             )}

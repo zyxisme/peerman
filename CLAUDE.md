@@ -7,7 +7,7 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 - `cargo build` — full build (proto gen → frontend pnpm build → rust compile → embed dist/)
 - `SKIP_FRONTEND_BUILD=1 cargo build` — skip frontend, use pre-built dist/
 - `cd frontend && pnpm dev` — Vite dev server (proxies /api to localhost:3000)
-- `cargo run -- --db-path /tmp/peerman.db` — start server
+- `cargo run -- -c config.toml` — start server (copy config.toml.example first)
 - `cd frontend && pnpm run build` — build frontend only
 
 ## Key crate/version constraints
@@ -43,9 +43,9 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 
 ## Cluster mode
 
-- `--node-name <name>` enables cluster mode (self-registers in `nodes` table). Without it, node/probe/community features are dormant.
-- `--cluster-nodes <host:port,...>` comma-separated bootstrap peers (added to `nodes` on startup).
-- `--probe-interval-secs <N>` (default 60) background ICMP probe interval. `--sync-interval-secs <N>` (default 30) stale-node check interval.
+- Set `node_name` in `[cluster]` section of config.toml to enable cluster mode (self-registers in `nodes` table). Without it, node/probe/community features are dormant.
+- `bootstrap_nodes = ["host:port", ...]` — TOML array of bootstrap peers (added to `nodes` on startup).
+- `probe_interval_secs` (default 60) background ICMP probe interval. `sync_interval_secs` (default 30) stale-node check interval.
 - `migrations/002_cluster.sql` adds `nodes`, `probe_results`, `community_rules` tables + `origin_node_id` on `peers`.
 
 ## Inter-node communication (gRPC client)

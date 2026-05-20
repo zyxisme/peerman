@@ -17,8 +17,8 @@ DN42 peer management web application. Manage WireGuard tunnels and BGP sessions 
 # Build (compiles frontend + backend into single binary)
 cargo build --release
 
-# Run
-./target/release/peerman --db-path data/peerman.db --listen-addr 0.0.0.0:3000
+# Run (copy config.toml.example to config.toml first, or use -c)
+./target/release/peerman -c config.toml
 ```
 
 Open `http://localhost:3000` in your browser.
@@ -26,8 +26,8 @@ Open `http://localhost:3000` in your browser.
 ## Development
 
 ```bash
-# Backend
-cargo run -- --db-path data/peerman.db --log-level debug
+# Backend (uses config.toml by default, copy config.toml.example first)
+cargo run -- -c config.toml
 
 # Frontend dev server (with hot reload, proxies /api to backend)
 cd frontend && pnpm dev
@@ -61,15 +61,31 @@ migrations/     # SQLite schema migrations
 - **Batch export** — Export all peer configs at once
 - **Settings** — Global defaults (ASN, BIRD template name, port, prefixes)
 
-## CLI
+## Configuration
+
+Peerman uses a TOML config file. Copy `config.toml.example` to `config.toml` and edit as needed.
+
+```toml
+[server]
+listen_addr = "0.0.0.0:3000"
+
+[storage]
+db_path = "data/peerman.db"
+
+[logging]
+level = "info"
+
+[cluster]
+node_name = ""           # set to enable cluster mode
+bootstrap_nodes = []     # cluster peer addresses
+probe_interval_secs = 60
+sync_interval_secs = 30
+```
+
+CLI only takes one argument:
 
 ```
-peerman --db-path <path> --listen-addr <addr> --log-level <level>
-
-Options:
-  --db-path       SQLite database path (default: data/peerman.db)
-  --listen-addr   Bind address (default: 0.0.0.0:3000)
-  --log-level     trace, debug, info, warn, error (default: info)
+peerman -c config.toml   # defaults to ./config.toml if omitted
 ```
 
 ## gRPC API
