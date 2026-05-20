@@ -447,7 +447,7 @@ async fn main() -> anyhow::Result<()> {
                             fail_streaks.insert(node.listen_addr.clone(), 0);
 
                             // Also run ICMP probe for latency data
-                            if let Some(ref local_node) = local {
+                            if let Some(local_node) = local {
                                 let _ = crate::services::probe::probe_between(
                                     local_node,
                                     node,
