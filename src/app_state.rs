@@ -1,5 +1,6 @@
 use sqlx::SqlitePool;
 
+use crate::cluster::cache::ClusterCache;
 use crate::models::community::CommunityRuleRepository;
 use crate::models::flap_event::FlapEventRepository;
 use crate::models::node::NodeRepository;
@@ -15,6 +16,7 @@ pub struct AppState {
     pub probe_repo: ProbeResultRepository,
     pub community_repo: CommunityRuleRepository,
     pub flap_event_repo: FlapEventRepository,
+    pub cluster_cache: ClusterCache,
 }
 
 impl AppState {
@@ -26,6 +28,7 @@ impl AppState {
             probe_repo: ProbeResultRepository::new(pool.clone()),
             community_repo: CommunityRuleRepository::new(pool.clone()),
             flap_event_repo: FlapEventRepository::new(pool),
+            cluster_cache: ClusterCache::new(),
         }
     }
 }
