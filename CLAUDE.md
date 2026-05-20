@@ -6,14 +6,15 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 
 - `source "$HOME/.cargo/env"` to put cargo/rustup on PATH (not in default env)
 - `cargo build` — full build (proto gen → frontend pnpm build → rust compile → embed dist/)
-- `SKIP_FRONTEND_BUILD=1 cargo build` — skip frontend, use pre-built dist/
+- `SKIP_FRONTEND_BUILD=1 cargo build` — skip frontend, use pre-built dist/ (needed on low-RAM machines; debug build may OOM linking)
+- `cargo build --release` — release build (smaller binary, less linking memory)
 - `cd frontend && pnpm dev` — Vite dev server (proxies /api to localhost:3000)
 - `cargo run -- -c config.toml` — start server (copy config.toml.example first)
 - `cd frontend && pnpm run build` — build frontend only
 
 ## Testing
 
-- `cargo test` — run all 23 unit tests (validation, wireguard, bird, probe)
+- `cargo test` — run all 32 unit tests (validation, wireguard, bird, probe)
 - `cargo clippy` — lint check
 - `cd frontend && pnpm exec tsc --noEmit` — TypeScript type-check
 
@@ -63,17 +64,29 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 
 ## Cluster mode
 
-- Set `node_name` in `[cluster]` section of config.toml to enable cluster mode (self-registers in `nodes` table). Without it, node/probe/community features are dormant.
-- `bootstrap_nodes = ["host:port", ...]` — TOML array of bootstrap peers (added to `nodes` on startup).
-- `probe_interval_secs` (default 60) background ICMP probe interval. `sync_interval_secs` (default 30) stale-node check interval.
+- Set `node_name` in `[cluster]` section to enable cluster mode. Without it, cluster features are dormant.
+- `peer_nodes = ["host:port", ...]` — initial bootstrap peers (public IPs). Nodes exchange full membership via `ExchangeNodes` gossip.
+- `cluster_key = "shared-secret"` — shared secret for inter-node gRPC auth (`x-cluster-key` metadata).
+- `probe_interval_secs` (default 60) — health check interval. `sync_interval_secs` (default 30) — anti-entropy exchange interval.
 - `migrations/002_cluster.sql` adds `nodes`, `probe_results`, `community_rules` tables + `origin_node_id` on `peers`.
 
 ## Inter-node communication (gRPC client)
 
 - `build.rs` uses `build_client(true)` to generate client stubs alongside server stubs.
+- **Outbound gRPC from server handlers:** use `tonic::transport::Endpoint::from_shared(uri).connect().await` to build a channel, then `ClusterServiceClient::new(channel)`. The generated client module is at `crate::grpc::generated::cluster_service_client::ClusterServiceClient`.
+- **Metadata injection:** `"key".parse()` converts a `&str` to `tonic::metadata::MetadataValue` for inserting into request headers.
 - `tonic::Request` does NOT implement Clone — reconstruct per destination node.
-- `tonic_web::GrpcWebClientLayer` wrapping a tonic Channel has complex type bounds. For now, cross-node sync uses `Peer::apply_proto()` (defined in `src/models/peer.rs`) — live gRPC client push/pull needs further type work.
 - `into_router()` is deprecated in tonic 0.12; `into_axum_router()` not available on Server::Router. `main.rs` suppresses with `#[allow(deprecated)]`.
+
+## Cluster module (`src/cluster/`)
+
+- `auth.rs` — `check_cluster_key()` validates `x-cluster-key` metadata against shared secret
+- `cache.rs` — `ClusterCache` in-memory cache with partial update methods (`update_peers`, `update_probe_results`, `update_community_rules`), keyed by node `listen_addr`
+- `aggregator.rs` — `ClusterAggregator` with `fanout_peers()`, `fanout_probe_results()`, `fanout_community_rules()`, `health_check()`, `exchange_with()`; 2s timeout, cache fallback on failure
+- **Dual auth pattern:** inter-node RPCs (`push_peer`, `push_probe_result`, `save_community_rule`) accept EITHER JWT (user) OR cluster key (node) — check: `jwt_ok || cluster_ok`
+- **Health check:** gRPC `HealthCheck` + ICMP ping; 2 consecutive failures → offline, 2 successes → online (flap suppression)
+- **Write proxy:** `create_peer`/`update_peer` proxy to target node via `PushPeer` when `origin_node_id != listen_addr`
+- **Node discovery:** startup `ExchangeNodes` with all `peer_nodes` + periodic anti-entropy with random peer every `sync_interval_secs`
 
 ## Frontend gotchas
 
