@@ -28,16 +28,17 @@ use crate::grpc::settings_service::SettingsServiceImpl;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let cfg = config::Config::parse();
+    let cli = config::Cli::parse();
+    let cfg = config::Config::load(&cli.config)?;
 
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::new(&cfg.log_level))
+        .with_env_filter(EnvFilter::new(&cfg.logging.level))
         .init();
 
-    tracing::info!("Starting peerman, listening on {}", cfg.listen_addr);
+    tracing::info!("Starting peerman, listening on {}", cfg.server.listen_addr);
 
     // Database
-    let pool = db::create_pool(&cfg.db_path).await?;
+    let pool = db::create_pool(&cfg.storage.db_path).await?;
     let state = app_state::AppState::new(pool.clone());
 
     // Verify
@@ -63,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
         community_repo: state.community_repo.clone(),
     };
     let bird_svc = BirdServiceImpl {
-        node_name: cfg.node_name.clone(),
+        node_name: cfg.cluster.node_name.clone(),
         node_repo: state.node_repo.clone(),
     };
     let flap_svc = FlapServiceImpl {
@@ -88,43 +89,41 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http());
 
     // Self-register if cluster mode is enabled
-    if !cfg.node_name.is_empty() {
+    if !cfg.cluster.node_name.is_empty() {
         let local_asn = state.settings_repo.load().await?.local_asn;
         let node = state
             .node_repo
-            .upsert_self(&cfg.node_name, &cfg.listen_addr, local_asn)
+            .upsert_self(&cfg.cluster.node_name, &cfg.server.listen_addr, local_asn)
             .await?;
         tracing::info!(
             "Self-registered as node '{}' (id={}, asn={})",
-            cfg.node_name,
+            cfg.cluster.node_name,
             node.id,
             local_asn
         );
 
         // Mark known bootstrap nodes (add them if not already present)
-        if !cfg.cluster_nodes.is_empty() {
-            for addr in cfg.cluster_nodes.split(',') {
-                let addr = addr.trim();
-                if addr.is_empty() {
-                    continue;
-                }
-                if state.node_repo.find_by_listen_addr(addr).await?.is_none() {
-                    let name = format!("node-{}", addr.replace([':', '.'], "-"));
-                    match state
-                        .node_repo
-                        .create(&name, addr, 0, "bootstrap node")
-                        .await
-                    {
-                        Ok(n) => tracing::info!("Added bootstrap node: {} ({})", name, n.id),
-                        Err(e) => tracing::warn!("Failed to add bootstrap node {}: {}", addr, e),
-                    }
+        for addr in &cfg.cluster.bootstrap_nodes {
+            let addr = addr.trim();
+            if addr.is_empty() {
+                continue;
+            }
+            if state.node_repo.find_by_listen_addr(addr).await?.is_none() {
+                let name = format!("node-{}", addr.replace([':', '.'], "-"));
+                match state
+                    .node_repo
+                    .create(&name, addr, 0, "bootstrap node")
+                    .await
+                {
+                    Ok(n) => tracing::info!("Added bootstrap node: {} ({})", name, n.id),
+                    Err(e) => tracing::warn!("Failed to add bootstrap node {}: {}", addr, e),
                 }
             }
         }
 
         // Spawn periodic stale-node cleanup task
         let stale_state = state.clone();
-        let stale_interval = cfg.sync_interval_secs;
+        let stale_interval = cfg.cluster.sync_interval_secs;
 
         tokio::spawn(async move {
             loop {
@@ -136,10 +135,10 @@ async fn main() -> anyhow::Result<()> {
         });
 
         // Spawn periodic probe task
-        if cfg.probe_interval_secs > 0 {
+        if cfg.cluster.probe_interval_secs > 0 {
             let probe_state = state.clone();
-            let probe_node_name = cfg.node_name.clone();
-            let probe_interval = cfg.probe_interval_secs;
+            let probe_node_name = cfg.cluster.node_name.clone();
+            let probe_interval = cfg.cluster.probe_interval_secs;
 
             tokio::spawn(async move {
                 loop {
@@ -172,7 +171,7 @@ async fn main() -> anyhow::Result<()> {
 
         // Spawn BGP flap detector
         let node_id = node.id.clone();
-        let node_name = cfg.node_name.clone();
+        let node_name = cfg.cluster.node_name.clone();
         let flap_repo = state.flap_event_repo.clone();
 
         tokio::spawn(async move {
@@ -206,7 +205,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let addr: SocketAddr = cfg.listen_addr.parse()?;
+    let addr: SocketAddr = cfg.server.listen_addr.parse()?;
     tracing::info!("peerman ready at http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
