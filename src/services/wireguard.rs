@@ -33,6 +33,16 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
     config.push_str(&format!("ListenPort = {}\n", peer.wg_listen_port));
     config.push_str(&format!("Table = {}\n", settings.wg_table));
 
+    // MTU (only if > 0)
+    if settings.wg_mtu > 0 {
+        config.push_str(&format!("MTU = {}\n", settings.wg_mtu));
+    }
+
+    // FwMark (only if > 0)
+    if settings.wg_fwmark > 0 {
+        config.push_str(&format!("FwMark = {}\n", settings.wg_fwmark));
+    }
+
     // Build Address line from tunnel IPs
     let mut addresses = Vec::new();
     if let Some(ref ipv4) = peer.ipv4_tunnel_local {
@@ -44,6 +54,28 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
     if !addresses.is_empty() {
         config.push_str(&format!("Address = {}\n", addresses.join(", ")));
     }
+
+    // PostUp — auto-generate + user custom
+    let mut post_up = String::from(
+        "PostUp = ip link set %i up; sysctl -w net.ipv6.conf.%i.autoconf=0"
+    );
+    if let Some(ref ipv4) = peer.ipv4_tunnel_local {
+        post_up.push_str(&format!("; ip addr add {ipv4}/32 dev %i"));
+    }
+    if let Some(ref ipv6) = peer.ipv6_tunnel_local {
+        post_up.push_str(&format!("; ip addr add {ipv6}/128 dev %i"));
+    }
+    if !settings.wg_post_up.is_empty() {
+        post_up.push_str(&format!("; {}", settings.wg_post_up));
+    }
+    config.push_str(&format!("{post_up}\n"));
+
+    // PostDown — mirror
+    let mut post_down = String::from("PostDown = ip link set %i down");
+    if !settings.wg_post_down.is_empty() {
+        post_down.push_str(&format!("; {}", settings.wg_post_down));
+    }
+    config.push_str(&format!("{post_down}\n"));
 
     config.push('\n');
 
@@ -57,7 +89,7 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
         peer.wg_remote_address, peer.wg_remote_port
     ));
 
-    // AllowedIPs — full DN42 prefixes plus link-local
+    // AllowedIPs — full DN42 prefixes + link-local
     let allowed_ips = format!(
         "{}, {}, fe80::/10",
         settings.dn42_ipv4_prefix, settings.dn42_ipv6_prefix
@@ -82,7 +114,19 @@ mod tests {
             wg_default_listen_port: 42420,
             dn42_ipv4_prefix: "172.20.0.0/14".into(),
             dn42_ipv6_prefix: "fd00::/8".into(),
-            wg_table: "auto".into(),
+            wg_table: "off".into(),
+            wg_mtu: 1420,
+            wg_fwmark: 0,
+            wg_post_up: String::new(),
+            wg_post_down: String::new(),
+            roa_mode: "none".into(),
+            roa_static_v4_url: String::new(),
+            roa_static_v6_url: String::new(),
+            roa_rtr_address: String::new(),
+            roa_rtr_port: 323,
+            bird_import_limit: 9000,
+            bird_export_filter: String::new(),
+            bird_import_filter: String::new(),
         }
     }
 
@@ -134,6 +178,41 @@ mod tests {
         assert!(config.contains("[Peer]"));
         assert!(config.contains("PrivateKey = privkey"));
         assert!(config.contains("PublicKey = pubkey"));
+        assert!(config.contains("Table = off"));
+        assert!(config.contains("MTU = 1420"));
+        assert!(config.contains("PostUp ="));
+        assert!(config.contains("PostDown ="));
+        assert!(config.contains("PersistentKeepalive = 25"));
+        assert!(config.contains("fe80::/10"));
+    }
+
+    #[test]
+    fn test_generate_config_fwmark_omitted_when_zero() {
+        let config = generate_config(&test_peer(), &test_settings());
+        assert!(!config.contains("FwMark"));
+    }
+
+    #[test]
+    fn test_generate_config_fwmark_included_when_set() {
+        let mut s = test_settings();
+        s.wg_fwmark = 51820;
+        let config = generate_config(&test_peer(), &s);
+        assert!(config.contains("FwMark = 51820"));
+    }
+
+    #[test]
+    fn test_generate_config_post_up_has_tunnel_ips() {
+        let config = generate_config(&test_peer(), &test_settings());
+        assert!(config.contains("172.20.1.1/32"));
+        assert!(config.contains("fd00::1/128"));
+    }
+
+    #[test]
+    fn test_generate_config_custom_post_up_appended() {
+        let mut s = test_settings();
+        s.wg_post_up = "ip route add 10.0.0.0/8 via 172.20.1.2".into();
+        let config = generate_config(&test_peer(), &s);
+        assert!(config.contains("ip route add 10.0.0.0/8 via 172.20.1.2"));
     }
 
     #[test]
