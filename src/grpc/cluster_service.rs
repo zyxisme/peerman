@@ -11,6 +11,7 @@ use super::generated::{
     RunProbeResponse, SaveCommunityRuleRequest, UpdateNodeRequest,
 };
 
+use crate::cluster::auth::check_cluster_key;
 use crate::models::community::CommunityRuleRepository;
 use crate::models::node::NodeRepository;
 use crate::models::peer::PeerRepository;
@@ -23,6 +24,8 @@ pub struct ClusterServiceImpl {
     pub probe_repo: ProbeResultRepository,
     pub community_repo: CommunityRuleRepository,
     pub jwt_secret: std::sync::Arc<String>,
+    pub cluster_key: std::sync::Arc<String>,
+    pub listen_addr: String,
 }
 
 fn node_to_proto(n: &crate::models::node::Node) -> Node {
@@ -149,7 +152,11 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<PushPeerRequest>,
     ) -> Result<Response<PushPeerResponse>, Status> {
-        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        let jwt_ok = crate::auth::check_auth(&request, self.jwt_secret.as_ref()).is_ok();
+        let cluster_ok = check_cluster_key(&request, &self.cluster_key).is_ok();
+        if !jwt_ok && !cluster_ok {
+            return Err(Status::unauthenticated("auth required"));
+        }
         let req = request.into_inner();
         let proto_peer = req
             .peer
@@ -204,7 +211,11 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<PushProbeResultRequest>,
     ) -> Result<Response<PushProbeResultResponse>, Status> {
-        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        let jwt_ok = crate::auth::check_auth(&request, self.jwt_secret.as_ref()).is_ok();
+        let cluster_ok = check_cluster_key(&request, &self.cluster_key).is_ok();
+        if !jwt_ok && !cluster_ok {
+            return Err(Status::unauthenticated("auth required"));
+        }
         let req = request.into_inner();
         let proto = req
             .result
@@ -293,7 +304,11 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<SaveCommunityRuleRequest>,
     ) -> Result<Response<CommunityRule>, Status> {
-        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        let jwt_ok = crate::auth::check_auth(&request, self.jwt_secret.as_ref()).is_ok();
+        let cluster_ok = check_cluster_key(&request, &self.cluster_key).is_ok();
+        if !jwt_ok && !cluster_ok {
+            return Err(Status::unauthenticated("auth required"));
+        }
         let req = request.into_inner();
         let proto = req
             .rule
@@ -333,7 +348,11 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<DeleteCommunityRuleRequest>,
     ) -> Result<Response<DeleteCommunityRuleResponse>, Status> {
-        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        let jwt_ok = crate::auth::check_auth(&request, self.jwt_secret.as_ref()).is_ok();
+        let cluster_ok = check_cluster_key(&request, &self.cluster_key).is_ok();
+        if !jwt_ok && !cluster_ok {
+            return Err(Status::unauthenticated("auth required"));
+        }
         let req = request.into_inner();
         self.community_repo
             .delete(&req.id)
@@ -382,7 +401,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<ExchangeNodesRequest>,
     ) -> Result<Response<ExchangeNodesResponse>, Status> {
-        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        check_cluster_key(&request, &self.cluster_key)?;
         let req = request.into_inner();
 
         // Upsert nodes received from peer

@@ -123,6 +123,30 @@ impl NodeRepository {
         Ok(())
     }
 
+    pub async fn mark_online(&self, id: &str) -> Result<(), AppError> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE nodes SET online = 1, last_seen_at = ?1, updated_at = ?1 WHERE id = ?2",
+        )
+        .bind(&now)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn mark_stale_node(&self, id: &str) -> Result<(), AppError> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            "UPDATE nodes SET online = 0, updated_at = ?1 WHERE id = ?2",
+        )
+        .bind(&now)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn mark_stale(&self, threshold_secs: i64) -> Result<(), AppError> {
         let threshold = Utc::now() - chrono::Duration::seconds(threshold_secs);
         sqlx::query(

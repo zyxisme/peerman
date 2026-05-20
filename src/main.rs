@@ -209,6 +209,7 @@ async fn main() -> anyhow::Result<()> {
     let sync_interval = cfg.cluster.sync_interval_secs;
     let probe_interval = cfg.cluster.probe_interval_secs;
     let peer_nodes = cfg.cluster.peer_nodes.clone();
+    let cluster_key = cfg.cluster.cluster_key.clone();
     let cfg_arc = Arc::new(cfg);
     APP_CONFIG.set(cfg_arc.clone())
         .map_err(|_| anyhow::anyhow!("APP_CONFIG already set"))?;
@@ -244,6 +245,8 @@ async fn main() -> anyhow::Result<()> {
         probe_repo: state.probe_repo.clone(),
         community_repo: state.community_repo.clone(),
         jwt_secret: jwt_secret.clone(),
+        cluster_key: Arc::new(cluster_key.clone()),
+        listen_addr: listen_addr.clone(),
     };
     let bird_svc = BirdServiceImpl {
         node_name: node_name.clone(),
