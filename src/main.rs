@@ -15,10 +15,14 @@ use clap::Parser;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
+use crate::grpc::generated::bird_service_server::BirdServiceServer;
 use crate::grpc::generated::cluster_service_server::ClusterServiceServer;
+use crate::grpc::generated::flap_service_server::FlapServiceServer;
 use crate::grpc::generated::peer_service_server::PeerServiceServer;
 use crate::grpc::generated::settings_service_server::SettingsServiceServer;
+use crate::grpc::bird_service::BirdServiceImpl;
 use crate::grpc::cluster_service::ClusterServiceImpl;
+use crate::grpc::flap_service::FlapServiceImpl;
 use crate::grpc::peer_service::PeerServiceImpl;
 use crate::grpc::settings_service::SettingsServiceImpl;
 
@@ -58,6 +62,13 @@ async fn main() -> anyhow::Result<()> {
         probe_repo: state.probe_repo.clone(),
         community_repo: state.community_repo.clone(),
     };
+    let bird_svc = BirdServiceImpl {
+        node_name: cfg.node_name.clone(),
+        node_repo: state.node_repo.clone(),
+    };
+    let flap_svc = FlapServiceImpl {
+        flap_repo: state.flap_event_repo.clone(),
+    };
 
     // Build tonic gRPC router with tonic-web wrapper
     let grpc_router = tonic::transport::Server::builder()
@@ -66,6 +77,8 @@ async fn main() -> anyhow::Result<()> {
         .add_service(PeerServiceServer::new(peer_svc))
         .add_service(SettingsServiceServer::new(settings_svc))
         .add_service(ClusterServiceServer::new(cluster_svc))
+        .add_service(BirdServiceServer::new(bird_svc))
+        .add_service(FlapServiceServer::new(flap_svc))
         .into_router();
 
     // Build axum router: static files + gRPC
@@ -156,6 +169,41 @@ async fn main() -> anyhow::Result<()> {
                 }
             });
         }
+
+        // Spawn BGP flap detector
+        let node_id = node.id.clone();
+        let node_name = cfg.node_name.clone();
+        let flap_repo = state.flap_event_repo.clone();
+
+        tokio::spawn(async move {
+            tracing::info!("Starting BGP flap detector for node '{node_name}' ({node_id})");
+
+            // Try to start iBGP listener
+            let (tx, rx) = tokio::sync::mpsc::channel::<
+                crate::services::bgp_listener::PathChange,
+            >(1024);
+
+            match crate::services::bgp_listener::BgpListener::bind(node_id.clone()).await {
+                Ok(listener) => {
+                    tracing::info!("iBGP listener active on [::1]:1790");
+                    // Spawn the listener
+                    let bgp_tx = tx.clone();
+                    tokio::spawn(listener.run(bgp_tx));
+
+                    // Run flap detector with iBGP channel
+                    let mut detector =
+                        crate::services::flap_detector::FlapDetector::new(node_id.clone(), flap_repo);
+                    detector.run(rx).await;
+                }
+                Err(e) => {
+                    tracing::warn!("iBGP listener unavailable ({e}), flap detection will use socket polling fallback");
+                    // Run in polling-only mode (dummy channel that never receives)
+                    let mut detector =
+                        crate::services::flap_detector::FlapDetector::new(node_id, flap_repo);
+                    detector.run(rx).await;
+                }
+            }
+        });
     }
 
     let addr: SocketAddr = cfg.listen_addr.parse()?;

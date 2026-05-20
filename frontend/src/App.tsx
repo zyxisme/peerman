@@ -11,6 +11,8 @@ import NodeForm from './components/nodes/NodeForm';
 import NodeDetail from './components/nodes/NodeDetail';
 import ProbeDashboard from './components/probes/ProbeDashboard';
 import CommunityRules from './components/communities/CommunityRules';
+import LookingGlass from './components/bird/LookingGlass';
+import FlapDashboard from './components/flaps/FlapDashboard';
 
 function ExportPage() {
   return (
@@ -51,6 +53,8 @@ export default function App() {
           <Route path="/nodes/:id/edit" element={<NodeForm />} />
           <Route path="/probes" element={<ProbeDashboard />} />
           <Route path="/communities" element={<CommunityRules />} />
+          <Route path="/looking-glass" element={<LookingGlass />} />
+          <Route path="/flaps" element={<FlapDashboard />} />
         </Routes>
       </div>
     </Layout>

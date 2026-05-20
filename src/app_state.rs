@@ -1,6 +1,7 @@
 use sqlx::SqlitePool;
 
 use crate::models::community::CommunityRuleRepository;
+use crate::models::flap_event::FlapEventRepository;
 use crate::models::node::NodeRepository;
 use crate::models::peer::PeerRepository;
 use crate::models::probe::ProbeResultRepository;
@@ -13,6 +14,7 @@ pub struct AppState {
     pub node_repo: NodeRepository,
     pub probe_repo: ProbeResultRepository,
     pub community_repo: CommunityRuleRepository,
+    pub flap_event_repo: FlapEventRepository,
 }
 
 impl AppState {
@@ -22,7 +24,8 @@ impl AppState {
             settings_repo: SettingsRepository::new(pool.clone()),
             node_repo: NodeRepository::new(pool.clone()),
             probe_repo: ProbeResultRepository::new(pool.clone()),
-            community_repo: CommunityRuleRepository::new(pool),
+            community_repo: CommunityRuleRepository::new(pool.clone()),
+            flap_event_repo: FlapEventRepository::new(pool),
         }
     }
 }

@@ -1,0 +1,97 @@
+use tonic::{Request, Response, Status};
+
+use super::generated::{
+    bird_service_server::BirdService, ExecuteCommandRequest, ExecuteCommandResponse,
+    NodeBirdResult, NodeTracerouteResult, RunTracerouteRequest, RunTracerouteResponse,
+};
+
+use crate::models::node::NodeRepository;
+use crate::services::bird_socket::BirdSocket;
+
+pub struct BirdServiceImpl {
+    pub node_name: String,
+    pub node_repo: NodeRepository,
+}
+
+#[tonic::async_trait]
+impl BirdService for BirdServiceImpl {
+    async fn execute_command(
+        &self,
+        request: Request<ExecuteCommandRequest>,
+    ) -> Result<Response<ExecuteCommandResponse>, Status> {
+        let req = request.into_inner();
+
+        let results = if req.target_node_id.is_empty() || req.target_node_id == self.node_name {
+            // Local execution
+            let output = execute_local(&req.command).await?;
+            vec![NodeBirdResult {
+                node_id: self.node_name.clone(),
+                node_name: self.node_name.clone(),
+                output,
+                status_code: 0,
+                error: String::new(),
+            }]
+        } else {
+            // Remote node — not yet wired, return placeholder
+            vec![NodeBirdResult {
+                node_id: req.target_node_id.clone(),
+                node_name: req.target_node_id.clone(),
+                output: String::new(),
+                status_code: 1,
+                error: "Cross-node BIRD execution not yet implemented".to_string(),
+            }]
+        };
+
+        Ok(Response::new(ExecuteCommandResponse { results }))
+    }
+
+    async fn run_traceroute(
+        &self,
+        request: Request<RunTracerouteRequest>,
+    ) -> Result<Response<RunTracerouteResponse>, Status> {
+        let req = request.into_inner();
+        let target = req.target.trim().to_string();
+
+        if target.is_empty() {
+            return Err(Status::invalid_argument("target is required"));
+        }
+
+        // Run traceroute subprocess
+        let output = match tokio::process::Command::new("traceroute")
+            .arg("-n")
+            .arg(&target)
+            .output()
+            .await
+        {
+            Ok(out) => {
+                if out.status.success() {
+                    String::from_utf8_lossy(&out.stdout).to_string()
+                } else {
+                    String::from_utf8_lossy(&out.stderr).to_string()
+                }
+            }
+            Err(e) => format!("traceroute failed: {e}"),
+        };
+
+        Ok(Response::new(RunTracerouteResponse {
+            results: vec![NodeTracerouteResult {
+                node_id: self.node_name.clone(),
+                node_name: self.node_name.clone(),
+                output,
+            }],
+        }))
+    }
+}
+
+async fn execute_local(command: &str) -> Result<String, Status> {
+    let mut socket = BirdSocket::connect().await.map_err(|e| {
+        Status::unavailable(format!("Cannot connect to BIRD socket: {e}"))
+    })?;
+
+    let response = socket
+        .execute(command)
+        .await
+        .map_err(|e| Status::internal(format!("BIRD command failed: {e}")))?;
+
+    Ok(response.lines.join("\n"))
+}

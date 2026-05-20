@@ -1,6 +1,6 @@
 import { createClient } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
-import { PeerService, SettingsService, ClusterService } from './peerman_pb';
+import { PeerService, SettingsService, ClusterService, BirdService, FlapService } from './peerman_pb';
 
 export const transport = createConnectTransport({
   baseUrl: '/api',
@@ -9,3 +9,5 @@ export const transport = createConnectTransport({
 export const peerClient = createClient(PeerService, transport);
 export const settingsClient = createClient(SettingsService, transport);
 export const clusterClient = createClient(ClusterService, transport);
+export const birdClient = createClient(BirdService, transport);
+export const flapClient = createClient(FlapService, transport);

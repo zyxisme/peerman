@@ -1,6 +1,6 @@
 # Peerman — DN42 Peer Manager
 
-Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + shadcn/ui), gRPC-Web API, single binary.
+Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwind CSS), gRPC-Web API, single binary.
 
 ## Build
 
@@ -37,7 +37,9 @@ PRAGMA journal_mode=WAL must run OUTSIDE a transaction. Set it before `sqlx::mig
 
 ## DESIGN.md
 
-Vercel-inspired design system. Tokens (colors, typography, spacing, border-radius, shadows) mapped to `tailwind.config.ts`. shadcn/ui components styled via `globals.css` utility classes. Geist/Inter fonts loaded from Google Fonts CDN.
+Vercel-inspired design system. Tokens (colors, typography, spacing, border-radius, shadows) mapped to `tailwind.config.ts`.
+All UI uses custom CSS component classes (`@apply` in `globals.css`): `.card`, `.btn-primary`, `.btn-secondary-sm`, `.form-input`, `.data-table`, `.code-block`, `.badge`, `.tab-ghost`, `.tab-active`. No shadcn/ui components in use despite packages installed.
+Geist/Inter fonts loaded from Google Fonts CDN.
 
 ## Cluster mode
 
@@ -69,3 +71,25 @@ Vercel-inspired design system. Tokens (colors, typography, spacing, border-radiu
 - `CommunityRuleRepository::seed_defaults()` auto-populates 5 latency-tier rules on first run (empty table).
 - `services::probe::ping()` calls `ping -c 5 -i 0.2 <target>` subprocess, parses rtt/packet-loss with regex.
 - Probe results stored locally only; cross-node push via `PushProbeResult` RPC is defined but client-side not yet wired.
+
+## BIRD integration (Looking Glass + Flap Detection)
+
+- `BirdSocket::connect()` talks to `/var/run/bird.ctl` — Unix socket → welcome banner → `restrict\n` → command → parse 4-digit status codes (1xxx/2xxx=table rows, 0xxx=terminal, 8xxx/9xxx=error, ` ` prefix=continuation).
+- `BgpListener` passive iBGP on `[::1]:1790` — BIRD connects as client. Parses BGP UPDATE messages to count per-prefix path changes. AddPath capability (code 69) negotiated in OPEN.
+- BGP stream handling: `handle_session` must take `impl AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static` (owned, not `&mut`). tokio::spawn requires `'static`.
+- Flap detection is dual-channel: iBGP listener (primary, real-time) → channel → FlapDetector; falls back to BIRD socket polling `show route all` every 30s comparing route snapshots.
+- Looking Glass queries all cluster nodes: local via socket, remote via gRPC `ExecuteCommand` RPC (placeholder for now).
+- Traceroute runs as subprocess: `traceroute -q 1 -w 1 -m 15 <target>`.
+- `flap_events` table (migration 003) stores detected flaps — sources: `ibgp`/`socket`/`probe`.
+
+## Adding a new gRPC service
+
+1. Define service + messages in `proto/peerman.proto`
+2. `build.rs` auto-generates Rust stubs (tonic) — no extra config needed
+3. Implement `XServiceImpl` in `src/grpc/X_service.rs`
+4. Register in `main.rs`: import `XServiceServer`, instantiate, add to tonic router
+5. Regenerate frontend stubs: `PATH="frontend/node_modules/.bin:$PATH" protoc -I proto --es_out frontend/src/lib --es_opt target=ts proto/peerman.proto`
+6. Add client in `frontend/src/lib/grpc.ts`: `createClient(XService, transport)`
+7. Add hooks in `frontend/src/hooks/useX.ts`
+8. Add page component + route in `App.tsx` + nav item in `NavBar.tsx`
+9. If service has DB state: model in `src/models/`, repository in same file, migration SQL, repo field on `AppState`

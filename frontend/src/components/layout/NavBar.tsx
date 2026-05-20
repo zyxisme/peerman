@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Settings, Download, Home, Cable, Server, Activity, Tag } from 'lucide-react';
+import { Plus, Settings, Download, Home, Cable, Server, Activity, Tag, Search, AlertCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const links = [
@@ -8,6 +8,8 @@ const links = [
   { to: '/nodes', label: 'Nodes', icon: Server },
   { to: '/probes', label: 'Probes', icon: Activity },
   { to: '/communities', label: 'Communities', icon: Tag },
+  { to: '/looking-glass', label: 'LG', icon: Search },
+  { to: '/flaps', label: 'Flaps', icon: AlertCircle },
   { to: '/export', label: 'Export', icon: Download },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];

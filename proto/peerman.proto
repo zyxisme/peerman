@@ -282,3 +282,80 @@ message GetPeerCommunitiesResponse {
   repeated string community_ipv4 = 1;
   repeated string community_ipv6 = 2;
 }
+
+// ── Looking Glass Service ──
+
+service BirdService {
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+  rpc RunTraceroute(RunTracerouteRequest) returns (RunTracerouteResponse);
+}
+
+message ExecuteCommandRequest {
+  string command = 1;
+  string target_node_id = 2;
+}
+
+message ExecuteCommandResponse {
+  repeated NodeBirdResult results = 1;
+}
+
+message NodeBirdResult {
+  string node_id = 1;
+  string node_name = 2;
+  string output = 3;
+  int32 status_code = 4;
+  string error = 5;
+}
+
+message RunTracerouteRequest {
+  string target = 1;
+  string target_node_id = 2;
+}
+
+message RunTracerouteResponse {
+  repeated NodeTracerouteResult results = 1;
+}
+
+message NodeTracerouteResult {
+  string node_id = 1;
+  string node_name = 2;
+  string output = 3;
+}
+
+// ── Flap Detection Service ──
+
+service FlapService {
+  rpc ListFlapEvents(ListFlapEventsRequest) returns (ListFlapEventsResponse);
+  rpc GetFlapStats(GetFlapStatsRequest) returns (GetFlapStatsResponse);
+}
+
+message FlapEvent {
+  string id = 1;
+  string prefix = 2;
+  string prefix_type = 3;
+  string node_id = 4;
+  int32 change_count = 5;
+  string window_start = 6;
+  string window_end = 7;
+  string source = 8;
+  bool active = 9;
+  string detected_at = 10;
+  string resolved_at = 11;
+}
+
+message ListFlapEventsRequest {
+  bool active_only = 1;
+  int32 limit = 2;
+}
+
+message ListFlapEventsResponse {
+  repeated FlapEvent events = 1;
+}
+
+message GetFlapStatsRequest {}
+
+message GetFlapStatsResponse {
+  int32 active_count = 1;
+  int32 total_today = 2;
+  double avg_changes_per_hour = 3;
+}
