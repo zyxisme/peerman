@@ -140,19 +140,19 @@ export default function PeerForm() {
         <fieldset className="card">
           <legend className="text-body-sm-strong text-ink mb-md">Identity</legend>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-sm">
+            <div className="flex flex-col gap-1">
+              <label className="text-caption text-mute">Target Node</label>
+              <select value={originNodeId} onChange={(e) => setOriginNodeId(e.target.value)} className="form-input">
+                <option value="">This node (local)</option>
+                {nodes.filter(n => n.online).map(n => (
+                  <option key={n.id} value={n.id}>{n.name} ({n.listenAddr})</option>
+                ))}
+              </select>
+            </div>
             <Input label="Name" value={name} onChange={setName} required />
             <Input label="Description" value={description} onChange={setDescription} />
             <Input label="Remote ASN" value={asn} onChange={setAsn} placeholder="424242XXXX" />
             <Input label="Local ASN" value={localAsn} onChange={setLocalAsn} />
-            <div className="flex flex-col gap-1">
-              <label className="text-caption text-mute">Origin Node</label>
-              <select value={originNodeId} onChange={(e) => setOriginNodeId(e.target.value)} className="form-input">
-                <option value="">This node (local)</option>
-                {nodes.filter(n => n.online).map(n => (
-                  <option key={n.id} value={n.id}>{n.name}</option>
-                ))}
-              </select>
-            </div>
           </div>
         </fieldset>
 
