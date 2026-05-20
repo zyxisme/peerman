@@ -143,6 +143,8 @@ Reuse the existing ICMP ping probe mechanism but tighten the interval:
 
 ## Frontend
 
+All UI follows `DESIGN.md` design tokens and component classes (`card`, `btn-primary`, `btn-secondary-sm`, `form-input`, `data-table`, `badge`, `tab-ghost`, `tab-active`). No shadcn/ui components. Geist/Inter fonts via Google Fonts CDN.
+
 ### New: node status indicator
 
 In the navbar: colored dot reflecting cluster health.
