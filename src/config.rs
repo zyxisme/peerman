@@ -21,6 +21,8 @@ pub struct Config {
     pub server: ServerConfig,
     pub storage: StorageConfig,
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub auth: AuthConfig,
     pub cluster: ClusterConfig,
 }
 
@@ -58,6 +60,17 @@ pub struct ClusterConfig {
     pub sync_interval_secs: u64,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct AuthConfig {
+    #[serde(default = "default_username")]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default)]
+    pub jwt_secret: String,
+}
+
 // ---------------------------------------------------------------------------
 // Default value functions (for serde field-level defaults)
 // ---------------------------------------------------------------------------
@@ -80,6 +93,10 @@ fn default_probe_interval() -> u64 {
 
 fn default_sync_interval() -> u64 {
     30
+}
+
+fn default_username() -> String {
+    "admin".into()
 }
 
 // ---------------------------------------------------------------------------
@@ -121,12 +138,23 @@ impl Default for ClusterConfig {
     }
 }
 
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            username: default_username(),
+            password: String::new(),
+            jwt_secret: String::new(),
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             server: ServerConfig::default(),
             storage: StorageConfig::default(),
             logging: LoggingConfig::default(),
+            auth: AuthConfig::default(),
             cluster: ClusterConfig::default(),
         }
     }

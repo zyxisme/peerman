@@ -14,6 +14,7 @@ use crate::services;
 pub struct PeerServiceImpl {
     pub peer_repo: PeerRepository,
     pub settings_repo: SettingsRepository,
+    pub jwt_secret: std::sync::Arc<String>,
 }
 
 pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
@@ -81,6 +82,7 @@ impl PeerService for PeerServiceImpl {
         &self,
         request: Request<CreatePeerRequest>,
     ) -> Result<Response<Peer>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
             &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
@@ -108,6 +110,7 @@ impl PeerService for PeerServiceImpl {
         &self,
         request: Request<UpdatePeerRequest>,
     ) -> Result<Response<Peer>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
             &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
@@ -135,6 +138,7 @@ impl PeerService for PeerServiceImpl {
         &self,
         request: Request<DeletePeerRequest>,
     ) -> Result<Response<DeletePeerResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         self.peer_repo
             .delete(&req.id)
@@ -148,6 +152,7 @@ impl PeerService for PeerServiceImpl {
         &self,
         request: Request<TogglePeerRequest>,
     ) -> Result<Response<Peer>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
             .peer_repo

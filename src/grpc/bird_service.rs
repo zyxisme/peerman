@@ -11,6 +11,7 @@ use crate::services::bird_socket::BirdSocket;
 pub struct BirdServiceImpl {
     pub node_name: String,
     pub node_repo: NodeRepository,
+    pub jwt_secret: std::sync::Arc<String>,
 }
 
 #[tonic::async_trait]
@@ -19,6 +20,7 @@ impl BirdService for BirdServiceImpl {
         &self,
         request: Request<ExecuteCommandRequest>,
     ) -> Result<Response<ExecuteCommandResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
 
         let results = if req.target_node_id.is_empty() || req.target_node_id == self.node_name {
@@ -49,6 +51,7 @@ impl BirdService for BirdServiceImpl {
         &self,
         request: Request<RunTracerouteRequest>,
     ) -> Result<Response<RunTracerouteResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let target = req.target.trim().to_string();
 

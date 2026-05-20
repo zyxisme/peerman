@@ -21,6 +21,7 @@ pub struct ClusterServiceImpl {
     pub peer_repo: PeerRepository,
     pub probe_repo: ProbeResultRepository,
     pub community_repo: CommunityRuleRepository,
+    pub jwt_secret: std::sync::Arc<String>,
 }
 
 fn node_to_proto(n: &crate::models::node::Node) -> Node {
@@ -88,6 +89,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<RegisterNodeRequest>,
     ) -> Result<Response<Node>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let node = self
             .node_repo
@@ -102,6 +104,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<UpdateNodeRequest>,
     ) -> Result<Response<Node>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let mut node = self
             .node_repo
@@ -131,6 +134,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<DeleteNodeRequest>,
     ) -> Result<Response<DeleteNodeResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         self.node_repo
             .delete(&req.id)
@@ -144,6 +148,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<PushPeerRequest>,
     ) -> Result<Response<PushPeerResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let proto_peer = req
             .peer
@@ -198,6 +203,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<PushProbeResultRequest>,
     ) -> Result<Response<PushProbeResultResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let proto = req
             .result
@@ -286,6 +292,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<SaveCommunityRuleRequest>,
     ) -> Result<Response<CommunityRule>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let proto = req
             .rule
@@ -327,6 +334,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<DeleteCommunityRuleRequest>,
     ) -> Result<Response<DeleteCommunityRuleResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         self.community_repo
             .delete(&req.id)

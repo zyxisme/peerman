@@ -4,6 +4,7 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 
 ## Build
 
+- `source "$HOME/.cargo/env"` to put cargo/rustup on PATH (not in default env)
 - `cargo build` — full build (proto gen → frontend pnpm build → rust compile → embed dist/)
 - `SKIP_FRONTEND_BUILD=1 cargo build` — skip frontend, use pre-built dist/
 - `cd frontend && pnpm dev` — Vite dev server (proxies /api to localhost:3000)
@@ -26,7 +27,7 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 ## Config
 
 - Config via TOML file: `cargo run -- -c config.toml` (defaults to `./config.toml`). Copy `config.toml.example` as a starting point.
-- `Cli` struct (clap) handles only `-c`/`--config`. `Config` struct (serde + toml) has four nested sections: `[server]`, `[storage]`, `[logging]`, `[cluster]`.
+- `Cli` struct (clap) handles only `-c`/`--config`. `Config` struct has five sections: `[server]`, `[storage]`, `[logging]`, `[auth]`, `[cluster]`.
 - **Serde default gotcha:** `#[serde(default)]` on a struct only fills in when the entire section is absent from TOML. For partial sections, missing fields ERROR unless annotated with `#[serde(default = "fn_name")]` pointing to a function. See `default_listen_addr()` etc. in `src/config.rs` for the pattern.
 
 ## Patterns
@@ -100,6 +101,16 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - Looking Glass queries all cluster nodes: local via socket, remote via gRPC `ExecuteCommand` RPC (placeholder for now).
 - Traceroute runs as subprocess: `traceroute -q 1 -w 1 -m 15 <target>`.
 - `flap_events` table (migration 003) stores detected flaps — sources: `ibgp`/`socket`/`probe`.
+
+## Auth (JWT + httpOnly cookie)
+
+- Single admin user — credentials in `[auth]` config section. `jwt_secret` empty = auto-generate on startup.
+- JWT issued via `POST /api/auth/login` (axum handler, not gRPC), stored as httpOnly cookie (30 day expiry).
+- Write gRPC methods call `crate::auth::check_auth(&request, &secret)?` for per-method auth.
+- **Tonic interceptor gotcha:** tonic's `.interceptor()` on Server::builder has type issues with tonic-web's GrpcWebLayer. Per-method checks are simpler and avoid this.
+- **Axum State + tonic Router(.nest()) gotcha:** `.nest("/api", grpc_router)` requires both routers to have the same state type. Tonic's `into_router()` returns `Router<()>` which can't use `.with_state(S)`. Use `std::sync::OnceLock<Arc<Config>>` static for sharing config across HTTP handlers instead of axum's `State` extractor.
+- `jsonwebtoken` crate for HS256 signing. `src/auth.rs` contains JWT utils + `check_auth()` helper.
+- Frontend: `AuthProvider` in `main.tsx`, `ProtectedRoute` wrapping write pages, `LoginPage` at `/login`.
 
 ## Adding a new gRPC service
 

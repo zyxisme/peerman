@@ -1,4 +1,5 @@
 mod app_state;
+mod auth;
 mod config;
 mod db;
 mod error;
@@ -8,13 +9,24 @@ mod services;
 mod static_files;
 
 use std::net::SocketAddr;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use axum::http::header::SET_COOKIE;
+use axum::routing::{get, post};
+use axum::Json;
 use axum::Router;
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
+
+/// Global config (set once at startup, read by HTTP handlers).
+static APP_CONFIG: OnceLock<Arc<config::Config>> = OnceLock::new();
+fn app_config() -> Arc<config::Config> {
+    APP_CONFIG.get().expect("APP_CONFIG not initialized").clone()
+}
 
 use crate::grpc::generated::bird_service_server::BirdServiceServer;
 use crate::grpc::generated::cluster_service_server::ClusterServiceServer;
@@ -27,11 +39,159 @@ use crate::grpc::flap_service::FlapServiceImpl;
 use crate::grpc::peer_service::PeerServiceImpl;
 use crate::grpc::settings_service::SettingsServiceImpl;
 
+// ---------------------------------------------------------------------------
+// Auth HTTP handlers (not gRPC)
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct LoginRequest {
+    username: String,
+    password: String,
+}
+
+#[derive(Serialize)]
+struct LoginResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user: Option<UserInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+struct UserInfo {
+    username: String,
+}
+
+#[derive(Serialize)]
+struct MeResponse {
+    authenticated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+}
+
+async fn handle_login(
+    Json(req): Json<LoginRequest>,
+) -> axum::response::Response {
+    let cfg = app_config();
+    if req.username != cfg.auth.username || req.password != cfg.auth.password {
+        return json_response(
+            axum::http::StatusCode::UNAUTHORIZED,
+            &LoginResponse {
+                success: false,
+                user: None,
+                error: Some("Invalid credentials".into()),
+            },
+            None,
+        );
+    }
+
+    let secret = if cfg.auth.jwt_secret.is_empty() {
+        ""
+    } else {
+        &cfg.auth.jwt_secret
+    };
+
+    match auth::create_token(&req.username, secret) {
+        Ok(token) => {
+            let cookie = format!(
+                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000",
+                token
+            );
+            json_response(
+                axum::http::StatusCode::OK,
+                &LoginResponse {
+                    success: true,
+                    user: Some(UserInfo {
+                        username: req.username,
+                    }),
+                    error: None,
+                },
+                Some(&cookie),
+            )
+        }
+        Err(e) => json_response(
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            &LoginResponse {
+                success: false,
+                user: None,
+                error: Some(format!("Token creation failed: {e}")),
+            },
+            None,
+        ),
+    }
+}
+
+async fn handle_logout() -> axum::response::Response {
+    json_response(
+        axum::http::StatusCode::OK,
+        &serde_json::json!({"success": true}),
+        Some("jwt=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"),
+    )
+}
+
+async fn handle_me(
+    headers: axum::http::HeaderMap,
+) -> Json<MeResponse> {
+    let cfg = app_config();
+    let cookie_header = headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    match auth::parse_cookie(cookie_header, "jwt") {
+        Some(token) => match auth::verify_token(token, &cfg.auth.jwt_secret) {
+            Ok(claims) => Json(MeResponse {
+                authenticated: true,
+                username: Some(claims.sub),
+            }),
+            Err(_) => Json(MeResponse {
+                authenticated: false,
+                username: None,
+            }),
+        },
+        None => Json(MeResponse {
+            authenticated: false,
+            username: None,
+        }),
+    }
+}
+
+fn json_response(
+    status: axum::http::StatusCode,
+    body: &impl Serialize,
+    cookie: Option<&str>,
+) -> axum::response::Response {
+    let json = serde_json::to_string(body).unwrap_or_default();
+    let mut builder = axum::response::Response::builder()
+        .status(status)
+        .header("content-type", "application/json");
+    if let Some(c) = cookie {
+        builder = builder.header(SET_COOKIE, c);
+    }
+    builder
+        .body(axum::body::Body::from(json))
+        .unwrap()
+}
+
+// ---------------------------------------------------------------------------
+
 #[tokio::main]
 #[allow(deprecated)] // tonic 0.12 into_router() — into_axum_router not available on Server::Router
 async fn main() -> anyhow::Result<()> {
     let cli = config::Cli::parse();
-    let cfg = config::Config::load(&cli.config)?;
+    let mut cfg = config::Config::load(&cli.config)?;
+
+    // Generate JWT secret if not configured
+    if cfg.auth.jwt_secret.is_empty() {
+        cfg.auth.jwt_secret = auth::generate_jwt_secret();
+        tracing::info!(
+            "Auto-generated JWT secret (tokens will expire on restart)"
+        );
+    }
+    if cfg.auth.password.is_empty() {
+        tracing::warn!("No auth password configured — login will always fail");
+    }
 
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::new(&cfg.logging.level))
@@ -39,8 +199,21 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Starting peerman, listening on {}", cfg.server.listen_addr);
 
+    let jwt_secret = Arc::new(cfg.auth.jwt_secret.clone());
+
+    // Clone config values needed after cfg moves into Arc
+    let listen_addr = cfg.server.listen_addr.clone();
+    let db_path = cfg.storage.db_path.clone();
+    let node_name = cfg.cluster.node_name.clone();
+    let sync_interval = cfg.cluster.sync_interval_secs;
+    let probe_interval = cfg.cluster.probe_interval_secs;
+    let bootstrap_nodes = cfg.cluster.bootstrap_nodes.clone();
+    let cfg_arc = Arc::new(cfg);
+    APP_CONFIG.set(cfg_arc.clone())
+        .map_err(|_| anyhow::anyhow!("APP_CONFIG already set"))?;
+
     // Database
-    let pool = db::create_pool(&cfg.storage.db_path).await?;
+    let pool = db::create_pool(&db_path).await?;
     let state = app_state::AppState::new(pool.clone());
 
     // Verify
@@ -58,19 +231,23 @@ async fn main() -> anyhow::Result<()> {
     let peer_svc = PeerServiceImpl {
         peer_repo: state.peer_repo.clone(),
         settings_repo: state.settings_repo.clone(),
+        jwt_secret: jwt_secret.clone(),
     };
     let settings_svc = SettingsServiceImpl {
         settings_repo: state.settings_repo.clone(),
+        jwt_secret: jwt_secret.clone(),
     };
     let cluster_svc = ClusterServiceImpl {
         node_repo: state.node_repo.clone(),
         peer_repo: state.peer_repo.clone(),
         probe_repo: state.probe_repo.clone(),
         community_repo: state.community_repo.clone(),
+        jwt_secret: jwt_secret.clone(),
     };
     let bird_svc = BirdServiceImpl {
-        node_name: cfg.cluster.node_name.clone(),
+        node_name: node_name.clone(),
         node_repo: state.node_repo.clone(),
+        jwt_secret: jwt_secret.clone(),
     };
     let flap_svc = FlapServiceImpl {
         flap_repo: state.flap_event_repo.clone(),
@@ -87,28 +264,31 @@ async fn main() -> anyhow::Result<()> {
         .add_service(FlapServiceServer::new(flap_svc))
         .into_router();
 
-    // Build axum router: static files + gRPC
+    // Build axum router: auth endpoints + gRPC + static files
     let app = Router::new()
+        .route("/api/auth/login", post(handle_login))
+        .route("/api/auth/logout", post(handle_logout))
+        .route("/api/auth/me", get(handle_me))
         .nest("/api", grpc_router)
         .fallback(static_files::serve_static)
         .layer(TraceLayer::new_for_http());
 
     // Self-register if cluster mode is enabled
-    if !cfg.cluster.node_name.is_empty() {
+    if !node_name.is_empty() {
         let local_asn = state.settings_repo.load().await?.local_asn;
         let node = state
             .node_repo
-            .upsert_self(&cfg.cluster.node_name, &cfg.server.listen_addr, local_asn)
+            .upsert_self(&node_name, &listen_addr, local_asn)
             .await?;
         tracing::info!(
             "Self-registered as node '{}' (id={}, asn={})",
-            cfg.cluster.node_name,
+            node_name,
             node.id,
             local_asn
         );
 
         // Mark known bootstrap nodes (add them if not already present)
-        for addr in &cfg.cluster.bootstrap_nodes {
+        for addr in &bootstrap_nodes {
             let addr = addr.trim();
             if addr.is_empty() {
                 continue;
@@ -128,7 +308,7 @@ async fn main() -> anyhow::Result<()> {
 
         // Spawn periodic stale-node cleanup task
         let stale_state = state.clone();
-        let stale_interval = cfg.cluster.sync_interval_secs;
+        let stale_interval = sync_interval;
         let stale_token = shutdown.clone();
 
         tokio::spawn(async move {
@@ -147,10 +327,9 @@ async fn main() -> anyhow::Result<()> {
         });
 
         // Spawn periodic probe task
-        if cfg.cluster.probe_interval_secs > 0 {
+        if probe_interval > 0 {
             let probe_state = state.clone();
-            let probe_node_name = cfg.cluster.node_name.clone();
-            let probe_interval = cfg.cluster.probe_interval_secs;
+            let probe_node_name = node_name.clone();
             let probe_token = shutdown.clone();
 
             tokio::spawn(async move {
@@ -190,12 +369,12 @@ async fn main() -> anyhow::Result<()> {
 
         // Spawn BGP flap detector
         let node_id = node.id.clone();
-        let node_name = cfg.cluster.node_name.clone();
+        let flap_node_name = node_name.clone();
         let flap_repo = state.flap_event_repo.clone();
         let flap_token = shutdown.clone();
 
         tokio::spawn(async move {
-            tracing::info!("Starting BGP flap detector for node '{node_name}' ({node_id})");
+            tracing::info!("Starting BGP flap detector for node '{flap_node_name}' ({node_id})");
 
             let (tx, rx) = tokio::sync::mpsc::channel::<
                 crate::services::bgp_listener::PathChange,
@@ -229,7 +408,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let addr: SocketAddr = cfg.server.listen_addr.parse()?;
+    let addr: SocketAddr = listen_addr.parse()?;
     tracing::info!("peerman ready at http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

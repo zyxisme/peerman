@@ -14,6 +14,8 @@ import ProbeDashboard from './components/probes/ProbeDashboard';
 import CommunityRules from './components/communities/CommunityRules';
 import LookingGlass from './components/bird/LookingGlass';
 import FlapDashboard from './components/flaps/FlapDashboard';
+import LoginPage from './components/auth/LoginPage';
+import { ProtectedRoute } from './lib/auth';
 
 function ExportPage() {
   return (
@@ -44,19 +46,20 @@ export default function App() {
         <ErrorBoundary>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/peers/new" element={<PeerForm />} />
+          <Route path="/peers/new" element={<ProtectedRoute><PeerForm /></ProtectedRoute>} />
           <Route path="/peers/:id" element={<PeerDetail />} />
-          <Route path="/peers/:id/edit" element={<PeerForm />} />
+          <Route path="/peers/:id/edit" element={<ProtectedRoute><PeerForm /></ProtectedRoute>} />
           <Route path="/export" element={<ExportPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/nodes" element={<NodesTable />} />
-          <Route path="/nodes/new" element={<NodeForm />} />
+          <Route path="/nodes/new" element={<ProtectedRoute><NodeForm /></ProtectedRoute>} />
           <Route path="/nodes/:id" element={<NodeDetail />} />
-          <Route path="/nodes/:id/edit" element={<NodeForm />} />
+          <Route path="/nodes/:id/edit" element={<ProtectedRoute><NodeForm /></ProtectedRoute>} />
           <Route path="/probes" element={<ProbeDashboard />} />
           <Route path="/communities" element={<CommunityRules />} />
           <Route path="/looking-glass" element={<LookingGlass />} />
           <Route path="/flaps" element={<FlapDashboard />} />
+          <Route path="/login" element={<LoginPage />} />
         </Routes>
         </ErrorBoundary>
       </div>

@@ -8,6 +8,7 @@ use crate::models::settings::SettingsRepository;
 
 pub struct SettingsServiceImpl {
     pub settings_repo: SettingsRepository,
+    pub jwt_secret: std::sync::Arc<String>,
 }
 
 fn settings_to_proto(s: &crate::models::settings::Settings) -> Settings {
@@ -113,6 +114,7 @@ impl SettingsService for SettingsServiceImpl {
         &self,
         request: Request<SaveSettingsRequest>,
     ) -> Result<Response<Settings>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let proto_settings = req
             .settings

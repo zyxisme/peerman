@@ -37,6 +37,7 @@ tokio-util = "0.7"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 rand = "0.8"
 regex = "1"
+jsonwebtoken = "9"
 
 [build-dependencies]
 tonic-build = "0.12"

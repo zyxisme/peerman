@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Settings, Download, Home, Cable, Server, Activity, Tag, Search, AlertCircle } from 'lucide-react';
+import { Plus, Settings, Download, Home, Cable, Server, Activity, Tag, Search, AlertCircle, LogIn, LogOut } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../lib/auth';
 
 const links = [
   { to: '/', label: 'Home', icon: Home },
@@ -16,6 +17,7 @@ const links = [
 
 export default function NavBar() {
   const location = useLocation();
+  const { isAuthenticated, username, logout } = useAuth();
 
   return (
     <nav className="nav-bar">
@@ -49,8 +51,29 @@ export default function NavBar() {
           })}
         </div>
 
-        {/* Spacer for symmetry */}
-        <div className="w-20" />
+        {/* Auth section */}
+        <div className="flex items-center gap-2 min-w-[120px] justify-end">
+          {isAuthenticated ? (
+            <>
+              <span className="text-body-sm text-body">{username}</span>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 rounded-full px-sm h-8 text-body-sm transition-colors text-body hover:bg-canvas-soft"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Logout
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              className="flex items-center gap-1.5 rounded-full px-sm h-8 text-body-sm transition-colors text-body hover:bg-canvas-soft"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Login
+            </Link>
+          )}
+        </div>
       </div>
     </nav>
   );

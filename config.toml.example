@@ -13,6 +13,13 @@ db_path = "data/peerman.db"
 # trace, debug, info, warn, error
 level = "info"
 
+[auth]
+# Admin login credentials
+username = "admin"
+password = ""
+# JWT signing secret — leave empty to auto-generate on startup
+jwt_secret = ""
+
 [cluster]
 # Node name — leave empty for standalone mode (no cluster features)
 node_name = ""
