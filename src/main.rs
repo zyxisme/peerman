@@ -472,6 +472,96 @@ async fn main() -> anyhow::Result<()> {
             });
         }
 
+        // Spawn periodic anti-entropy node exchange task
+        let sync_ct = shutdown.clone();
+        let sync_interval_dur = Duration::from_secs(sync_interval);
+        let node_repo_sync = state.node_repo.clone();
+        let cluster_key_sync = cluster_key.clone();
+        let listen_addr_sync = listen_addr.clone();
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(sync_interval_dur);
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+            loop {
+                tokio::select! {
+                    _ = sync_ct.cancelled() => break,
+                    _ = interval.tick() => {}
+                }
+
+                let nodes = match node_repo_sync.list_all().await {
+                    Ok(n) => n,
+                    Err(_) => continue,
+                };
+
+                let online_peers: Vec<_> = nodes
+                    .iter()
+                    .filter(|n| n.online && n.listen_addr != listen_addr_sync)
+                    .collect();
+
+                if online_peers.is_empty() {
+                    continue;
+                }
+
+                // Pick a random peer
+                let idx = {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default();
+                    (now.subsec_nanos() as usize) % online_peers.len()
+                };
+                let peer = online_peers[idx];
+
+                let my_info: Vec<crate::grpc::generated::NodeInfo> = nodes
+                    .iter()
+                    .map(|n| crate::grpc::generated::NodeInfo {
+                        name: n.name.clone(),
+                        listen_addr: n.listen_addr.clone(),
+                        local_asn: n.local_asn,
+                        description: n.description.clone().unwrap_or_default(),
+                        last_seen_at: n.last_seen_at.clone(),
+                    })
+                    .collect();
+
+                match crate::cluster::aggregator::ClusterAggregator::exchange_with(
+                    &peer.listen_addr,
+                    &cluster_key_sync,
+                    my_info,
+                )
+                .await
+                {
+                    Ok(remote_nodes) => {
+                        for info in &remote_nodes {
+                            if info.listen_addr == listen_addr_sync {
+                                continue;
+                            }
+                            if let Ok(Some(_)) = node_repo_sync
+                                .find_by_listen_addr(&info.listen_addr)
+                                .await
+                            {
+                                continue;
+                            }
+                            let _ = node_repo_sync
+                                .create(
+                                    &info.name,
+                                    &info.listen_addr,
+                                    info.local_asn,
+                                    &info.description,
+                                )
+                                .await;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::debug!(
+                            "Periodic ExchangeNodes with {} failed: {}",
+                            peer.listen_addr,
+                            e
+                        );
+                    }
+                }
+            }
+        });
+
         // Spawn BGP flap detector
         let node_id = node.id.clone();
         let flap_node_name = node_name.clone();
