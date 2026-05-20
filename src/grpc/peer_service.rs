@@ -46,30 +46,6 @@ pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
     }
 }
 
-fn apply_create_fields(peer: &mut crate::models::peer::Peer, req: &CreatePeerRequest) {
-    peer.name = req.name.clone();
-    peer.description = if req.description.is_empty() { None } else { Some(req.description.clone()) };
-    peer.asn = req.asn;
-    peer.local_asn = req.local_asn;
-    peer.wg_private_key = if req.wg_private_key.is_empty() { None } else { Some(req.wg_private_key.clone()) };
-    peer.wg_public_key = if req.wg_public_key.is_empty() { None } else { Some(req.wg_public_key.clone()) };
-    peer.wg_remote_address = req.wg_remote_address.clone();
-    peer.wg_remote_port = req.wg_remote_port as i64;
-    peer.wg_listen_port = req.wg_listen_port as i64;
-    peer.wg_interface_name = req.wg_interface_name.clone();
-    peer.ipv4_tunnel_local = if req.ipv4_tunnel_local.is_empty() { None } else { Some(req.ipv4_tunnel_local.clone()) };
-    peer.ipv4_tunnel_remote = if req.ipv4_tunnel_remote.is_empty() { None } else { Some(req.ipv4_tunnel_remote.clone()) };
-    peer.ipv6_tunnel_local = if req.ipv6_tunnel_local.is_empty() { None } else { Some(req.ipv6_tunnel_local.clone()) };
-    peer.ipv6_tunnel_remote = if req.ipv6_tunnel_remote.is_empty() { None } else { Some(req.ipv6_tunnel_remote.clone()) };
-    peer.multiprotocol = req.multiprotocol;
-    peer.extended_nexthop = req.extended_nexthop;
-    peer.sessions = req.sessions;
-    peer.passive = req.passive;
-    peer.import_max_prefix = if req.import_max_prefix == 0 { None } else { Some(req.import_max_prefix as i64) };
-    peer.export_max_prefix = if req.export_max_prefix == 0 { None } else { Some(req.export_max_prefix as i64) };
-    peer.origin_node_id = if req.origin_node_id.is_empty() { None } else { Some(req.origin_node_id.clone()) };
-}
-
 #[tonic::async_trait]
 impl PeerService for PeerServiceImpl {
     async fn list_peers(
@@ -116,7 +92,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        apply_create_fields(&mut peer, &req);
+        peer.apply_proto(&create_request_to_proto(&req));
 
         let peer = self
             .peer_repo
@@ -139,27 +115,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
 
-        peer.name = req.name.clone();
-        peer.description = if req.description.is_empty() { None } else { Some(req.description.clone()) };
-        peer.asn = req.asn;
-        peer.local_asn = req.local_asn;
-        peer.wg_private_key = if req.wg_private_key.is_empty() { None } else { Some(req.wg_private_key.clone()) };
-        peer.wg_public_key = if req.wg_public_key.is_empty() { None } else { Some(req.wg_public_key.clone()) };
-        peer.wg_remote_address = req.wg_remote_address.clone();
-        peer.wg_remote_port = req.wg_remote_port as i64;
-        peer.wg_listen_port = req.wg_listen_port as i64;
-        peer.wg_interface_name = req.wg_interface_name.clone();
-        peer.ipv4_tunnel_local = if req.ipv4_tunnel_local.is_empty() { None } else { Some(req.ipv4_tunnel_local.clone()) };
-        peer.ipv4_tunnel_remote = if req.ipv4_tunnel_remote.is_empty() { None } else { Some(req.ipv4_tunnel_remote.clone()) };
-        peer.ipv6_tunnel_local = if req.ipv6_tunnel_local.is_empty() { None } else { Some(req.ipv6_tunnel_local.clone()) };
-        peer.ipv6_tunnel_remote = if req.ipv6_tunnel_remote.is_empty() { None } else { Some(req.ipv6_tunnel_remote.clone()) };
-        peer.multiprotocol = req.multiprotocol;
-        peer.extended_nexthop = req.extended_nexthop;
-        peer.sessions = req.sessions;
-        peer.passive = req.passive;
-        peer.import_max_prefix = if req.import_max_prefix == 0 { None } else { Some(req.import_max_prefix as i64) };
-        peer.export_max_prefix = if req.export_max_prefix == 0 { None } else { Some(req.export_max_prefix as i64) };
-        peer.origin_node_id = if req.origin_node_id.is_empty() { None } else { Some(req.origin_node_id.clone()) };
+        peer.apply_proto(&update_request_to_proto(&req));
 
         let peer = self
             .peer_repo
@@ -290,5 +246,65 @@ impl PeerService for PeerServiceImpl {
 
         let content = services::bird::generate_full_config(&peers, &settings, "");
         Ok(Response::new(ConfigResponse { content }))
+    }
+}
+
+fn create_request_to_proto(req: &CreatePeerRequest) -> Peer {
+    Peer {
+        id: String::new(),
+        name: req.name.clone(),
+        description: req.description.clone(),
+        asn: req.asn,
+        local_asn: req.local_asn,
+        wg_private_key: req.wg_private_key.clone(),
+        wg_public_key: req.wg_public_key.clone(),
+        wg_remote_address: req.wg_remote_address.clone(),
+        wg_remote_port: req.wg_remote_port,
+        wg_listen_port: req.wg_listen_port,
+        wg_interface_name: req.wg_interface_name.clone(),
+        ipv4_tunnel_local: req.ipv4_tunnel_local.clone(),
+        ipv4_tunnel_remote: req.ipv4_tunnel_remote.clone(),
+        ipv6_tunnel_local: req.ipv6_tunnel_local.clone(),
+        ipv6_tunnel_remote: req.ipv6_tunnel_remote.clone(),
+        multiprotocol: req.multiprotocol,
+        extended_nexthop: req.extended_nexthop,
+        sessions: req.sessions,
+        passive: req.passive,
+        import_max_prefix: req.import_max_prefix,
+        export_max_prefix: req.export_max_prefix,
+        enabled: true,
+        created_at: String::new(),
+        updated_at: String::new(),
+        origin_node_id: req.origin_node_id.clone(),
+    }
+}
+
+fn update_request_to_proto(req: &UpdatePeerRequest) -> Peer {
+    Peer {
+        id: req.id.clone(),
+        name: req.name.clone(),
+        description: req.description.clone(),
+        asn: req.asn,
+        local_asn: req.local_asn,
+        wg_private_key: req.wg_private_key.clone(),
+        wg_public_key: req.wg_public_key.clone(),
+        wg_remote_address: req.wg_remote_address.clone(),
+        wg_remote_port: req.wg_remote_port,
+        wg_listen_port: req.wg_listen_port,
+        wg_interface_name: req.wg_interface_name.clone(),
+        ipv4_tunnel_local: req.ipv4_tunnel_local.clone(),
+        ipv4_tunnel_remote: req.ipv4_tunnel_remote.clone(),
+        ipv6_tunnel_local: req.ipv6_tunnel_local.clone(),
+        ipv6_tunnel_remote: req.ipv6_tunnel_remote.clone(),
+        multiprotocol: req.multiprotocol,
+        extended_nexthop: req.extended_nexthop,
+        sessions: req.sessions,
+        passive: req.passive,
+        import_max_prefix: req.import_max_prefix,
+        export_max_prefix: req.export_max_prefix,
+        enabled: true,
+        created_at: String::new(),
+        updated_at: String::new(),
+        origin_node_id: req.origin_node_id.clone(),
     }
 }

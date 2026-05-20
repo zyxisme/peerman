@@ -33,6 +33,44 @@ pub struct Peer {
     pub origin_node_id: Option<String>,
 }
 
+impl Peer {
+    /// Apply proto Peer fields to this model.
+    pub fn apply_proto(&mut self, proto: &crate::grpc::generated::Peer) {
+        self.name = proto.name.clone();
+        self.description = opt_string(&proto.description);
+        self.asn = proto.asn;
+        self.local_asn = proto.local_asn;
+        self.wg_private_key = opt_string(&proto.wg_private_key);
+        self.wg_public_key = opt_string(&proto.wg_public_key);
+        self.wg_remote_address = proto.wg_remote_address.clone();
+        self.wg_remote_port = proto.wg_remote_port as i64;
+        self.wg_listen_port = proto.wg_listen_port as i64;
+        self.wg_interface_name = proto.wg_interface_name.clone();
+        self.ipv4_tunnel_local = opt_string(&proto.ipv4_tunnel_local);
+        self.ipv4_tunnel_remote = opt_string(&proto.ipv4_tunnel_remote);
+        self.ipv6_tunnel_local = opt_string(&proto.ipv6_tunnel_local);
+        self.ipv6_tunnel_remote = opt_string(&proto.ipv6_tunnel_remote);
+        self.multiprotocol = proto.multiprotocol;
+        self.extended_nexthop = proto.extended_nexthop;
+        self.sessions = proto.sessions;
+        self.passive = proto.passive;
+        self.import_max_prefix = opt_i64(proto.import_max_prefix);
+        self.export_max_prefix = opt_i64(proto.export_max_prefix);
+        self.origin_node_id = opt_string(&proto.origin_node_id);
+        if !proto.updated_at.is_empty() {
+            self.updated_at = proto.updated_at.clone();
+        }
+    }
+}
+
+fn opt_string(s: &str) -> Option<String> {
+    if s.is_empty() { None } else { Some(s.to_string()) }
+}
+
+fn opt_i64(v: i32) -> Option<i64> {
+    if v == 0 { None } else { Some(v as i64) }
+}
+
 #[derive(Clone)]
 pub struct PeerRepository {
     pool: SqlitePool,

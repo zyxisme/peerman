@@ -1,11 +1,25 @@
 use regex::Regex;
-use std::process::Command;
-use std::time::Duration;
+use std::sync::OnceLock;
+use tokio::process::Command;
 
 use crate::error::AppError;
 use crate::models::node::Node;
 use crate::models::probe::{ProbeResult, ProbeResultRepository};
 use uuid::Uuid;
+
+fn rtt_regex() -> &'static Regex {
+    static RTT_RE: OnceLock<Regex> = OnceLock::new();
+    RTT_RE.get_or_init(|| {
+        Regex::new(r"rtt min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/[\d.]+ ms").unwrap()
+    })
+}
+
+fn stats_regex() -> &'static Regex {
+    static STATS_RE: OnceLock<Regex> = OnceLock::new();
+    STATS_RE.get_or_init(|| {
+        Regex::new(r"(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss").unwrap()
+    })
+}
 
 pub struct PingOutput {
     pub avg_ms: f64,
@@ -17,7 +31,7 @@ pub struct PingOutput {
 }
 
 /// Run `ping -c <count> -i <interval> <target>` and parse output.
-pub fn ping(target_ip: &str, count: u32, interval_secs: f64) -> Result<PingOutput, AppError> {
+pub async fn ping(target_ip: &str, count: u32, interval_secs: f64) -> Result<PingOutput, AppError> {
     let output = Command::new("ping")
         .args([
             "-c",
@@ -28,19 +42,13 @@ pub fn ping(target_ip: &str, count: u32, interval_secs: f64) -> Result<PingOutpu
             "2",
             target_ip,
         ])
-        // Note: timeout is handled by the caller via tokio::time::timeout
         .output()
+        .await
         .map_err(|e| AppError::Internal(format!("ping command failed: {e}")))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Parse: rtt min/avg/max/mdev = 0.123/0.456/0.789/0.100 ms
-    let rtt_re = Regex::new(
-        r"rtt min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/[\d.]+ ms",
-    )
-    .unwrap();
-
-    let (min_ms, avg_ms, max_ms) = rtt_re
+    let (min_ms, avg_ms, max_ms) = rtt_regex()
         .captures(&stdout)
         .map(|caps| {
             (
@@ -51,11 +59,7 @@ pub fn ping(target_ip: &str, count: u32, interval_secs: f64) -> Result<PingOutpu
         })
         .unwrap_or((0.0, 0.0, 0.0));
 
-    // Parse: 5 packets transmitted, 5 received, 0% packet loss
-    let stats_re =
-        Regex::new(r"(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss").unwrap();
-
-    let (sent, received, loss_pct) = stats_re
+    let (sent, received, loss_pct) = stats_regex()
         .captures(&stdout)
         .map(|caps| {
             (
@@ -95,7 +99,7 @@ pub async fn probe_between(
     repo: &ProbeResultRepository,
 ) -> Result<ProbeResult, AppError> {
     let target_ip = resolve_target_ip(to_node);
-    let ping_out = ping(&target_ip, 5, 0.2)?;
+    let ping_out = ping(&target_ip, 5, 0.2).await?;
 
     let now = chrono::Utc::now().to_rfc3339();
     let result = ProbeResult {
@@ -113,6 +117,43 @@ pub async fn probe_between(
 
     repo.insert(&result).await?;
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_target_ip_extracts_host() {
+        let node = Node {
+            id: "n1".into(),
+            name: "test".into(),
+            listen_addr: "192.168.1.1:3000".into(),
+            local_asn: 0,
+            description: None,
+            online: true,
+            last_seen_at: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        assert_eq!(resolve_target_ip(&node), "192.168.1.1");
+    }
+
+    #[test]
+    fn test_resolve_target_ip_no_port() {
+        let node = Node {
+            id: "n1".into(),
+            name: "test".into(),
+            listen_addr: "10.0.0.1".into(),
+            local_asn: 0,
+            description: None,
+            online: true,
+            last_seen_at: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        assert_eq!(resolve_target_ip(&node), "10.0.0.1");
+    }
 }
 
 /// Run probes from this node to all other nodes. Returns probe results.

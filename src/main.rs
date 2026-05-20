@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use axum::Router;
 use clap::Parser;
+use tokio_util::sync::CancellationToken;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -48,6 +49,9 @@ async fn main() -> anyhow::Result<()> {
     // Seed community rules
     let rules_count = state.community_repo.list_all().await?.len() as i64;
     state.community_repo.seed_defaults(rules_count).await?;
+
+    // Global cancellation token for graceful shutdown
+    let shutdown = CancellationToken::new();
 
     // Build gRPC services
     let peer_svc = PeerServiceImpl {
@@ -124,10 +128,17 @@ async fn main() -> anyhow::Result<()> {
         // Spawn periodic stale-node cleanup task
         let stale_state = state.clone();
         let stale_interval = cfg.cluster.sync_interval_secs;
+        let stale_token = shutdown.clone();
 
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_secs(stale_interval)).await;
+                tokio::select! {
+                    _ = stale_token.cancelled() => {
+                        tracing::info!("Stale-node cleanup task shutting down");
+                        return;
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(stale_interval)) => {}
+                }
                 if let Err(e) = stale_state.node_repo.mark_stale(120).await {
                     tracing::warn!("Failed to mark stale nodes: {}", e);
                 }
@@ -139,10 +150,17 @@ async fn main() -> anyhow::Result<()> {
             let probe_state = state.clone();
             let probe_node_name = cfg.cluster.node_name.clone();
             let probe_interval = cfg.cluster.probe_interval_secs;
+            let probe_token = shutdown.clone();
 
             tokio::spawn(async move {
                 loop {
-                    tokio::time::sleep(Duration::from_secs(probe_interval)).await;
+                    tokio::select! {
+                        _ = probe_token.cancelled() => {
+                            tracing::info!("Probe task shutting down");
+                            return;
+                        }
+                        _ = tokio::time::sleep(Duration::from_secs(probe_interval)) => {}
+                    }
 
                     let nodes = match probe_state.node_repo.list_all().await {
                         Ok(n) => n,
@@ -173,11 +191,11 @@ async fn main() -> anyhow::Result<()> {
         let node_id = node.id.clone();
         let node_name = cfg.cluster.node_name.clone();
         let flap_repo = state.flap_event_repo.clone();
+        let flap_token = shutdown.clone();
 
         tokio::spawn(async move {
             tracing::info!("Starting BGP flap detector for node '{node_name}' ({node_id})");
 
-            // Try to start iBGP listener
             let (tx, rx) = tokio::sync::mpsc::channel::<
                 crate::services::bgp_listener::PathChange,
             >(1024);
@@ -185,21 +203,26 @@ async fn main() -> anyhow::Result<()> {
             match crate::services::bgp_listener::BgpListener::bind(node_id.clone()).await {
                 Ok(listener) => {
                     tracing::info!("iBGP listener active on [::1]:1790");
-                    // Spawn the listener
                     let bgp_tx = tx.clone();
-                    tokio::spawn(listener.run(bgp_tx));
+                    let bgp_token = flap_token.clone();
+                    tokio::spawn(async move {
+                        tokio::select! {
+                            _ = bgp_token.cancelled() => {
+                                tracing::info!("iBGP listener shutting down");
+                            }
+                            _ = listener.run(bgp_tx) => {}
+                        }
+                    });
 
-                    // Run flap detector with iBGP channel
                     let mut detector =
                         crate::services::flap_detector::FlapDetector::new(node_id.clone(), flap_repo);
-                    detector.run(rx).await;
+                    detector.run(rx, flap_token).await;
                 }
                 Err(e) => {
                     tracing::warn!("iBGP listener unavailable ({e}), flap detection will use socket polling fallback");
-                    // Run in polling-only mode (dummy channel that never receives)
                     let mut detector =
                         crate::services::flap_detector::FlapDetector::new(node_id, flap_repo);
-                    detector.run(rx).await;
+                    detector.run(rx, flap_token).await;
                 }
             }
         });
@@ -209,7 +232,22 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("peerman ready at http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+
+    tokio::select! {
+        result = axum::serve(listener, app) => {
+            if let Err(e) = result {
+                tracing::error!("Server error: {e}");
+            }
+        }
+        _ = shutdown.cancelled() => {
+            tracing::info!("Shutdown signal received");
+        }
+    }
+
+    tracing::info!("Waiting for background tasks to complete...");
+    // Give tasks a grace period to finish
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    tracing::info!("peerman stopped");
 
     Ok(())
 }

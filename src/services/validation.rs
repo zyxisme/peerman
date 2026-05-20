@@ -71,3 +71,82 @@ pub fn validate_wg_public_key(key: &str) -> Result<(), AppError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_asn_valid() {
+        assert!(validate_asn(4_242_420_000).is_ok());
+        assert!(validate_asn(4_242_429_999).is_ok());
+    }
+
+    #[test]
+    fn test_validate_asn_invalid() {
+        assert!(validate_asn(0).is_err());
+        assert!(validate_asn(4_242_430_000).is_err());
+    }
+
+    #[test]
+    fn test_validate_peer_name_valid() {
+        assert!(validate_peer_name("test-peer").is_ok());
+        assert!(validate_peer_name("peer_01").is_ok());
+    }
+
+    #[test]
+    fn test_validate_peer_name_empty() {
+        assert!(validate_peer_name("").is_err());
+    }
+
+    #[test]
+    fn test_validate_peer_name_invalid_chars() {
+        assert!(validate_peer_name("peer name").is_err());
+        assert!(validate_peer_name("peer@host").is_err());
+    }
+
+    #[test]
+    fn test_validate_ipv4_valid() {
+        assert!(validate_ipv4("192.168.1.1").is_ok());
+        assert!(validate_ipv4("10.0.0.0").is_ok());
+    }
+
+    #[test]
+    fn test_validate_ipv4_invalid() {
+        assert!(validate_ipv4("256.1.1.1").is_err());
+        assert!(validate_ipv4("not-an-ip").is_err());
+    }
+
+    #[test]
+    fn test_validate_ipv6_valid() {
+        assert!(validate_ipv6("::1").is_ok());
+        assert!(validate_ipv6("fd00::1").is_ok());
+    }
+
+    #[test]
+    fn test_validate_ipv6_invalid() {
+        assert!(validate_ipv6("not-an-ip").is_err());
+    }
+
+    #[test]
+    fn test_validate_ipv6_link_local() {
+        assert!(validate_ipv6_link_local("fe80::1").is_ok());
+        assert!(validate_ipv6_link_local("fd00::1").is_err());
+    }
+
+    #[test]
+    fn test_validate_wg_key_valid() {
+        let (_, pub_key) = crate::services::wireguard::generate_keypair();
+        assert!(validate_wg_public_key(&pub_key).is_ok());
+    }
+
+    #[test]
+    fn test_validate_wg_key_wrong_length() {
+        assert!(validate_wg_public_key("tooshort").is_err());
+    }
+
+    #[test]
+    fn test_validate_wg_key_invalid_base64() {
+        assert!(validate_wg_public_key("!!!!....!!!!....!!!!....!!!!....!!!!....!!!!").is_err());
+    }
+}

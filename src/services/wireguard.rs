@@ -68,3 +68,81 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
 
     config
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::settings::Settings;
+
+    fn test_settings() -> Settings {
+        Settings {
+            local_asn: 4242420000,
+            bird_template_name: "test".into(),
+            bird_router_id: "1.2.3.4".into(),
+            wg_default_listen_port: 42420,
+            dn42_ipv4_prefix: "172.20.0.0/14".into(),
+            dn42_ipv6_prefix: "fd00::/8".into(),
+            wg_table: "auto".into(),
+        }
+    }
+
+    fn test_peer() -> Peer {
+        Peer {
+            id: "test-id".into(),
+            name: "test-peer".into(),
+            description: None,
+            asn: 4242420001,
+            local_asn: 4242420000,
+            wg_private_key: Some("privkey".into()),
+            wg_public_key: Some("pubkey".into()),
+            wg_remote_address: "10.0.0.1".into(),
+            wg_remote_port: 42420,
+            wg_listen_port: 42420,
+            wg_interface_name: "wg0".into(),
+            ipv4_tunnel_local: Some("172.20.1.1".into()),
+            ipv4_tunnel_remote: Some("172.20.1.2".into()),
+            ipv6_tunnel_local: Some("fd00::1".into()),
+            ipv6_tunnel_remote: Some("fd00::2".into()),
+            multiprotocol: true,
+            extended_nexthop: true,
+            sessions: 0,
+            passive: false,
+            import_max_prefix: None,
+            export_max_prefix: None,
+            enabled: true,
+            created_at: "2025-01-01T00:00:00Z".into(),
+            updated_at: "2025-01-01T00:00:00Z".into(),
+            origin_node_id: None,
+        }
+    }
+
+    #[test]
+    fn test_generate_keypair_format() {
+        let (priv_key, pub_key) = generate_keypair();
+        assert_eq!(priv_key.len(), 44);
+        assert_eq!(pub_key.len(), 44);
+        // Should be valid base64
+        use base64::Engine;
+        assert!(base64::engine::general_purpose::STANDARD.decode(&priv_key).is_ok());
+        assert!(base64::engine::general_purpose::STANDARD.decode(&pub_key).is_ok());
+    }
+
+    #[test]
+    fn test_generate_config_contains_sections() {
+        let config = generate_config(&test_peer(), &test_settings());
+        assert!(config.contains("[Interface]"));
+        assert!(config.contains("[Peer]"));
+        assert!(config.contains("PrivateKey = privkey"));
+        assert!(config.contains("PublicKey = pubkey"));
+    }
+
+    #[test]
+    fn test_generate_config_without_keys() {
+        let mut peer = test_peer();
+        peer.wg_private_key = None;
+        peer.wg_public_key = None;
+        let config = generate_config(&peer, &test_settings());
+        assert!(!config.contains("PrivateKey"));
+        assert!(!config.contains("PublicKey"));
+    }
+}

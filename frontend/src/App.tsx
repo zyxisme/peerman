@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/layout/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import PeerTable from './components/peers/PeerTable';
 import PeerForm from './components/peers/PeerForm';
 import PeerDetail from './components/peers/PeerDetail';
@@ -40,6 +41,7 @@ export default function App() {
   return (
     <Layout>
       <div className="px-lg py-xl">
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/peers/new" element={<PeerForm />} />
@@ -56,6 +58,7 @@ export default function App() {
           <Route path="/looking-glass" element={<LookingGlass />} />
           <Route path="/flaps" element={<FlapDashboard />} />
         </Routes>
+        </ErrorBoundary>
       </div>
     </Layout>
   );

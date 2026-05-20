@@ -1,5 +1,4 @@
 use sqlx::SqlitePool;
-use uuid::Uuid;
 
 use crate::error::AppError;
 
@@ -57,62 +56,36 @@ impl ProbeResultRepository {
     ) -> Result<Vec<ProbeResult>, AppError> {
         let limit = if limit <= 0 { 100 } else { limit as i64 };
 
-        if !from_node_id.is_empty() && !to_node_id.is_empty() {
-            sqlx::query_as::<_, ProbeResult>(
-                "SELECT id, from_node_id, to_node_id,
-                 avg_latency_ms, min_latency_ms, max_latency_ms,
-                 packet_loss_pct, packets_sent, packets_received, probed_at
-                 FROM probe_results
-                 WHERE from_node_id = ? AND to_node_id = ?
-                 ORDER BY probed_at DESC LIMIT ?",
-            )
-            .bind(from_node_id)
-            .bind(to_node_id)
-            .bind(limit)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
-        } else if !from_node_id.is_empty() {
-            sqlx::query_as::<_, ProbeResult>(
-                "SELECT id, from_node_id, to_node_id,
-                 avg_latency_ms, min_latency_ms, max_latency_ms,
-                 packet_loss_pct, packets_sent, packets_received, probed_at
-                 FROM probe_results
-                 WHERE from_node_id = ?
-                 ORDER BY probed_at DESC LIMIT ?",
-            )
-            .bind(from_node_id)
-            .bind(limit)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
-        } else if !to_node_id.is_empty() {
-            sqlx::query_as::<_, ProbeResult>(
-                "SELECT id, from_node_id, to_node_id,
-                 avg_latency_ms, min_latency_ms, max_latency_ms,
-                 packet_loss_pct, packets_sent, packets_received, probed_at
-                 FROM probe_results
-                 WHERE to_node_id = ?
-                 ORDER BY probed_at DESC LIMIT ?",
-            )
-            .bind(to_node_id)
-            .bind(limit)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
-        } else {
-            sqlx::query_as::<_, ProbeResult>(
-                "SELECT id, from_node_id, to_node_id,
-                 avg_latency_ms, min_latency_ms, max_latency_ms,
-                 packet_loss_pct, packets_sent, packets_received, probed_at
-                 FROM probe_results
-                 ORDER BY probed_at DESC LIMIT ?",
-            )
-            .bind(limit)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
+        let mut builder = sqlx::QueryBuilder::new(
+            "SELECT id, from_node_id, to_node_id,
+             avg_latency_ms, min_latency_ms, max_latency_ms,
+             packet_loss_pct, packets_sent, packets_received, probed_at
+             FROM probe_results",
+        );
+
+        let mut has_where = false;
+        if !from_node_id.is_empty() {
+            builder.push(" WHERE from_node_id = ");
+            builder.push_bind(from_node_id);
+            has_where = true;
         }
+        if !to_node_id.is_empty() {
+            if has_where {
+                builder.push(" AND to_node_id = ");
+            } else {
+                builder.push(" WHERE to_node_id = ");
+            }
+            builder.push_bind(to_node_id);
+        }
+
+        builder.push(" ORDER BY probed_at DESC LIMIT ");
+        builder.push_bind(limit);
+
+        builder
+            .build_query_as::<ProbeResult>()
+            .fetch_all(&self.pool)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn latest_between(

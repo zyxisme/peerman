@@ -107,15 +107,18 @@ service SettingsService {
 }
 
 service ClusterService {
-  rpc ListNodes, GetNode, CreateNode, UpdateNode, DeleteNode,
-      ListProbeResults, ExecuteCommand
+  rpc ListNodes, RegisterNode, UpdateNode, DeleteNode,
+      PushPeer, PullPeers, PushProbeResult,
+      ListProbeResults, RunProbe,
+      ListCommunityRules, SaveCommunityRule, DeleteCommunityRule,
+      GetPeerCommunities
 }
 
 service BirdService {
-  rpc ExecuteCommand
+  rpc ExecuteCommand, RunTraceroute
 }
 
 service FlapService {
-  rpc ListFlapEvents
+  rpc ListFlapEvents, GetFlapStats
 }
 ```

@@ -64,58 +64,34 @@ impl CommunityRuleRepository {
     pub async fn save(&self, rule: &CommunityRule) -> Result<CommunityRule, AppError> {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Upsert: try insert, if conflict update
-        let existing = sqlx::query_as::<_, CommunityRule>(
-            "SELECT id, description, max_latency_ms, max_packet_loss_pct,
-             community_ipv4, community_ipv6, enabled, created_at, updated_at
-             FROM community_rules WHERE id = ?",
+        sqlx::query_as::<_, CommunityRule>(
+            "INSERT INTO community_rules
+             (id, description, max_latency_ms, max_packet_loss_pct,
+              community_ipv4, community_ipv6, enabled, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+             description = excluded.description,
+             max_latency_ms = excluded.max_latency_ms,
+             max_packet_loss_pct = excluded.max_packet_loss_pct,
+             community_ipv4 = excluded.community_ipv4,
+             community_ipv6 = excluded.community_ipv6,
+             enabled = excluded.enabled,
+             updated_at = excluded.updated_at
+             RETURNING id, description, max_latency_ms, max_packet_loss_pct,
+             community_ipv4, community_ipv6, enabled, created_at, updated_at",
         )
         .bind(&rule.id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        if existing.is_some() {
-            sqlx::query_as::<_, CommunityRule>(
-                "UPDATE community_rules SET
-                 description = ?, max_latency_ms = ?, max_packet_loss_pct = ?,
-                 community_ipv4 = ?, community_ipv6 = ?, enabled = ?, updated_at = ?
-                 WHERE id = ?
-                 RETURNING id, description, max_latency_ms, max_packet_loss_pct,
-                 community_ipv4, community_ipv6, enabled, created_at, updated_at",
-            )
-            .bind(&rule.description)
-            .bind(rule.max_latency_ms)
-            .bind(rule.max_packet_loss_pct)
-            .bind(&rule.community_ipv4)
-            .bind(&rule.community_ipv6)
-            .bind(rule.enabled)
-            .bind(&now)
-            .bind(&rule.id)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(Into::into)
-        } else {
-            sqlx::query_as::<_, CommunityRule>(
-                "INSERT INTO community_rules
-                 (id, description, max_latency_ms, max_packet_loss_pct,
-                  community_ipv4, community_ipv6, enabled, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 RETURNING id, description, max_latency_ms, max_packet_loss_pct,
-                 community_ipv4, community_ipv6, enabled, created_at, updated_at",
-            )
-            .bind(&rule.id)
-            .bind(&rule.description)
-            .bind(rule.max_latency_ms)
-            .bind(rule.max_packet_loss_pct)
-            .bind(&rule.community_ipv4)
-            .bind(&rule.community_ipv6)
-            .bind(rule.enabled)
-            .bind(&now)
-            .bind(&now)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(Into::into)
-        }
+        .bind(&rule.description)
+        .bind(rule.max_latency_ms)
+        .bind(rule.max_packet_loss_pct)
+        .bind(&rule.community_ipv4)
+        .bind(&rule.community_ipv6)
+        .bind(rule.enabled)
+        .bind(&now)
+        .bind(&now)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn delete(&self, id: &str) -> Result<(), AppError> {

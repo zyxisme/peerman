@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -10,12 +11,14 @@ const DEFAULT_WINDOW_SECS: i64 = 60;
 const DEFAULT_CHANGE_THRESHOLD: u32 = 10;
 const DEFAULT_RESOLVE_AFTER_SECS: i64 = 300;
 const CHECK_INTERVAL_SECS: u64 = 30;
+const TRACKER_TTL_SECS: i64 = 600;
 
 struct PrefixTracker {
     prefix: String,
     prefix_type: String,
     changes: Vec<i64>,
     last_path_hash: u64,
+    last_change_ts: i64,
 }
 
 pub struct FlapDetector {
@@ -39,10 +42,14 @@ impl FlapDetector {
         }
     }
 
-    pub async fn run(&mut self, mut rx: mpsc::Receiver<super::bgp_listener::PathChange>) {
+    pub async fn run(&mut self, mut rx: mpsc::Receiver<super::bgp_listener::PathChange>, token: CancellationToken) {
         loop {
             let tick = tokio::time::sleep(std::time::Duration::from_secs(CHECK_INTERVAL_SECS));
             tokio::select! {
+                _ = token.cancelled() => {
+                    tracing::info!("Flap detector shutting down");
+                    return;
+                }
                 maybe_change = rx.recv() => {
                     match maybe_change {
                         Some(change) => {
@@ -60,9 +67,15 @@ impl FlapDetector {
                     if let Err(e) = self.resolve_stale().await {
                         tracing::warn!("Flap detector resolve error: {e}");
                     }
+                    self.evict_trackers();
                 }
             }
         }
+    }
+
+    fn evict_trackers(&mut self) {
+        let now = chrono::Utc::now().timestamp();
+        self.trackers.retain(|_, t| now - t.last_change_ts <= TRACKER_TTL_SECS);
     }
 
     async fn process_change(
@@ -72,12 +85,10 @@ impl FlapDetector {
         let prefix_key = format!("{}:{}", change.prefix, change.node_id);
         let now = chrono::Utc::now().timestamp();
 
-        #[derive(Debug)]
         struct Action {
             prefix: String,
             prefix_type: String,
             change_count: u32,
-            is_existing: bool,
         }
 
         let action = if let Some(tracker) = self.trackers.get_mut(&prefix_key) {
@@ -85,6 +96,7 @@ impl FlapDetector {
                 return Ok(());
             }
             tracker.last_path_hash = change.path_hash;
+            tracker.last_change_ts = now;
             tracker.changes.push(now);
             tracker.changes.retain(|t| now - t <= self.window_secs);
 
@@ -94,7 +106,6 @@ impl FlapDetector {
                     prefix: tracker.prefix.clone(),
                     prefix_type: tracker.prefix_type.clone(),
                     change_count: count,
-                    is_existing: true,
                 })
             } else {
                 None
@@ -112,6 +123,7 @@ impl FlapDetector {
                     prefix_type: prefix_type.to_string(),
                     changes: vec![now],
                     last_path_hash: change.path_hash,
+                    last_change_ts: now,
                 },
             );
             None

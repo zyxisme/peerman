@@ -152,7 +152,7 @@ impl ClusterService for ClusterServiceImpl {
         match existing {
             Some(local) if proto_peer.updated_at > local.updated_at => {
                 let mut updated = local;
-                services::sync::apply_proto_to_model(&mut updated, &proto_peer);
+                updated.apply_proto(&proto_peer);
                 self.peer_repo
                     .update(&updated)
                     .await
@@ -164,7 +164,7 @@ impl ClusterService for ClusterServiceImpl {
                     .create(&proto_peer.name)
                     .await
                     .map_err(|e| Status::internal(e.to_string()))?;
-                services::sync::apply_proto_to_model(&mut peer, &proto_peer);
+                peer.apply_proto(&proto_peer);
                 self.peer_repo
                     .update(&peer)
                     .await

@@ -30,7 +30,7 @@ impl BgpListener {
     pub async fn run(self, tx: mpsc::Sender<PathChange>) {
         loop {
             match self.listener.accept().await {
-                Ok((mut stream, addr)) => {
+                Ok((stream, addr)) => {
                     tracing::info!("BGP connection from {addr}");
                     let tx = tx.clone();
                     let node_id = self.node_id.clone();
@@ -229,7 +229,7 @@ fn build_open(hold_time: u16) -> Result<Vec<u8>, String> {
 }
 
 fn build_keepalive() -> Vec<u8> {
-    build_bgp_msg(4, &[]).unwrap()
+    build_bgp_msg(4, &[]).expect("keepalive body is always under 4096 bytes")
 }
 
 fn build_bgp_msg(msg_type: u8, body: &[u8]) -> Result<Vec<u8>, String> {

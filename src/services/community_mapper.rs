@@ -1,7 +1,6 @@
 use crate::models::community::CommunityRuleRepository;
 use crate::models::peer::Peer;
 use crate::models::probe::ProbeResultRepository;
-use crate::services::probe::resolve_target_ip;
 
 pub struct CommunityMapper;
 
@@ -18,28 +17,15 @@ impl CommunityMapper {
 
         let origin_node_id = peer.origin_node_id.as_deref().unwrap_or(local_node_id);
 
-        // If peer is local (same node), no probe data — use best case
-        let latency = if origin_node_id == local_node_id {
-            0.0
+        let (latency, loss_pct) = if origin_node_id == local_node_id {
+            (0.0, 0.0)
         } else {
             match probe_repo
                 .latest_between(local_node_id, origin_node_id)
                 .await?
             {
-                Some(probe) => probe.avg_latency_ms,
+                Some(probe) => (probe.avg_latency_ms, probe.packet_loss_pct),
                 None => return Ok((Vec::new(), Vec::new())),
-            }
-        };
-
-        let loss_pct = if origin_node_id == local_node_id {
-            0.0
-        } else {
-            match probe_repo
-                .latest_between(local_node_id, origin_node_id)
-                .await?
-            {
-                Some(probe) => probe.packet_loss_pct,
-                None => 0.0,
             }
         };
 
