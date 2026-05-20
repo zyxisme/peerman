@@ -61,6 +61,9 @@ fn community_rule_to_proto(r: &crate::models::community::CommunityRule) -> Commu
         community_ipv4: r.community_ipv4.clone(),
         community_ipv6: r.community_ipv6.clone(),
         enabled: r.enabled,
+        min_bandwidth_mbps: r.min_bandwidth_mbps,
+        crypto_weight: r.crypto_weight,
+        med_penalty: r.med_penalty,
     }
 }
 
@@ -304,6 +307,9 @@ impl ClusterService for ClusterServiceImpl {
             community_ipv4: proto.community_ipv4.clone(),
             community_ipv6: proto.community_ipv6.clone(),
             enabled: proto.enabled,
+            min_bandwidth_mbps: proto.min_bandwidth_mbps,
+            crypto_weight: proto.crypto_weight,
+            med_penalty: proto.med_penalty,
             created_at: String::new(),
             updated_at: String::new(),
         };
