@@ -1,0 +1,170 @@
+syntax = "proto3";
+package peerman;
+
+// ── Peer Service ──
+
+service PeerService {
+  rpc ListPeers(ListPeersRequest) returns (ListPeersResponse);
+  rpc GetPeer(GetPeerRequest) returns (Peer);
+  rpc CreatePeer(CreatePeerRequest) returns (Peer);
+  rpc UpdatePeer(UpdatePeerRequest) returns (Peer);
+  rpc DeletePeer(DeletePeerRequest) returns (DeletePeerResponse);
+  rpc TogglePeer(TogglePeerRequest) returns (Peer);
+  rpc GenerateKeypair(GenerateKeypairRequest) returns (GenerateKeypairResponse);
+  rpc GetWireGuardConfig(GetConfigRequest) returns (ConfigResponse);
+  rpc GetBirdConfig(GetConfigRequest) returns (ConfigResponse);
+  rpc ExportAllWireGuard(ExportAllRequest) returns (ConfigResponse);
+  rpc ExportAllBird(ExportAllRequest) returns (ConfigResponse);
+}
+
+// ── Settings Service ──
+
+service SettingsService {
+  rpc GetSettings(GetSettingsRequest) returns (Settings);
+  rpc SaveSettings(SaveSettingsRequest) returns (Settings);
+}
+
+// ── Enums ──
+
+enum SessionProtocol {
+  SESSION_IPV4 = 0;
+  SESSION_IPV6 = 1;
+  SESSION_BOTH = 2;
+}
+
+// ── Core Messages ──
+
+message Peer {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int64 asn = 4;
+  int64 local_asn = 5;
+  // WireGuard
+  string wg_private_key = 6;
+  string wg_public_key = 7;
+  string wg_remote_address = 8;
+  uint32 wg_remote_port = 9;
+  uint32 wg_listen_port = 10;
+  string wg_interface_name = 11;
+  // Tunnel addressing
+  string ipv4_tunnel_local = 12;
+  string ipv4_tunnel_remote = 13;
+  string ipv6_tunnel_local = 14;
+  string ipv6_tunnel_remote = 15;
+  // BGP session
+  bool multiprotocol = 16;
+  bool extended_nexthop = 17;
+  SessionProtocol sessions = 18;
+  bool passive = 19;
+  int32 import_max_prefix = 20;
+  int32 export_max_prefix = 21;
+  // Metadata
+  bool enabled = 22;
+  string created_at = 23;
+  string updated_at = 24;
+}
+
+message Settings {
+  int64 local_asn = 1;
+  string bird_template_name = 2;
+  string bird_router_id = 3;
+  uint32 wg_default_listen_port = 4;
+  string dn42_ipv4_prefix = 5;
+  string dn42_ipv6_prefix = 6;
+  string wg_table = 7;
+}
+
+// ── Peer Service Requests / Responses ──
+
+message ListPeersRequest {}
+
+message ListPeersResponse {
+  repeated Peer peers = 1;
+}
+
+message GetPeerRequest {
+  string id = 1;
+}
+
+message CreatePeerRequest {
+  string name = 1;
+  string description = 2;
+  int64 asn = 3;
+  int64 local_asn = 4;
+  string wg_private_key = 5;
+  string wg_public_key = 6;
+  string wg_remote_address = 7;
+  uint32 wg_remote_port = 8;
+  uint32 wg_listen_port = 9;
+  string wg_interface_name = 10;
+  string ipv4_tunnel_local = 11;
+  string ipv4_tunnel_remote = 12;
+  string ipv6_tunnel_local = 13;
+  string ipv6_tunnel_remote = 14;
+  bool multiprotocol = 15;
+  bool extended_nexthop = 16;
+  SessionProtocol sessions = 17;
+  bool passive = 18;
+  int32 import_max_prefix = 19;
+  int32 export_max_prefix = 20;
+}
+
+message UpdatePeerRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int64 asn = 4;
+  int64 local_asn = 5;
+  string wg_private_key = 6;
+  string wg_public_key = 7;
+  string wg_remote_address = 8;
+  uint32 wg_remote_port = 9;
+  uint32 wg_listen_port = 10;
+  string wg_interface_name = 11;
+  string ipv4_tunnel_local = 12;
+  string ipv4_tunnel_remote = 13;
+  string ipv6_tunnel_local = 14;
+  string ipv6_tunnel_remote = 15;
+  bool multiprotocol = 16;
+  bool extended_nexthop = 17;
+  SessionProtocol sessions = 18;
+  bool passive = 19;
+  int32 import_max_prefix = 20;
+  int32 export_max_prefix = 21;
+}
+
+message DeletePeerRequest {
+  string id = 1;
+}
+
+message DeletePeerResponse {}
+
+message TogglePeerRequest {
+  string id = 1;
+}
+
+message GenerateKeypairRequest {}
+
+message GenerateKeypairResponse {
+  string private_key = 1;
+  string public_key = 2;
+}
+
+message GetConfigRequest {
+  string id = 1;
+}
+
+message ConfigResponse {
+  string content = 1;
+}
+
+message ExportAllRequest {}
+
+// ── Settings Service Requests ──
+
+message GetSettingsRequest {}
+
+message SaveSettingsRequest {
+  Settings settings = 1;
+}
