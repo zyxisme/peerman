@@ -152,4 +152,40 @@ impl NodeRepository {
             None => self.create(name, listen_addr, local_asn, "").await,
         }
     }
+
+    pub async fn find_by_name(&self, name: &str) -> Result<Option<Node>, AppError> {
+        sqlx::query_as::<_, Node>(
+            "SELECT id, name, listen_addr, local_asn, description, online,
+             last_seen_at, created_at, updated_at
+             FROM nodes WHERE name = ?",
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    pub async fn upsert_by_name(
+        &self,
+        name: &str,
+        listen_addr: &str,
+        local_asn: i64,
+        description: &str,
+    ) -> Result<Node, AppError> {
+        match self.find_by_name(name).await? {
+            Some(node) => {
+                let mut updated = node;
+                updated.listen_addr = listen_addr.to_string();
+                updated.local_asn = local_asn;
+                updated.description = if description.is_empty() {
+                    None
+                } else {
+                    Some(description.to_string())
+                };
+                updated.last_seen_at = Utc::now().to_rfc3339();
+                self.update(&updated).await
+            }
+            None => self.create(name, listen_addr, local_asn, description).await,
+        }
+    }
 }

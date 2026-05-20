@@ -2,10 +2,11 @@ use tonic::{Request, Response, Status};
 
 use super::generated::{
     cluster_service_server::ClusterService, CommunityRule, DeleteCommunityRuleRequest,
-    DeleteCommunityRuleResponse, DeleteNodeRequest, DeleteNodeResponse, GetPeerCommunitiesRequest,
-    GetPeerCommunitiesResponse, ListCommunityRulesRequest, ListCommunityRulesResponse,
+    DeleteCommunityRuleResponse, DeleteNodeRequest, DeleteNodeResponse, ExchangeNodesRequest,
+    ExchangeNodesResponse, GetPeerCommunitiesRequest, GetPeerCommunitiesResponse,
+    HealthCheckRequest, HealthCheckResponse, ListCommunityRulesRequest, ListCommunityRulesResponse,
     ListNodesRequest, ListNodesResponse, ListProbeResultsRequest, ListProbeResultsResponse, Node,
-    ProbeResult, PullPeersRequest, PullPeersResponse, PushPeerRequest, PushPeerResponse,
+    NodeInfo, ProbeResult, PullPeersRequest, PullPeersResponse, PushPeerRequest, PushPeerResponse,
     PushProbeResultRequest, PushProbeResultResponse, RegisterNodeRequest, RunProbeRequest,
     RunProbeResponse, SaveCommunityRuleRequest, UpdateNodeRequest,
 };
@@ -375,5 +376,53 @@ impl ClusterService for ClusterServiceImpl {
             community_ipv4: v4,
             community_ipv6: v6,
         }))
+    }
+
+    async fn exchange_nodes(
+        &self,
+        request: Request<ExchangeNodesRequest>,
+    ) -> Result<Response<ExchangeNodesResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        let req = request.into_inner();
+
+        // Upsert nodes received from peer
+        for ni in &req.nodes {
+            if let Err(e) = self
+                .node_repo
+                .upsert_by_name(&ni.name, &ni.listen_addr, ni.local_asn, &ni.description)
+                .await
+            {
+                tracing::warn!("Failed to upsert node {} from exchange: {}", ni.name, e);
+            }
+        }
+
+        // Return our known nodes
+        let nodes = self
+            .node_repo
+            .list_all()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let node_infos: Vec<NodeInfo> = nodes
+            .iter()
+            .map(|n| NodeInfo {
+                name: n.name.clone(),
+                listen_addr: n.listen_addr.clone(),
+                local_asn: n.local_asn,
+                description: n.description.clone().unwrap_or_default(),
+                last_seen_at: n.last_seen_at.clone(),
+            })
+            .collect();
+
+        Ok(Response::new(ExchangeNodesResponse {
+            nodes: node_infos,
+        }))
+    }
+
+    async fn health_check(
+        &self,
+        _request: Request<HealthCheckRequest>,
+    ) -> Result<Response<HealthCheckResponse>, Status> {
+        Ok(Response::new(HealthCheckResponse { ok: true }))
     }
 }

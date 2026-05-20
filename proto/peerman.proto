@@ -204,6 +204,8 @@ service ClusterService {
   rpc SaveCommunityRule(SaveCommunityRuleRequest) returns (CommunityRule);
   rpc DeleteCommunityRule(DeleteCommunityRuleRequest) returns (DeleteCommunityRuleResponse);
   rpc GetPeerCommunities(GetPeerCommunitiesRequest) returns (GetPeerCommunitiesResponse);
+  rpc ExchangeNodes(ExchangeNodesRequest) returns (ExchangeNodesResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
 
 message Node {
@@ -299,6 +301,28 @@ message GetPeerCommunitiesRequest { string peer_id = 1; }
 message GetPeerCommunitiesResponse {
   repeated string community_ipv4 = 1;
   repeated string community_ipv6 = 2;
+}
+
+message NodeInfo {
+  string name = 1;
+  string listen_addr = 2;
+  int64 local_asn = 3;
+  string description = 4;
+  string last_seen_at = 5;
+}
+
+message ExchangeNodesRequest {
+  repeated NodeInfo nodes = 1;
+}
+
+message ExchangeNodesResponse {
+  repeated NodeInfo nodes = 1;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool ok = 1;
 }
 
 // ── Looking Glass Service ──
