@@ -28,6 +28,7 @@ use crate::grpc::peer_service::PeerServiceImpl;
 use crate::grpc::settings_service::SettingsServiceImpl;
 
 #[tokio::main]
+#[allow(deprecated)] // tonic 0.12 into_router() — into_axum_router not available on Server::Router
 async fn main() -> anyhow::Result<()> {
     let cli = config::Cli::parse();
     let cfg = config::Config::load(&cli.config)?;

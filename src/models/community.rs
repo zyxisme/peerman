@@ -49,18 +49,6 @@ impl CommunityRuleRepository {
         .map_err(Into::into)
     }
 
-    pub async fn find_by_id(&self, id: &str) -> Result<CommunityRule, AppError> {
-        sqlx::query_as::<_, CommunityRule>(
-            "SELECT id, description, max_latency_ms, max_packet_loss_pct,
-             community_ipv4, community_ipv6, enabled, created_at, updated_at
-             FROM community_rules WHERE id = ?",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("CommunityRule {id} not found")))
-    }
-
     pub async fn save(&self, rule: &CommunityRule) -> Result<CommunityRule, AppError> {
         let now = chrono::Utc::now().to_rfc3339();
 

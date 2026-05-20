@@ -50,18 +50,6 @@ impl NodeRepository {
         .ok_or_else(|| AppError::NotFound(format!("Node {id} not found")))
     }
 
-    pub async fn find_by_name(&self, name: &str) -> Result<Option<Node>, AppError> {
-        sqlx::query_as::<_, Node>(
-            "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at
-             FROM nodes WHERE name = ?",
-        )
-        .bind(name)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(Into::into)
-    }
-
     pub async fn find_by_listen_addr(&self, addr: &str) -> Result<Option<Node>, AppError> {
         sqlx::query_as::<_, Node>(
             "SELECT id, name, listen_addr, local_asn, description, online,
@@ -132,16 +120,6 @@ impl NodeRepository {
         if result.rows_affected() == 0 {
             return Err(AppError::NotFound(format!("Node {id} not found")));
         }
-        Ok(())
-    }
-
-    pub async fn mark_seen(&self, id: &str) -> Result<(), AppError> {
-        let now = Utc::now().to_rfc3339();
-        sqlx::query("UPDATE nodes SET online = 1, last_seen_at = ? WHERE id = ?")
-            .bind(&now)
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
         Ok(())
     }
 

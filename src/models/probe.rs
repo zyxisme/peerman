@@ -108,37 +108,4 @@ impl ProbeResultRepository {
         .map_err(Into::into)
     }
 
-    pub async fn latest_between_all(
-        &self,
-        _node_ids: &[String],
-    ) -> Result<Vec<ProbeResult>, AppError> {
-        // Get the latest probe between each pair
-        let results = sqlx::query_as::<_, ProbeResult>(
-            "SELECT id, from_node_id, to_node_id,
-             avg_latency_ms, min_latency_ms, max_latency_ms,
-             packet_loss_pct, packets_sent, packets_received, probed_at
-             FROM probe_results
-             ORDER BY probed_at DESC LIMIT 500",
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
-        // Deduplicate: keep only the latest per (from, to) pair
-        let mut seen = std::collections::HashMap::new();
-        for r in results {
-            let key = (r.from_node_id.clone(), r.to_node_id.clone());
-            seen.entry(key).or_insert(r);
-        }
-        Ok(seen.into_values().collect())
-    }
-
-    pub async fn cleanup_old(&self, keep_days: i32) -> Result<(), AppError> {
-        let cutoff =
-            chrono::Utc::now() - chrono::Duration::days(keep_days as i64);
-        sqlx::query("DELETE FROM probe_results WHERE probed_at < ?")
-            .bind(&cutoff.to_rfc3339())
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
 }

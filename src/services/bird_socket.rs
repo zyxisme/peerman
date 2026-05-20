@@ -7,7 +7,6 @@ use crate::error::AppError;
 const SOCKET_PATH: &str = "/var/run/bird.ctl";
 
 pub struct BirdResponse {
-    pub code: u16,
     pub lines: Vec<String>,
 }
 
@@ -79,7 +78,6 @@ impl BirdSocket {
 
     async fn read_response(&mut self) -> Result<BirdResponse, AppError> {
         let mut lines: Vec<String> = Vec::new();
-        let mut final_code: u16 = 0;
         let mut current_line = String::new();
         let mut append_mode = false;
 
@@ -97,46 +95,30 @@ impl BirdSocket {
 
             let line = buf.trim_end_matches(['\n', '\r']).to_string();
 
-            // Parse 4-digit status code at start of line
             if line.len() >= 4 && line[..4].chars().all(|c| c.is_ascii_digit()) {
                 let code: u16 = line[..4]
                     .parse()
                     .map_err(|_| AppError::Internal(format!("Invalid status code in: {line}")))?;
 
-                let code_type = code / 1000;
-
-                match code_type {
-                    0 => {
-                        // Success terminal code (0000-0016)
-                        final_code = code;
-                        break;
-                    }
+                match code / 1000 {
+                    0 => break, // Success terminal code (0000-0016)
                     1 | 2 => {
                         // Table entry (1xxx) or continuation (2xxx)
-                        // Only commit non-empty accumulated line
                         if !current_line.is_empty() {
                             lines.push(current_line.clone());
                             current_line.clear();
                         }
-                        // Strip first 5 chars (code + space) and start new entry
                         let data = if line.len() > 5 { &line[5..] } else { "" };
                         current_line = data.to_string();
                         append_mode = false;
                     }
                     8 | 9 => {
-                        // Error or fatal
-                        final_code = code;
                         let msg = line[5..].to_string();
                         return Err(AppError::Internal(format!("BIRD error: {msg}")));
                     }
-                    _ => {
-                        // Unknown code — treat as terminal
-                        final_code = code;
-                        break;
-                    }
+                    _ => break, // Unknown code — treat as terminal
                 }
             } else if line.starts_with(' ') {
-                // Continuation line (prefixed with space)
                 let data = &line[1..];
                 if append_mode {
                     current_line.push_str(data);
@@ -145,31 +127,23 @@ impl BirdSocket {
                     current_line.push_str(data);
                 }
             } else if line.starts_with('+') {
-                // Append without newline
-                let data = &line[1..];
-                current_line.push_str(data);
+                current_line.push_str(&line[1..]);
                 append_mode = true;
             } else if line.is_empty() {
-                // Empty line — separator
                 if !current_line.is_empty() {
                     lines.push(current_line.clone());
                     current_line.clear();
                 }
             } else {
-                // Unknown prefix — just append as continuation
                 current_line.push('\n');
                 current_line.push_str(&line);
             }
         }
 
-        // Push any remaining accumulated line
         if !current_line.is_empty() {
             lines.push(current_line);
         }
 
-        Ok(BirdResponse {
-            code: final_code,
-            lines,
-        })
+        Ok(BirdResponse { lines })
     }
 }

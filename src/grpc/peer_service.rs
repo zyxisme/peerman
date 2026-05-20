@@ -82,8 +82,9 @@ impl PeerService for PeerServiceImpl {
         request: Request<CreatePeerRequest>,
     ) -> Result<Response<Peer>, Status> {
         let req = request.into_inner();
-
-        services::validation::validate_peer_name(&req.name)
+        validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
+            &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
+            &req.ipv6_tunnel_local, &req.ipv6_tunnel_remote)
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let mut peer = self
@@ -108,6 +109,10 @@ impl PeerService for PeerServiceImpl {
         request: Request<UpdatePeerRequest>,
     ) -> Result<Response<Peer>, Status> {
         let req = request.into_inner();
+        validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
+            &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
+            &req.ipv6_tunnel_local, &req.ipv6_tunnel_remote)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let mut peer = self
             .peer_repo
@@ -307,4 +312,37 @@ fn update_request_to_proto(req: &UpdatePeerRequest) -> Peer {
         updated_at: String::new(),
         origin_node_id: req.origin_node_id.clone(),
     }
+}
+
+fn validate_peer_fields(
+    name: &str,
+    asn: i64,
+    wg_public_key: &str,
+    ipv4_local: &str,
+    ipv4_remote: &str,
+    ipv6_local: &str,
+    ipv6_remote: &str,
+) -> Result<(), crate::error::AppError> {
+    use crate::services::validation;
+
+    validation::validate_peer_name(name)?;
+    if asn != 0 {
+        validation::validate_asn(asn)?;
+    }
+    if !wg_public_key.is_empty() {
+        validation::validate_wg_public_key(wg_public_key)?;
+    }
+    if !ipv4_local.is_empty() {
+        validation::validate_ipv4(ipv4_local)?;
+    }
+    if !ipv4_remote.is_empty() {
+        validation::validate_ipv4(ipv4_remote)?;
+    }
+    if !ipv6_local.is_empty() {
+        validation::validate_ipv6(ipv6_local)?;
+    }
+    if !ipv6_remote.is_empty() {
+        validation::validate_ipv6(ipv6_remote)?;
+    }
+    Ok(())
 }

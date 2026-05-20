@@ -166,16 +166,6 @@ pub fn generate_full_config(
     config
 }
 
-/// Generate only the protocol blocks (snippets) for all enabled peers.
-pub fn generate_snippets(peers: &[Peer], settings: &Settings) -> String {
-    peers
-        .iter()
-        .filter(|p| p.enabled)
-        .map(|p| generate_peer_block(p, settings))
-        .collect::<Vec<_>>()
-        .join("")
-}
-
 fn sanitize_name(name: &str) -> String {
     name.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "_")
         .to_lowercase()
