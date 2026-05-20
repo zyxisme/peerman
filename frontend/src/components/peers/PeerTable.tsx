@@ -9,7 +9,10 @@ export default function PeerTable() {
   const { nodes } = useNodes();
   const navigate = useNavigate();
 
-  const nodeName = (id: string) => nodes.find(n => n.id === id)?.name ?? id.slice(0, 8);
+  const offlineNodeIds = new Set(nodes.filter(n => !n.online).map(n => n.id));
+  const nodeNameById = new Map(nodes.map(n => [n.id, n.name]));
+
+  const nodeName = (id: string) => nodeNameById.get(id) ?? id.slice(0, 8);
 
   const handleToggle = async (id: string) => {
     await peerClient.togglePeer({ id });
@@ -67,8 +70,14 @@ export default function PeerTable() {
           </tr>
         </thead>
         <tbody>
-          {peers.map((peer) => (
-            <tr key={peer.id}>
+          {peers.map((peer) => {
+            const isStale = peer.originNodeId && offlineNodeIds.has(peer.originNodeId);
+            return (
+            <tr
+              key={peer.id}
+              className={isStale ? 'opacity-50' : ''}
+              title={isStale ? 'Node offline; data from cache' : undefined}
+            >
               <td>
                 <button
                   className="text-link hover:text-link-deep font-medium"
@@ -133,7 +142,8 @@ export default function PeerTable() {
                 </div>
               </td>
             </tr>
-          ))}
+          );
+          })}
         </tbody>
       </table>
     </div>
