@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Plus, Settings, Download, Home, Cable, Server, Activity, Tag, Search, AlertCircle, LogIn, LogOut } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
+import { useClusterHealth } from '../../hooks/useNodes';
 
 const links = [
   { to: '/', label: 'Home', icon: Home },
@@ -18,6 +19,15 @@ const links = [
 export default function NavBar() {
   const location = useLocation();
   const { isAuthenticated, username, logout } = useAuth();
+  const health = useClusterHealth();
+  const dotColor =
+    health === 'all-online' ? 'bg-green-500' :
+    health === 'partial' ? 'bg-yellow-500' :
+    'bg-red-500';
+  const dotTitle =
+    health === 'all-online' ? 'All nodes online' :
+    health === 'partial' ? 'Some nodes offline' :
+    'Only local node online';
 
   return (
     <nav className="nav-bar">
@@ -25,6 +35,10 @@ export default function NavBar() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 text-ink no-underline">
           <Cable className="w-5 h-5" />
+          <span
+            className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`}
+            title={dotTitle}
+          />
           <span className="text-body-md-strong tracking-tight">Peerman</span>
         </Link>
 

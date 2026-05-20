@@ -27,6 +27,15 @@ export function useNodes() {
   return { nodes, loading, error, refetch: fetchNodes };
 }
 
+export function useClusterHealth(): 'all-online' | 'partial' | 'isolated' {
+  const { nodes } = useNodes();
+  if (nodes.length <= 1) return 'isolated';
+  const onlineCount = nodes.filter((n) => n.online).length;
+  if (onlineCount === nodes.length) return 'all-online';
+  if (onlineCount <= 1) return 'isolated';
+  return 'partial';
+}
+
 export function useNode(id: string | undefined) {
   // getNode doesn't exist as an RPC — find from list
   const { nodes, loading, error } = useNodes();
