@@ -27,39 +27,69 @@ pub struct Config {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct ServerConfig {
+    #[serde(default = "default_listen_addr")]
     pub listen_addr: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct StorageConfig {
+    #[serde(default = "default_db_path")]
     pub db_path: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct LoggingConfig {
+    #[serde(default = "default_log_level")]
     pub level: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct ClusterConfig {
+    #[serde(default)]
     pub node_name: String,
     #[serde(default)]
     pub bootstrap_nodes: Vec<String>,
+    #[serde(default = "default_probe_interval")]
     pub probe_interval_secs: u64,
+    #[serde(default = "default_sync_interval")]
     pub sync_interval_secs: u64,
 }
 
 // ---------------------------------------------------------------------------
-// Defaults
+// Default value functions (for serde field-level defaults)
+// ---------------------------------------------------------------------------
+
+fn default_listen_addr() -> String {
+    "0.0.0.0:3000".into()
+}
+
+fn default_db_path() -> String {
+    "data/peerman.db".into()
+}
+
+fn default_log_level() -> String {
+    "info".into()
+}
+
+fn default_probe_interval() -> u64 {
+    60
+}
+
+fn default_sync_interval() -> u64 {
+    30
+}
+
+// ---------------------------------------------------------------------------
+// Default impls (for when entire sections are absent from TOML)
 // ---------------------------------------------------------------------------
 
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            listen_addr: "0.0.0.0:3000".into(),
+            listen_addr: default_listen_addr(),
         }
     }
 }
@@ -67,7 +97,7 @@ impl Default for ServerConfig {
 impl Default for StorageConfig {
     fn default() -> Self {
         Self {
-            db_path: "data/peerman.db".into(),
+            db_path: default_db_path(),
         }
     }
 }
@@ -75,7 +105,7 @@ impl Default for StorageConfig {
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
-            level: "info".into(),
+            level: default_log_level(),
         }
     }
 }
@@ -85,8 +115,8 @@ impl Default for ClusterConfig {
         Self {
             node_name: String::new(),
             bootstrap_nodes: Vec::new(),
-            probe_interval_secs: 60,
-            sync_interval_secs: 30,
+            probe_interval_secs: default_probe_interval(),
+            sync_interval_secs: default_sync_interval(),
         }
     }
 }
