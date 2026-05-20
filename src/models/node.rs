@@ -128,7 +128,7 @@ impl NodeRepository {
         sqlx::query(
             "UPDATE nodes SET online = 0 WHERE online = 1 AND last_seen_at < ?",
         )
-        .bind(&threshold.to_rfc3339())
+        .bind(threshold.to_rfc3339())
         .execute(&self.pool)
         .await?;
         Ok(())

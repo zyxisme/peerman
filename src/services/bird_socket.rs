@@ -118,16 +118,15 @@ impl BirdSocket {
                     }
                     _ => break, // Unknown code — treat as terminal
                 }
-            } else if line.starts_with(' ') {
-                let data = &line[1..];
+            } else if let Some(data) = line.strip_prefix(' ') {
                 if append_mode {
                     current_line.push_str(data);
                 } else {
                     current_line.push('\n');
                     current_line.push_str(data);
                 }
-            } else if line.starts_with('+') {
-                current_line.push_str(&line[1..]);
+            } else if let Some(stripped) = line.strip_prefix('+') {
+                current_line.push_str(stripped);
                 append_mode = true;
             } else if line.is_empty() {
                 if !current_line.is_empty() {

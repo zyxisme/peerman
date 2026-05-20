@@ -71,6 +71,38 @@ fn opt_i64(v: i32) -> Option<i64> {
     if v == 0 { None } else { Some(v as i64) }
 }
 
+impl From<&Peer> for crate::grpc::generated::Peer {
+    fn from(p: &Peer) -> Self {
+        Self {
+            id: p.id.clone(),
+            name: p.name.clone(),
+            description: p.description.clone().unwrap_or_default(),
+            asn: p.asn,
+            local_asn: p.local_asn,
+            wg_private_key: p.wg_private_key.clone().unwrap_or_default(),
+            wg_public_key: p.wg_public_key.clone().unwrap_or_default(),
+            wg_remote_address: p.wg_remote_address.clone(),
+            wg_remote_port: p.wg_remote_port as u32,
+            wg_listen_port: p.wg_listen_port as u32,
+            wg_interface_name: p.wg_interface_name.clone(),
+            ipv4_tunnel_local: p.ipv4_tunnel_local.clone().unwrap_or_default(),
+            ipv4_tunnel_remote: p.ipv4_tunnel_remote.clone().unwrap_or_default(),
+            ipv6_tunnel_local: p.ipv6_tunnel_local.clone().unwrap_or_default(),
+            ipv6_tunnel_remote: p.ipv6_tunnel_remote.clone().unwrap_or_default(),
+            multiprotocol: p.multiprotocol,
+            extended_nexthop: p.extended_nexthop,
+            sessions: p.sessions,
+            passive: p.passive,
+            import_max_prefix: p.import_max_prefix.unwrap_or(0) as i32,
+            export_max_prefix: p.export_max_prefix.unwrap_or(0) as i32,
+            enabled: p.enabled,
+            created_at: p.created_at.clone(),
+            updated_at: p.updated_at.clone(),
+            origin_node_id: p.origin_node_id.clone().unwrap_or_default(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PeerRepository {
     pool: SqlitePool,

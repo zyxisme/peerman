@@ -10,14 +10,14 @@ use uuid::Uuid;
 fn rtt_regex() -> &'static Regex {
     static RTT_RE: OnceLock<Regex> = OnceLock::new();
     RTT_RE.get_or_init(|| {
-        Regex::new(r"rtt min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/[\d.]+ ms").unwrap()
+        Regex::new(r"rtt min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/[\d.]+ ms").expect("hardcoded regex")
     })
 }
 
 fn stats_regex() -> &'static Regex {
     static STATS_RE: OnceLock<Regex> = OnceLock::new();
     STATS_RE.get_or_init(|| {
-        Regex::new(r"(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss").unwrap()
+        Regex::new(r"(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss").expect("hardcoded regex")
     })
 }
 

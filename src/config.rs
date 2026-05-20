@@ -17,6 +17,7 @@ pub struct Cli {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     pub server: ServerConfig,
     pub storage: StorageConfig,
@@ -148,17 +149,6 @@ impl Default for AuthConfig {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            storage: StorageConfig::default(),
-            logging: LoggingConfig::default(),
-            auth: AuthConfig::default(),
-            cluster: ClusterConfig::default(),
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Load

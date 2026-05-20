@@ -212,14 +212,12 @@ pub fn generate_full_config(
         config.push_str("    path metric 1;\n");
 
         let import_body = if settings.bird_import_filter.is_empty() {
-            format!(
-                "if is_valid_network() && !is_self_net() then {{\n\
-                 \x20         if (roa_check(dn42_roa, net, bgp_path.last) != ROA_VALID) then {{\n\
+            "if is_valid_network() && !is_self_net() then {\n\
+                 \x20         if (roa_check(dn42_roa, net, bgp_path.last) != ROA_VALID) then {\n\
                  \x20           print \"[dn42] ROA check failed for \", net, \" ASN \", bgp_path.last;\n\
                  \x20           reject;\n\
-                 \x20         }} else accept;\n\
-                 \x20       }} else reject;"
-            )
+                 \x20         } else accept;\n\
+                 \x20       } else reject;".to_string()
         } else {
             settings.bird_import_filter.clone()
         };

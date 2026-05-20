@@ -40,19 +40,6 @@ pub fn validate_ipv6(ip: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Validate IPv6 link-local address (fe80::/10)
-pub fn validate_ipv6_link_local(ip: &str) -> Result<(), AppError> {
-    let addr: std::net::Ipv6Addr = ip
-        .parse()
-        .map_err(|_| AppError::Validation(format!("Invalid IPv6 address: {ip}")))?;
-    if !addr.is_unicast_link_local() {
-        return Err(AppError::Validation(format!(
-            "IPv6 address {ip} is not link-local (fe80::/10)"
-        )));
-    }
-    Ok(())
-}
-
 /// Validate a WireGuard public key (Base64, 44 chars, decodes to 32 bytes)
 pub fn validate_wg_public_key(key: &str) -> Result<(), AppError> {
     use base64::Engine;
@@ -126,12 +113,6 @@ mod tests {
     #[test]
     fn test_validate_ipv6_invalid() {
         assert!(validate_ipv6("not-an-ip").is_err());
-    }
-
-    #[test]
-    fn test_validate_ipv6_link_local() {
-        assert!(validate_ipv6_link_local("fe80::1").is_ok());
-        assert!(validate_ipv6_link_local("fd00::1").is_err());
     }
 
     #[test]

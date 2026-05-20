@@ -64,6 +64,7 @@ fn extract_jwt(metadata: &MetadataMap) -> Option<String> {
 
 /// Check auth on a gRPC request. Returns Ok(()) if the request is authenticated,
 /// or an unauthenticated Status if not.
+#[allow(clippy::result_large_err)]
 pub fn check_auth<T>(req: &Request<T>, secret: &str) -> Result<(), Status> {
     let token = extract_jwt(req.metadata()).ok_or_else(|| {
         Status::unauthenticated("authentication required")

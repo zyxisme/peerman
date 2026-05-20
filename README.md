@@ -39,7 +39,7 @@ cp config.toml.example config.toml
 ./target/release/peerman -c config.toml
 ```
 
-浏览器打开 `http://localhost:3000` 即可访问 Web 界面。
+浏览器打开 `http://localhost:3000` 即可访问 Web 界面。默认管理员账号为 `admin`，密码在 `config.toml` 的 `[auth]` 配置段中设置。
 
 ### 3. 添加 Peer
 
@@ -78,6 +78,11 @@ node_name = ""                  # 设为非空即启用集群模式
 bootstrap_nodes = []            # 引导节点列表，格式 ["10.0.0.1:3000", "10.0.0.2:3000"]
 probe_interval_secs = 60        # ICMP 探测间隔（秒），0 表示禁用
 sync_interval_secs = 30         # 过期节点下线检查间隔（秒）
+
+[auth]
+username = "admin"              # 管理员用户名
+password = ""                   # 管理员密码（空则登录始终失败）
+jwt_secret = ""                 # JWT 签名密钥（空则启动时自动生成）
 ```
 
 集群模式用于多机部署，支持节点发现、跨节点延迟探测和 BGP Community 自动匹配。单机使用时无需修改 `[cluster]` 配置。

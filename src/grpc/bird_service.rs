@@ -5,12 +5,10 @@ use super::generated::{
     NodeBirdResult, NodeTracerouteResult, RunTracerouteRequest, RunTracerouteResponse,
 };
 
-use crate::models::node::NodeRepository;
 use crate::services::bird_socket::BirdSocket;
 
 pub struct BirdServiceImpl {
     pub node_name: String,
-    pub node_repo: NodeRepository,
     pub jwt_secret: std::sync::Arc<String>,
 }
 

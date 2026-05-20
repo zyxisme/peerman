@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .args(["install", "--frozen-lockfile"])
             .current_dir(frontend_dir)
             .status();
-        if let Err(_) = install {
+        if install.is_err() {
             println!("cargo:warning=pnpm not available, skipping frontend build (use pre-built dist/)");
             return Ok(());
         }

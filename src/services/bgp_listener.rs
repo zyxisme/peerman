@@ -366,11 +366,11 @@ fn parse_nlri(data: &[u8]) -> Vec<String> {
     let mut prefixes = Vec::new();
     let mut pos = 0;
 
-    while pos + 1 <= data.len() {
+    while pos < data.len() {
         let prefix_len = data[pos] as usize;
         pos += 1;
 
-        let addr_bytes = (prefix_len + 7) / 8;
+        let addr_bytes = prefix_len.div_ceil(8);
         if pos + addr_bytes > data.len() {
             break;
         }

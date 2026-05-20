@@ -15,8 +15,6 @@ pub struct CommunityRule {
     pub min_bandwidth_mbps: f64,
     pub crypto_weight: i32,
     pub med_penalty: i32,
-    pub created_at: String,
-    pub updated_at: String,
 }
 
 #[derive(Clone)]
@@ -33,8 +31,7 @@ impl CommunityRuleRepository {
         sqlx::query_as::<_, CommunityRule>(
             "SELECT id, description, max_latency_ms, max_packet_loss_pct,
              community_ipv4, community_ipv6, enabled,
-             min_bandwidth_mbps, crypto_weight, med_penalty,
-             created_at, updated_at
+             min_bandwidth_mbps, crypto_weight, med_penalty
              FROM community_rules ORDER BY max_latency_ms ASC",
         )
         .fetch_all(&self.pool)
@@ -46,8 +43,7 @@ impl CommunityRuleRepository {
         sqlx::query_as::<_, CommunityRule>(
             "SELECT id, description, max_latency_ms, max_packet_loss_pct,
              community_ipv4, community_ipv6, enabled,
-             min_bandwidth_mbps, crypto_weight, med_penalty,
-             created_at, updated_at
+             min_bandwidth_mbps, crypto_weight, med_penalty
              FROM community_rules WHERE enabled = 1
              ORDER BY max_latency_ms ASC",
         )
@@ -57,15 +53,13 @@ impl CommunityRuleRepository {
     }
 
     pub async fn save(&self, rule: &CommunityRule) -> Result<CommunityRule, AppError> {
-        let now = chrono::Utc::now().to_rfc3339();
-
         sqlx::query_as::<_, CommunityRule>(
             "INSERT INTO community_rules
              (id, description, max_latency_ms, max_packet_loss_pct,
               community_ipv4, community_ipv6, enabled,
               min_bandwidth_mbps, crypto_weight, med_penalty,
-              created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
              description = excluded.description,
              max_latency_ms = excluded.max_latency_ms,
@@ -79,8 +73,7 @@ impl CommunityRuleRepository {
              updated_at = excluded.updated_at
              RETURNING id, description, max_latency_ms, max_packet_loss_pct,
              community_ipv4, community_ipv6, enabled,
-             min_bandwidth_mbps, crypto_weight, med_penalty,
-             created_at, updated_at",
+             min_bandwidth_mbps, crypto_weight, med_penalty",
         )
         .bind(&rule.id)
         .bind(&rule.description)
@@ -92,8 +85,7 @@ impl CommunityRuleRepository {
         .bind(rule.min_bandwidth_mbps)
         .bind(rule.crypto_weight)
         .bind(rule.med_penalty)
-        .bind(&now)
-        .bind(&now)
+        .bind(chrono::Utc::now().to_rfc3339())
         .fetch_one(&self.pool)
         .await
         .map_err(Into::into)
@@ -137,8 +129,6 @@ impl CommunityRuleRepository {
                 min_bandwidth_mbps: min_bw,
                 crypto_weight: crypto_w,
                 med_penalty: med_p,
-                created_at: chrono::Utc::now().to_rfc3339(),
-                updated_at: chrono::Utc::now().to_rfc3339(),
             };
             self.save(&rule).await?;
         }

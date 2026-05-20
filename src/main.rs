@@ -171,7 +171,7 @@ fn json_response(
     }
     builder
         .body(axum::body::Body::from(json))
-        .unwrap()
+        .expect("body is infallible")
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +246,6 @@ async fn main() -> anyhow::Result<()> {
     };
     let bird_svc = BirdServiceImpl {
         node_name: node_name.clone(),
-        node_repo: state.node_repo.clone(),
         jwt_secret: jwt_secret.clone(),
     };
     let flap_svc = FlapServiceImpl {

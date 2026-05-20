@@ -139,7 +139,7 @@ impl FlapEventRepository {
             .date_naive()
             .and_hms_opt(0, 0, 0)
             .and_then(|t| t.and_local_timezone(chrono::Utc).latest())
-            .unwrap_or_else(|| chrono::Utc::now());
+            .unwrap_or_else(chrono::Utc::now);
         let hours_since_midnight = (chrono::Utc::now() - midnight).num_minutes() as f64 / 60.0;
         let elapsed = if hours_since_midnight < 1.0 {
             1.0

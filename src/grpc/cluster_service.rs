@@ -195,7 +195,7 @@ impl ClusterService for ClusterServiceImpl {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(PullPeersResponse {
-            peers: peers.iter().map(|p| super::peer_service::peer_to_proto(p)).collect(),
+            peers: peers.iter().map(super::peer_service::peer_to_proto).collect(),
         }))
     }
 
@@ -317,8 +317,6 @@ impl ClusterService for ClusterServiceImpl {
             min_bandwidth_mbps: proto.min_bandwidth_mbps,
             crypto_weight: proto.crypto_weight,
             med_penalty: proto.med_penalty,
-            created_at: String::new(),
-            updated_at: String::new(),
         };
 
         let saved = self
