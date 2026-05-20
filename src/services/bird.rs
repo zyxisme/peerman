@@ -120,6 +120,64 @@ pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
     generate_peer_block_with_communities(peer, settings, &[], &[])
 }
 
+fn generate_roa_section(settings: &Settings) -> String {
+    match settings.roa_mode.as_str() {
+        "static_file" => {
+            let mut s = format!(
+                "# ROA data (static) — regenerate via cron every 15 min:\n\
+                 #   curl -sfSL -o /etc/bird/roa_dn42_v4.conf {}\n\
+                 #   curl -sfSL -o /etc/bird/roa_dn42_v6.conf {}\n",
+                settings.roa_static_v4_url, settings.roa_static_v6_url
+            );
+            s.push_str("include \"/etc/bird/roa_dn42_v4.conf\";\n");
+            s.push_str("include \"/etc/bird/roa_dn42_v6.conf\";\n\n");
+            s
+        }
+        "rtr" => {
+            format!(
+                "protocol rpki roa_dn42 {{\n\
+                 \x20   roa4 {{ table dn42_roa; }};\n\
+                 \x20   roa6 {{ table dn42_roa_v6; }};\n\
+                 \x20   remote \"{addr}\";\n\
+                 \x20   port {port};\n\
+                 \x20   refresh 600;\n\
+                 \x20   retry 300;\n\
+                 \x20   expire 7200;\n\
+                 }}\n\n",
+                addr = settings.roa_rtr_address,
+                port = settings.roa_rtr_port
+            )
+        }
+        _ => String::new(),
+    }
+}
+
+fn generate_filter_functions(settings: &Settings) -> String {
+    format!(
+        "function is_valid_network() -> bool {{\n\
+         \x20 return net ~ [\n\
+         \x20   {ipv4_prefix}{{21,29}},    # dn42\n\
+         \x20   {ipv4_prefix}{{28,32}},    # dn42 Anycast\n\
+         \x20   172.21.0.0/24{{28,32}},    # dn42 Anycast\n\
+         \x20   172.22.0.0/24{{28,32}},    # dn42 Anycast\n\
+         \x20   172.23.0.0/24{{28,32}},    # dn42 Anycast\n\
+         \x20   172.31.0.0/16+,           # ChaosVPN\n\
+         \x20   10.100.0.0/14+,           # ChaosVPN\n\
+         \x20   10.127.0.0/16+,           # neonetwork\n\
+         \x20   10.0.0.0/8{{15,24}}        # Freifunk.net\n\
+         \x20 ];\n\
+         }}\n\n\
+         function is_valid_network_v6() -> bool {{\n\
+         \x20 return net ~ [ {ipv6_prefix}{{44,64}} ];\n\
+         }}\n\n\
+         function is_self_net() -> bool {{\n\
+         \x20 return net ~ OWNNETSET;\n\
+         }}\n\n",
+        ipv4_prefix = settings.dn42_ipv4_prefix,
+        ipv6_prefix = settings.dn42_ipv6_prefix,
+    )
+}
+
 /// Generate a complete BIRD2 configuration with template, filters, and all peer blocks.
 pub fn generate_full_config(
     peers: &[Peer],
@@ -128,33 +186,78 @@ pub fn generate_full_config(
 ) -> String {
     let mut config = String::new();
 
-    // Router definition
-    config.push_str(&format!(
-        "router id {};\n\n",
-        settings.bird_router_id
-    ));
+    config.push_str(&format!("router id {};\n\n", settings.bird_router_id));
 
-    // ASN and routing tables
-    config.push_str(&format!(
-        "define OWNAS = {};\n",
-        settings.local_asn
-    ));
+    config.push_str(&format!("define OWNAS = {};\n", settings.local_asn));
     config.push_str(&format!(
         "define OWNNETSET = [{}+, {}];\n\n",
         settings.dn42_ipv4_prefix, settings.dn42_ipv6_prefix
     ));
 
+    // ROA tables
+    if settings.roa_mode != "none" {
+        config.push_str("roa4 table dn42_roa;\nroa6 table dn42_roa_v6;\n\n");
+        config.push_str(&generate_roa_section(settings));
+    }
+
+    // Filter functions
+    config.push_str(&generate_filter_functions(settings));
+
     // BGP template
-    config.push_str(&format!(
-        "template bgp {tpl} {{\n",
-        tpl = settings.bird_template_name
-    ));
+    config.push_str(&format!("template bgp {tpl} {{\n", tpl = settings.bird_template_name));
     if !template_body.is_empty() {
         config.push_str(template_body);
     } else {
         config.push_str("    local as OWNAS;\n");
-        config.push_str("    ipv4 {\n        import all;\n        export all;\n    };\n");
-        config.push_str("    ipv6 {\n        import all;\n        export all;\n    };\n");
+        config.push_str("    path metric 1;\n");
+
+        let import_body = if settings.bird_import_filter.is_empty() {
+            format!(
+                "if is_valid_network() && !is_self_net() then {{\n\
+                 \x20         if (roa_check(dn42_roa, net, bgp_path.last) != ROA_VALID) then {{\n\
+                 \x20           print \"[dn42] ROA check failed for \", net, \" ASN \", bgp_path.last;\n\
+                 \x20           reject;\n\
+                 \x20         }} else accept;\n\
+                 \x20       }} else reject;"
+            )
+        } else {
+            settings.bird_import_filter.clone()
+        };
+
+        let export_body = if settings.bird_export_filter.is_empty() {
+            "if is_valid_network() && source ~ [RTS_STATIC, RTS_BGP] then accept; else reject;"
+                .to_string()
+        } else {
+            settings.bird_export_filter.clone()
+        };
+
+        config.push_str(&format!(
+            "    ipv4 {{\n\
+             \x20       import filter {{\n\
+             \x20         {import_body}\n\
+             \x20       }};\n\
+             \x20       export filter {{ {export_body} }};\n\
+             \x20       import limit {} action block;\n\
+             \x20     }};\n",
+            settings.bird_import_limit
+        ));
+
+        config.push_str(&format!(
+            "    ipv6 {{\n\
+             \x20       import filter {{\n\
+             \x20         if is_valid_network_v6() && !is_self_net() then {{\n\
+             \x20           if (roa_check(dn42_roa_v6, net, bgp_path.last) != ROA_VALID) then {{\n\
+             \x20             print \"[dn42] ROA check failed for \", net, \" ASN \", bgp_path.last;\n\
+             \x20             reject;\n\
+             \x20           }} else accept;\n\
+             \x20         }} else reject;\n\
+             \x20       }};\n\
+             \x20       export filter {{ if is_valid_network_v6() && source ~ [RTS_STATIC, RTS_BGP] then accept; else reject; }};\n\
+             \x20       import limit {} action block;\n\
+             \x20     }};\n",
+            settings.bird_import_limit
+        ));
+        config.push_str("    import table;\n");
     }
     config.push_str("}\n\n");
 
@@ -185,6 +288,18 @@ mod tests {
             dn42_ipv4_prefix: "172.20.0.0/14".into(),
             dn42_ipv6_prefix: "fd00::/8".into(),
             wg_table: "off".into(),
+            wg_mtu: 1420,
+            wg_fwmark: 0,
+            wg_post_up: String::new(),
+            wg_post_down: String::new(),
+            roa_mode: "none".into(),
+            roa_static_v4_url: String::new(),
+            roa_static_v6_url: String::new(),
+            roa_rtr_address: String::new(),
+            roa_rtr_port: 323,
+            bird_import_limit: 9000,
+            bird_export_filter: String::new(),
+            bird_import_filter: String::new(),
         }
     }
 
@@ -247,5 +362,52 @@ mod tests {
         peer.ipv6_tunnel_remote = None;
         let block = generate_peer_block(&peer, &test_settings());
         assert!(block.contains("bgp peer_test_peer"));
+    }
+
+    #[test]
+    fn test_generate_full_config_has_roa_when_rtr() {
+        let mut s = test_settings();
+        s.roa_mode = "rtr".into();
+        s.roa_rtr_address = "rpki.dn42.example".into();
+        let config = generate_full_config(&[], &s, "");
+        assert!(config.contains("protocol rpki roa_dn42"));
+        assert!(config.contains("rpki.dn42.example"));
+    }
+
+    #[test]
+    fn test_generate_full_config_has_static_roa() {
+        let mut s = test_settings();
+        s.roa_mode = "static_file".into();
+        s.roa_static_v4_url = "https://example.com/roa_v4.conf".into();
+        let config = generate_full_config(&[], &s, "");
+        assert!(config.contains("include \"/etc/bird/roa_dn42_v4.conf\""));
+    }
+
+    #[test]
+    fn test_generate_full_config_has_filter_functions() {
+        let config = generate_full_config(&[], &test_settings(), "");
+        assert!(config.contains("function is_valid_network()"));
+        assert!(config.contains("function is_valid_network_v6()"));
+        assert!(config.contains("function is_self_net()"));
+    }
+
+    #[test]
+    fn test_generate_full_config_has_import_limit() {
+        let config = generate_full_config(&[], &test_settings(), "");
+        assert!(config.contains("import limit 9000 action block"));
+    }
+
+    #[test]
+    fn test_generate_full_config_has_roa_check() {
+        let config = generate_full_config(&[], &test_settings(), "");
+        assert!(config.contains("roa_check(dn42_roa, net, bgp_path.last)"));
+    }
+
+    #[test]
+    fn test_generate_full_config_custom_export_filter() {
+        let mut s = test_settings();
+        s.bird_export_filter = "accept;".into();
+        let config = generate_full_config(&[], &s, "");
+        assert!(config.contains("export filter { accept; }"));
     }
 }
