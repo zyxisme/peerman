@@ -10,6 +10,12 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 - `cargo run -- -c config.toml` — start server (copy config.toml.example first)
 - `cd frontend && pnpm run build` — build frontend only
 
+## Testing
+
+- `cargo test` — run all 23 unit tests (validation, wireguard, bird, probe)
+- `cargo clippy` — lint check
+- `cd frontend && pnpm exec tsc --noEmit` — TypeScript type-check
+
 ## Key crate/version constraints
 
 - `tonic 0.12` depends on `axum 0.7` — do NOT upgrade axum past 0.7
@@ -22,6 +28,13 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 - Config via TOML file: `cargo run -- -c config.toml` (defaults to `./config.toml`). Copy `config.toml.example` as a starting point.
 - `Cli` struct (clap) handles only `-c`/`--config`. `Config` struct (serde + toml) has four nested sections: `[server]`, `[storage]`, `[logging]`, `[cluster]`.
 - **Serde default gotcha:** `#[serde(default)]` on a struct only fills in when the entire section is absent from TOML. For partial sections, missing fields ERROR unless annotated with `#[serde(default = "fn_name")]` pointing to a function. See `default_listen_addr()` etc. in `src/config.rs` for the pattern.
+
+## Patterns
+
+- **Proto conversion**: `Peer::apply_proto()` in `src/models/peer.rs` handles proto→model field mapping; `peer_to_proto()` in `peer_service.rs` for model→proto
+- **Validation**: `validate_peer_fields()` in `peer_service.rs` centralizes all peer field validation (name, ASN, WG key, tunnel IPs)
+- **Dynamic SQL**: Use `sqlx::QueryBuilder` for queries with optional WHERE clauses (see `ProbeResultRepository::list_by_filters`)
+- **Graceful shutdown**: `tokio_util::sync::CancellationToken` propagated to all background tasks (stale cleanup, probe, flap detection) via `tokio::select!`
 
 ## sqlx — use runtime API, not macros
 
@@ -58,8 +71,8 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 
 - `build.rs` uses `build_client(true)` to generate client stubs alongside server stubs.
 - `tonic::Request` does NOT implement Clone — reconstruct per destination node.
-- `tonic_web::GrpcWebClientLayer` wrapping a tonic Channel has complex type bounds. For now, cross-node sync uses utility functions (`apply_proto_to_model`, `probe_result_to_proto`) — live gRPC client push/pull needs further type work.
-- `into_router()` is deprecated in tonic 0.12; the suggested `into_axum_router()` may not exist. Keep using `into_router()` (warnings are harmless).
+- `tonic_web::GrpcWebClientLayer` wrapping a tonic Channel has complex type bounds. For now, cross-node sync uses `Peer::apply_proto()` (defined in `src/models/peer.rs`) — live gRPC client push/pull needs further type work.
+- `into_router()` is deprecated in tonic 0.12; `into_axum_router()` not available on Server::Router. `main.rs` suppresses with `#[allow(deprecated)]`.
 
 ## Frontend gotchas
 
@@ -75,7 +88,7 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 ## Community & probe
 
 - `CommunityRuleRepository::seed_defaults()` auto-populates 5 latency-tier rules on first run (empty table).
-- `services::probe::ping()` calls `ping -c 5 -i 0.2 <target>` subprocess, parses rtt/packet-loss with regex.
+- `services::probe::ping()` is async (tokio `Command`) — calls `ping -c 5 -i 0.2 <target>`, parses rtt/packet-loss with regex cached in `OnceLock`.
 - Probe results stored locally only; cross-node push via `PushProbeResult` RPC is defined but client-side not yet wired.
 
 ## BIRD integration (Looking Glass + Flap Detection)
