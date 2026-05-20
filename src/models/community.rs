@@ -12,6 +12,9 @@ pub struct CommunityRule {
     pub community_ipv4: String,
     pub community_ipv6: String,
     pub enabled: bool,
+    pub min_bandwidth_mbps: f64,
+    pub crypto_weight: i32,
+    pub med_penalty: i32,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -29,7 +32,9 @@ impl CommunityRuleRepository {
     pub async fn list_all(&self) -> Result<Vec<CommunityRule>, AppError> {
         sqlx::query_as::<_, CommunityRule>(
             "SELECT id, description, max_latency_ms, max_packet_loss_pct,
-             community_ipv4, community_ipv6, enabled, created_at, updated_at
+             community_ipv4, community_ipv6, enabled,
+             min_bandwidth_mbps, crypto_weight, med_penalty,
+             created_at, updated_at
              FROM community_rules ORDER BY max_latency_ms ASC",
         )
         .fetch_all(&self.pool)
@@ -40,7 +45,9 @@ impl CommunityRuleRepository {
     pub async fn list_enabled(&self) -> Result<Vec<CommunityRule>, AppError> {
         sqlx::query_as::<_, CommunityRule>(
             "SELECT id, description, max_latency_ms, max_packet_loss_pct,
-             community_ipv4, community_ipv6, enabled, created_at, updated_at
+             community_ipv4, community_ipv6, enabled,
+             min_bandwidth_mbps, crypto_weight, med_penalty,
+             created_at, updated_at
              FROM community_rules WHERE enabled = 1
              ORDER BY max_latency_ms ASC",
         )
@@ -55,8 +62,10 @@ impl CommunityRuleRepository {
         sqlx::query_as::<_, CommunityRule>(
             "INSERT INTO community_rules
              (id, description, max_latency_ms, max_packet_loss_pct,
-              community_ipv4, community_ipv6, enabled, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              community_ipv4, community_ipv6, enabled,
+              min_bandwidth_mbps, crypto_weight, med_penalty,
+              created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
              description = excluded.description,
              max_latency_ms = excluded.max_latency_ms,
@@ -64,9 +73,14 @@ impl CommunityRuleRepository {
              community_ipv4 = excluded.community_ipv4,
              community_ipv6 = excluded.community_ipv6,
              enabled = excluded.enabled,
+             min_bandwidth_mbps = excluded.min_bandwidth_mbps,
+             crypto_weight = excluded.crypto_weight,
+             med_penalty = excluded.med_penalty,
              updated_at = excluded.updated_at
              RETURNING id, description, max_latency_ms, max_packet_loss_pct,
-             community_ipv4, community_ipv6, enabled, created_at, updated_at",
+             community_ipv4, community_ipv6, enabled,
+             min_bandwidth_mbps, crypto_weight, med_penalty,
+             created_at, updated_at",
         )
         .bind(&rule.id)
         .bind(&rule.description)
@@ -75,6 +89,9 @@ impl CommunityRuleRepository {
         .bind(&rule.community_ipv4)
         .bind(&rule.community_ipv6)
         .bind(rule.enabled)
+        .bind(rule.min_bandwidth_mbps)
+        .bind(rule.crypto_weight)
+        .bind(rule.med_penalty)
         .bind(&now)
         .bind(&now)
         .fetch_one(&self.pool)
@@ -101,14 +118,14 @@ impl CommunityRuleRepository {
         }
 
         let defaults = vec![
-            ("Metro (<5ms)", 5.0, 1.0, "<asn>,10", "<asn>,610"),
-            ("Regional (5-20ms)", 20.0, 1.0, "<asn>,20", "<asn>,620"),
-            ("Continental (20-50ms)", 50.0, 2.0, "<asn>,30", "<asn>,630"),
-            ("Intercontinental (50-150ms)", 150.0, 5.0, "<asn>,40", "<asn>,640"),
-            ("High latency (>150ms)", 100_000.0, 100.0, "<asn>,50", "<asn>,650"),
+            ("Metro (<5ms)", 5.0, 1.0, "<asn>,10", "<asn>,610", 1000.0, 1, 0),
+            ("Regional (5-20ms)", 20.0, 1.0, "<asn>,20", "<asn>,620", 500.0, 1, 100),
+            ("Continental (20-50ms)", 50.0, 2.0, "<asn>,30", "<asn>,630", 200.0, 2, 200),
+            ("Intercontinental (50-150ms)", 150.0, 5.0, "<asn>,40", "<asn>,640", 50.0, 3, 400),
+            ("High latency (>150ms)", 100_000.0, 100.0, "<asn>,50", "<asn>,650", 0.0, 0, 800),
         ];
 
-        for (desc, max_lat, max_loss, c4, c6) in defaults {
+        for (desc, max_lat, max_loss, c4, c6, min_bw, crypto_w, med_p) in defaults {
             let rule = CommunityRule {
                 id: Uuid::new_v4().to_string(),
                 description: Some(desc.to_string()),
@@ -117,6 +134,9 @@ impl CommunityRuleRepository {
                 community_ipv4: c4.to_string(),
                 community_ipv6: c6.to_string(),
                 enabled: true,
+                min_bandwidth_mbps: min_bw,
+                crypto_weight: crypto_w,
+                med_penalty: med_p,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),
             };
