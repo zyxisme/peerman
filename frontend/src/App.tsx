@@ -14,6 +14,7 @@ import ProbeDashboard from './components/probes/ProbeDashboard';
 import CommunityRules from './components/communities/CommunityRules';
 import LookingGlass from './components/bird/LookingGlass';
 import FlapDashboard from './components/flaps/FlapDashboard';
+import StatusPage from './components/status/StatusPage';
 import LoginPage from './components/auth/LoginPage';
 import { ProtectedRoute } from './lib/auth';
 
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/looking-glass" element={<LookingGlass />} />
           <Route path="/flaps" element={<FlapDashboard />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/status" element={<StatusPage />} />
         </Routes>
         </ErrorBoundary>
       </div>
