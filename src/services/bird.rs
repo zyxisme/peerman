@@ -267,6 +267,108 @@ pub fn generate_full_config(
     config
 }
 
+/// Write bird.conf to /etc/bird/ and hot-reload via birdc configure.
+pub fn apply_config(config: &str) -> Result<(), crate::error::AppError> {
+    use std::io::Write;
+
+    let config_path = "/etc/bird/bird.conf";
+    let tmp_path = "/etc/bird/bird.conf.tmp";
+
+    // Atomic write: tmp then rename
+    {
+        let mut f = std::fs::File::create(tmp_path)
+            .map_err(|e| crate::error::AppError::Internal(format!("Cannot create bird.conf.tmp: {e}")))?;
+        f.write_all(config.as_bytes())
+            .map_err(|e| crate::error::AppError::Internal(format!("Cannot write bird.conf.tmp: {e}")))?;
+    }
+    std::fs::rename(tmp_path, config_path)
+        .map_err(|e| crate::error::AppError::Internal(format!("Cannot rename bird.conf: {e}")))?;
+
+    // Hot reload
+    let output = std::process::Command::new("birdc")
+        .arg("configure")
+        .output()
+        .map_err(|e| crate::error::AppError::Internal(format!("birdc not found: {e}")))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !output.status.success() {
+        return Err(crate::error::AppError::Internal(
+            format!("birdc configure failed: {stdout} {stderr}")
+        ));
+    }
+    Ok(())
+}
+
+/// Parse `birdc show protocols` output into structured status.
+pub fn get_bird_status() -> Result<Vec<crate::grpc::generated::BirdProtocol>, crate::error::AppError> {
+    let output = std::process::Command::new("birdc")
+        .args(["show", "protocols"])
+        .output()
+        .map_err(|e| crate::error::AppError::Internal(format!("birdc failed: {e}")))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut protocols: Vec<crate::grpc::generated::BirdProtocol> = Vec::new();
+
+    for line in stdout.lines().skip(2) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 5 {
+            protocols.push(crate::grpc::generated::BirdProtocol {
+                name: parts[0].to_string(),
+                proto: parts[1].to_string(),
+                table: parts[2].to_string(),
+                state: parts[3].to_string(),
+                since: parts[4].to_string(),
+                info: parts.get(5..).map(|s| s.join(" ")).unwrap_or_default(),
+            });
+        }
+    }
+
+    Ok(protocols)
+}
+
+/// Generate iBGP full-mesh protocol blocks for cluster nodes.
+/// `my_tunnel_ip` is the local node's tunnel IP, used to skip self.
+pub fn generate_ibgp_blocks(
+    nodes: &[crate::models::node::Node],
+    settings: &Settings,
+    my_tunnel_ip: &str,
+) -> String {
+    let mut blocks = String::new();
+
+    for node in nodes {
+        if node.tunnel_ip == my_tunnel_ip || node.tunnel_ip.is_empty() {
+            continue;
+        }
+
+        let name = sanitize_name(&node.name);
+        blocks.push_str(&format!(
+            "protocol bgp node_{name} from {tpl} {{\n",
+            tpl = settings.bird_template_name
+        ));
+        blocks.push_str(&format!(
+            "    neighbor {tunnel_ip} as {local_asn};\n",
+            tunnel_ip = node.tunnel_ip,
+            local_asn = settings.local_asn
+        ));
+        blocks.push_str("    direct;\n");
+        blocks.push_str("    ipv4 {\n");
+        blocks.push_str("        next hop self yes;\n");
+        blocks.push_str("        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+        blocks.push_str("        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+        blocks.push_str("    };\n");
+        blocks.push_str("    ipv6 {\n");
+        blocks.push_str("        next hop self yes;\n");
+        blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+        blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+        blocks.push_str("    };\n");
+        blocks.push_str("}\n\n");
+    }
+
+    blocks
+}
+
 fn sanitize_name(name: &str) -> String {
     name.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "_")
         .to_lowercase()
@@ -407,5 +509,57 @@ mod tests {
         s.bird_export_filter = "accept;".into();
         let config = generate_full_config(&[], &s, "");
         assert!(config.contains("export filter { accept; }"));
+    }
+
+    #[test]
+    fn test_generate_ibgp_blocks_creates_protocol_blocks() {
+        let nodes = vec![
+            crate::models::node::Node {
+                id: "n1".into(), name: "node-a".into(),
+                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
+                description: None, online: true,
+                last_seen_at: String::new(), created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+            },
+            crate::models::node::Node {
+                id: "n2".into(), name: "node-b".into(),
+                listen_addr: "5.6.7.8:3000".into(), local_asn: 4242420000,
+                description: None, online: true,
+                last_seen_at: String::new(), created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pk-b".into(), tunnel_ip: "10.255.0.2".into(),
+            },
+        ];
+        let settings = test_settings();
+        let blocks = generate_ibgp_blocks(&nodes, &settings, "10.255.0.1");
+        assert!(blocks.contains("protocol bgp node_node-b from"));
+        assert!(blocks.contains("neighbor 10.255.0.2 as 4242420000"));
+        assert!(blocks.contains("next hop self yes"));
+    }
+
+    #[test]
+    fn test_generate_ibgp_blocks_skips_self_and_no_tunnel_ip() {
+        let nodes = vec![
+            crate::models::node::Node {
+                id: "n1".into(), name: "self-node".into(),
+                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
+                description: None, online: true,
+                last_seen_at: String::new(), created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+            },
+            crate::models::node::Node {
+                id: "n2".into(), name: "no-tunnel".into(),
+                listen_addr: "5.6.7.8:3000".into(), local_asn: 4242420000,
+                description: None, online: false,
+                last_seen_at: String::new(), created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: String::new(), tunnel_ip: String::new(),
+            },
+        ];
+        let settings = test_settings();
+        let blocks = generate_ibgp_blocks(&nodes, &settings, "10.255.0.1");
+        assert!(blocks.is_empty());
     }
 }
