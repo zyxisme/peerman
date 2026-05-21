@@ -32,11 +32,13 @@ fn app_config() -> Arc<config::Config> {
 use crate::grpc::generated::bird_service_server::BirdServiceServer;
 use crate::grpc::generated::cluster_service_server::ClusterServiceServer;
 use crate::grpc::generated::flap_service_server::FlapServiceServer;
+use crate::grpc::generated::management_service_server::ManagementServiceServer;
 use crate::grpc::generated::peer_service_server::PeerServiceServer;
 use crate::grpc::generated::settings_service_server::SettingsServiceServer;
 use crate::grpc::bird_service::BirdServiceImpl;
 use crate::grpc::cluster_service::ClusterServiceImpl;
 use crate::grpc::flap_service::FlapServiceImpl;
+use crate::grpc::management_service::ManagementServiceImpl;
 use crate::grpc::peer_service::PeerServiceImpl;
 use crate::grpc::settings_service::SettingsServiceImpl;
 
@@ -258,6 +260,7 @@ async fn main() -> anyhow::Result<()> {
     let flap_svc = FlapServiceImpl {
         flap_repo: state.flap_event_repo.clone(),
     };
+    let mgmt_svc = ManagementServiceImpl;
 
     // Build tonic gRPC router with tonic-web wrapper
     let grpc_router = tonic::transport::Server::builder()
@@ -268,6 +271,7 @@ async fn main() -> anyhow::Result<()> {
         .add_service(ClusterServiceServer::new(cluster_svc))
         .add_service(BirdServiceServer::new(bird_svc))
         .add_service(FlapServiceServer::new(flap_svc))
+        .add_service(ManagementServiceServer::new(mgmt_svc))
         .into_router();
 
     // Build axum router: auth endpoints + gRPC + static files
