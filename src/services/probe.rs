@@ -135,6 +135,8 @@ mod tests {
             last_seen_at: String::new(),
             created_at: String::new(),
             updated_at: String::new(),
+            wg_pubkey: String::new(),
+            tunnel_ip: String::new(),
         };
         assert_eq!(resolve_target_ip(&node), "192.168.1.1");
     }
@@ -151,6 +153,8 @@ mod tests {
             last_seen_at: String::new(),
             created_at: String::new(),
             updated_at: String::new(),
+            wg_pubkey: String::new(),
+            tunnel_ip: String::new(),
         };
         assert_eq!(resolve_target_ip(&node), "10.0.0.1");
     }
