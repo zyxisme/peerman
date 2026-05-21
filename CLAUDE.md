@@ -14,7 +14,7 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 
 ## Testing
 
-- `cargo test` — run all 32 unit tests (validation, wireguard, bird, probe)
+- `cargo test` — run all 36 unit tests (validation, wireguard, bird, probe, cluster)
 - `cargo clippy` — lint check
 - `cd frontend && pnpm exec tsc --noEmit` — TypeScript type-check
 
@@ -47,7 +47,7 @@ sqlx macros (`query_as!`, `query!`) need DATABASE_URL at compile time. Use runti
 
 ## Proto & gRPC
 
-- `tonic::include_proto!("peerman")` puts generated types directly in the calling module (no `peerman` submodule wrapper)
+- `tonic::include_proto!("peerman")` puts generated types directly in the calling module (no `peerman` submodule wrapper). Note: prost normalizes consecutive capitals — `WG` becomes `Wg` in Rust type names (`WgInterface`, `GetWgStatusRequest`), but frontend TS keeps original casing (`WGInterface`).
 - `build.rs` runs `tonic_build::compile_protos("proto/peerman.proto")` → `$OUT_DIR/peerman.rs`
 - Frontend proto: `protoc -I proto --es_out frontend/src/lib --es_opt target=ts peerman.proto` with `protoc-gen-es` in PATH (`frontend/node_modules/.bin`)
 - `@connectrpc/connect v2`: use `createClient()` (not `createPromiseClient`), messages via `create(Schema, {...})`
@@ -83,10 +83,25 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - `auth.rs` — `check_cluster_key()` validates `x-cluster-key` metadata against shared secret
 - `cache.rs` — `ClusterCache` in-memory cache with partial update methods (`update_peers`, `update_probe_results`, `update_community_rules`), keyed by node `listen_addr`
 - `aggregator.rs` — `ClusterAggregator` with `fanout_peers()`, `fanout_probe_results()`, `fanout_community_rules()`, `health_check()`, `exchange_with()`; 2s timeout, cache fallback on failure
+- `tunnel.rs` — Cluster inter-node WG tunnel management: keypair generation, tunnel IP assignment from `tunnel_ip_range`, `sync_cluster_wg()` writes `/etc/wireguard/wg-cluster.conf` + `wg syncconf`, `sync_cluster_bird()` regenerates bird.conf with iBGP full mesh.
 - **Dual auth pattern:** inter-node RPCs (`push_peer`, `push_probe_result`, `save_community_rule`) accept EITHER JWT (user) OR cluster key (node) — check: `jwt_ok || cluster_ok`
 - **Health check:** gRPC `HealthCheck` + ICMP ping; 2 consecutive failures → offline, 2 successes → online (flap suppression)
 - **Write proxy:** `create_peer`/`update_peer` proxy to target node via `PushPeer` when `origin_node_id != listen_addr`
 - **Node discovery:** startup `ExchangeNodes` with all `peer_nodes` + periodic anti-entropy with random peer every `sync_interval_secs`
+
+## WG & BIRD auto-apply
+
+- **Peer CRUD → auto-apply:** `create_peer`/`update_peer`/`delete_peer`/`toggle_peer` call `auto_apply_wg_bird()` which regenerates `/etc/wireguard/wg0.conf` → `wg syncconf` and `/etc/bird/bird.conf` → `birdc configure`. No manual apply step needed.
+- **Cluster interconnect:** `wg-cluster` interface managed via `sync_cluster_wg()`, node keypairs auto-generated and exchanged via `ExchangeNodes` gossip (new fields: `wg_pubkey`, `tunnel_ip`).
+- **iBGP full mesh:** `generate_ibgp_blocks()` creates `protocol bgp node_<name>` blocks for all nodes with assigned tunnel IPs, using `direct` + `next hop self yes`.
+- **Atomic writes:** Config files written to `.tmp` then `rename` to avoid partial reads.
+- **Config key:** `[cluster] tunnel_ip_range = "10.255.0.0/24"` — internal tunnel IP pool for inter-node iBGP.
+
+## ManagementService gRPC
+
+- `GetWireGuardStatus` — parses `wg show <iface> dump` output into structured `WgInterface`/`WgPeerStatus` proto messages. Defaults to `all` interfaces.
+- `GetBirdStatus` — parses `birdc show protocols` output into `BirdProtocol` messages (name, proto, state, since, info).
+- Frontend: `/status` page displays both WG peers (endpoint, handshake, RX/TX) and BIRD protocols (state-colored badges). Read-only, no apply buttons.
 
 ## Frontend gotchas
 
