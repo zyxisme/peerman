@@ -56,6 +56,55 @@ impl PeerServiceImpl {
         // PushPeerResponse has no peer field — return the peer we sent
         Ok(peer)
     }
+
+    async fn auto_apply_wg_bird(&self) -> Result<(), Status> {
+        let peers = self.peer_repo.list_all()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+        let settings = self.settings_repo.load()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        // 1. WireGuard: full regenerate wg0.conf + apply
+        let wg_config: String = peers
+            .iter()
+            .filter(|p| p.enabled)
+            .map(|p| crate::services::wireguard::generate_config(p, &settings))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if !wg_config.is_empty() {
+            let conf_path = "/etc/wireguard/wg0.conf";
+            let tmp_path = "/etc/wireguard/wg0.conf.tmp";
+            std::fs::write(tmp_path, &wg_config)
+                .map_err(|e| Status::internal(format!("Cannot write wg0.conf: {e}")))?;
+            std::fs::rename(tmp_path, conf_path)
+                .map_err(|e| Status::internal(format!("Cannot rename wg0.conf: {e}")))?;
+            crate::services::wireguard::apply_syncconf("wg0", conf_path)
+                .map_err(|e| Status::internal(e.to_string()))?;
+        }
+
+        // 2. BIRD: full regenerate bird.conf + apply
+        let mut bird_config = crate::services::bird::generate_full_config(&peers, &settings, "");
+
+        // Append cluster iBGP blocks if any nodes exist (cluster mode)
+        if let Ok(nodes) = self.node_repo.list_all().await {
+            let my_tunnel_ip = nodes.iter()
+                .find(|n| n.listen_addr == self.listen_addr)
+                .map(|n| n.tunnel_ip.clone())
+                .unwrap_or_default();
+            if !my_tunnel_ip.is_empty() {
+                bird_config.push_str(
+                    &crate::services::bird::generate_ibgp_blocks(&nodes, &settings, &my_tunnel_ip)
+                );
+            }
+        }
+
+        crate::services::bird::apply_config(&bird_config)
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(())
+    }
 }
 
 pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
@@ -133,6 +182,8 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
+        self.auto_apply_wg_bird().await?;
+
         Ok(Response::new(peer_to_proto(&peer)))
     }
 
@@ -176,6 +227,8 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
+        self.auto_apply_wg_bird().await?;
+
         Ok(Response::new(peer_to_proto(&peer)))
     }
 
@@ -189,6 +242,8 @@ impl PeerService for PeerServiceImpl {
             .delete(&req.id)
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
+
+        self.auto_apply_wg_bird().await?;
 
         Ok(Response::new(DeletePeerResponse {}))
     }
@@ -204,6 +259,8 @@ impl PeerService for PeerServiceImpl {
             .toggle_enabled(&req.id)
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
+
+        self.auto_apply_wg_bird().await?;
 
         Ok(Response::new(peer_to_proto(&peer)))
     }
