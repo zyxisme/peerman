@@ -2,6 +2,7 @@ use base64::Engine;
 use rand::RngCore;
 use x25519_dalek::{PublicKey, StaticSecret};
 
+use crate::error::AppError;
 use crate::models::peer::Peer;
 
 /// Generate a new WireGuard keypair.
@@ -18,6 +19,102 @@ pub fn generate_keypair() -> (String, String) {
     let public_b64 = base64::engine::general_purpose::STANDARD.encode(public.as_bytes());
 
     (private_b64, public_b64)
+}
+
+/// Apply WG config using wg syncconf — differential update without down/up.
+pub fn apply_syncconf(interface: &str, config_path: &str) -> Result<(), AppError> {
+    let status = std::process::Command::new("wg")
+        .args(["syncconf", interface, config_path])
+        .output()
+        .map_err(|e| AppError::Internal(format!("wg syncconf failed: {e}")))?;
+
+    if !status.status.success() {
+        let stderr = String::from_utf8_lossy(&status.stderr);
+        return Err(AppError::Internal(format!("wg syncconf error: {stderr}")));
+    }
+    Ok(())
+}
+
+/// Parse `wg show <interface> dump` output into structured status.
+pub fn get_wg_status(interface: &str) -> Result<Vec<crate::grpc::generated::WgInterface>, AppError> {
+    let output = std::process::Command::new("wg")
+        .args(["show", interface, "dump"])
+        .output()
+        .map_err(|e| AppError::Internal(format!("wg show failed: {e}")))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut interfaces: Vec<crate::grpc::generated::WgInterface> = Vec::new();
+    let mut current_iface: Option<crate::grpc::generated::WgInterface> = None;
+
+    for line in stdout.lines() {
+        let fields: Vec<&str> = line.split('\t').collect();
+        if fields.is_empty() {
+            continue;
+        }
+        match fields[0] {
+            // Interface line: private_key, public_key, listen_port, fwmark
+            key if fields.len() >= 4 && !key.is_empty() => {
+                if let Some(iface) = current_iface.take() {
+                    interfaces.push(iface);
+                }
+                current_iface = Some(crate::grpc::generated::WgInterface {
+                    name: interface.to_string(),
+                    public_key: fields[1].to_string(),
+                    listen_port: fields[2].parse().unwrap_or(0),
+                    peers: Vec::new(),
+                });
+            }
+            // Peer line: public_key, preshared_key, endpoint, allowed_ips, latest_handshake, transfer_rx, transfer_tx, keepalive
+            peer_key if fields.len() >= 8 => {
+                if let Some(ref mut iface) = current_iface {
+                    iface.peers.push(crate::grpc::generated::WgPeerStatus {
+                        public_key: fields[0].to_string(),
+                        endpoint: fields.get(2).map(|s| s.to_string()).unwrap_or_default(),
+                        allowed_ips: fields.get(3).map(|s| s.to_string()).unwrap_or_default(),
+                        latest_handshake: fields.get(4).map(|s| s.to_string()).unwrap_or_default(),
+                        transfer_rx: fields.get(5).map(|s| s.to_string()).unwrap_or_default(),
+                        transfer_tx: fields.get(6).map(|s| s.to_string()).unwrap_or_default(),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(iface) = current_iface {
+        interfaces.push(iface);
+    }
+    Ok(interfaces)
+}
+
+/// Generate WG config for the cluster interconnect interface (wg-cluster).
+pub fn generate_cluster_wg_config(
+    nodes: &[crate::models::node::Node],
+    private_key: &str,
+    listen_port: u16,
+) -> String {
+    let mut config = String::new();
+
+    config.push_str("[Interface]\n");
+    config.push_str(&format!("PrivateKey = {private_key}\n"));
+    config.push_str(&format!("ListenPort = {listen_port}\n"));
+    config.push_str("Table = off\n\n");
+
+    for node in nodes {
+        if node.wg_pubkey.is_empty() {
+            continue;
+        }
+        config.push_str("[Peer]\n");
+        config.push_str(&format!("PublicKey = {}\n", node.wg_pubkey));
+        // Extract host from listen_addr (strip port, keep host)
+        let host = node.listen_addr.rsplit_once(':')
+            .map(|(h, _)| h)
+            .unwrap_or(&node.listen_addr);
+        config.push_str(&format!("Endpoint = {host}:{listen_port}\n"));
+        config.push_str(&format!("AllowedIPs = {}/32\n", node.tunnel_ip));
+        config.push_str("PersistentKeepalive = 25\n\n");
+    }
+
+    config
 }
 
 /// Generate a complete WireGuard configuration for a single peer.
@@ -223,5 +320,52 @@ mod tests {
         let config = generate_config(&peer, &test_settings());
         assert!(!config.contains("PrivateKey"));
         assert!(!config.contains("PublicKey"));
+    }
+
+    #[test]
+    fn test_generate_cluster_wg_config_has_interface_and_peers() {
+        let nodes = vec![
+            crate::models::node::Node {
+                id: "n1".into(),
+                name: "node-a".into(),
+                listen_addr: "1.2.3.4:3000".into(),
+                local_asn: 4242420000,
+                description: None,
+                online: true,
+                last_seen_at: String::new(),
+                created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pubkey-a".into(),
+                tunnel_ip: "10.255.0.1".into(),
+            },
+            crate::models::node::Node {
+                id: "n2".into(),
+                name: "node-b".into(),
+                listen_addr: "5.6.7.8:3000".into(),
+                local_asn: 4242420001,
+                description: None,
+                online: true,
+                last_seen_at: String::new(),
+                created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pubkey-b".into(),
+                tunnel_ip: "10.255.0.2".into(),
+            },
+        ];
+        let config = generate_cluster_wg_config(&nodes, "key-a", 51821);
+        assert!(config.contains("[Interface]"));
+        assert!(config.contains("PrivateKey = key-a"));
+        assert!(config.contains("ListenPort = 51821"));
+        assert!(config.contains("[Peer]"));
+        assert!(config.contains("PublicKey = pubkey-b"));
+        assert!(config.contains("Endpoint = 5.6.7.8:51821"));
+    }
+
+    #[test]
+    fn test_generate_cluster_wg_config_empty_nodes() {
+        let nodes: Vec<crate::models::node::Node> = vec![];
+        let config = generate_cluster_wg_config(&nodes, "key-a", 51821);
+        assert!(config.contains("[Interface]"));
+        assert!(!config.contains("[Peer]"));
     }
 }
