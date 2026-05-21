@@ -16,6 +16,7 @@ use crate::models::community::CommunityRuleRepository;
 use crate::models::node::NodeRepository;
 use crate::models::peer::PeerRepository;
 use crate::models::probe::ProbeResultRepository;
+use crate::models::settings::SettingsRepository;
 use crate::services;
 
 pub struct ClusterServiceImpl {
@@ -23,6 +24,7 @@ pub struct ClusterServiceImpl {
     pub peer_repo: PeerRepository,
     pub probe_repo: ProbeResultRepository,
     pub community_repo: CommunityRuleRepository,
+    pub settings_repo: SettingsRepository,
     pub jwt_secret: std::sync::Arc<String>,
     pub cluster_key: std::sync::Arc<String>,
     pub listen_addr: String,
@@ -431,6 +433,30 @@ impl ClusterService for ClusterServiceImpl {
                         if tunnel_changed { &ni.tunnel_ip } else { &node.tunnel_ip },
                     )
                     .await;
+            }
+        }
+
+        // Sync cluster configs after receiving new/updated nodes
+        if !self.cluster_key.is_empty() {
+            let nodes = self.node_repo.list_all().await.unwrap_or_default();
+            let my_tunnel_ip = nodes.iter()
+                .find(|n| n.listen_addr == self.listen_addr)
+                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                .unwrap_or_default();
+
+            if !my_tunnel_ip.is_empty() {
+                if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(
+                    &self.node_repo, "",
+                ).await {
+                    tracing::warn!("Failed to sync cluster WG after exchange: {e}");
+                }
+                if let Ok(settings) = self.settings_repo.load().await {
+                    if let Err(e) = crate::cluster::tunnel::sync_cluster_bird(
+                        &self.peer_repo, &settings, &self.node_repo, &my_tunnel_ip,
+                    ).await {
+                        tracing::warn!("Failed to sync cluster BIRD after exchange: {e}");
+                    }
+                }
             }
         }
 
