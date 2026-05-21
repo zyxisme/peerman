@@ -430,6 +430,8 @@ impl ClusterService for ClusterServiceImpl {
                 local_asn: n.local_asn,
                 description: n.description.clone().unwrap_or_default(),
                 last_seen_at: n.last_seen_at.clone(),
+                wg_public_key: String::new(),
+                tunnel_ip: String::new(),
             })
             .collect();
 
