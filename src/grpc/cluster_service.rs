@@ -406,12 +406,31 @@ impl ClusterService for ClusterServiceImpl {
 
         // Upsert nodes received from peer
         for ni in &req.nodes {
-            if let Err(e) = self
+            let node = match self
                 .node_repo
                 .upsert_by_name(&ni.name, &ni.listen_addr, ni.local_asn, &ni.description)
                 .await
             {
-                tracing::warn!("Failed to upsert node {} from exchange: {}", ni.name, e);
+                Ok(n) => n,
+                Err(e) => {
+                    tracing::warn!("Failed to upsert node {} from exchange: {}", ni.name, e);
+                    continue;
+                }
+            };
+            // Update cluster fields if they changed
+            let wg_changed = !ni.wg_public_key.is_empty()
+                && ni.wg_public_key != node.wg_pubkey;
+            let tunnel_changed =
+                !ni.tunnel_ip.is_empty() && ni.tunnel_ip != node.tunnel_ip;
+            if wg_changed || tunnel_changed {
+                let _ = self
+                    .node_repo
+                    .update_cluster_fields(
+                        &node.id,
+                        if wg_changed { &ni.wg_public_key } else { &node.wg_pubkey },
+                        if tunnel_changed { &ni.tunnel_ip } else { &node.tunnel_ip },
+                    )
+                    .await;
             }
         }
 
@@ -430,8 +449,8 @@ impl ClusterService for ClusterServiceImpl {
                 local_asn: n.local_asn,
                 description: n.description.clone().unwrap_or_default(),
                 last_seen_at: n.last_seen_at.clone(),
-                wg_public_key: String::new(),
-                tunnel_ip: String::new(),
+                wg_public_key: n.wg_pubkey.clone(),
+                tunnel_ip: n.tunnel_ip.clone(),
             })
             .collect();
 
