@@ -79,7 +79,7 @@ BINARY_PATH="/usr/local/bin/peerman"
 CONFIG_DIR="/etc/peerman"
 DATA_DIR="/var/lib/peerman"
 CONFIG_FILE="${CONFIG_DIR}/config.toml"
-GITHUB_REPO="${PEERMAN_GITHUB_REPO:-peerman/peerman}"
+GITHUB_REPO="${PEERMAN_GITHUB_REPO:-zyxisme/peerman}"
 GITHUB_RELEASES="https://github.com/${GITHUB_REPO}/releases"
 DEP_WARNINGS=0
 INIT="none"
@@ -165,14 +165,14 @@ select_install_method() {
     echo ""
     echo "=== Install Method ==="
     echo ""
-    echo "  1) Download from GitHub Releases (recommended)"
-    echo "  2) Compile from source (cargo build --release)"
+    echo "  1) Compile from source — cargo build --release (recommended)"
+    echo "  2) Download from GitHub Releases"
     echo ""
     prompt METHOD "Choose install method" "1"
 
     case "${METHOD:-1}" in
-        1) INSTALL_METHOD="download" ;;
-        2) INSTALL_METHOD="compile" ;;
+        1) INSTALL_METHOD="compile" ;;
+        2) INSTALL_METHOD="download" ;;
         *) error "Invalid choice: $METHOD" ;;
     esac
     info "Selected: $INSTALL_METHOD"
@@ -212,11 +212,13 @@ install_from_release() {
     version=$(curl -sL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" \
         | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
     if [[ -z "$version" ]]; then
-        error "Failed to fetch latest version from ${GITHUB_REPO}.\n\
-       Set PEERMAN_GITHUB_REPO env var or edit GITHUB_REPO in this script."
+        error "No releases found at ${GITHUB_REPO}.\n\
+       Publish a release first, or use compile-from-source instead."
     fi
     info "Latest version: $version"
 
+    # Expected tarball naming: peerman-<version>-<arch>-unknown-linux-gnu.tar.gz
+    # Binary inside tarball must be at the root, named 'peerman'
     local tarball="peerman-${version}-${ARCH}-unknown-linux-gnu.tar.gz"
     local url="${GITHUB_RELEASES}/download/${version}/${tarball}"
 
@@ -227,12 +229,17 @@ install_from_release() {
 
     curl -fSL --progress-bar -o "${tmpdir}/${tarball}" "$url" || {
         error "Download failed. Check:\n\
-         - The release exists: $url\n\
+         - The release asset exists: $url\n\
+         - Tarball naming: peerman-<version>-<arch>-unknown-linux-gnu.tar.gz\n\
          - Your network connectivity"
     }
 
     info "Extracting..."
     tar xzf "${tmpdir}/${tarball}" -C "$tmpdir"
+    if [[ ! -f "${tmpdir}/peerman" ]]; then
+        error "Tarball does not contain 'peerman' binary at root.\n\
+       Expected layout: peerman  (not peerman-<version>/peerman)"
+    fi
     install -o peerman -g peerman -m 0755 "${tmpdir}/peerman" "$BINARY_PATH"
     success "Installed peerman $version to $BINARY_PATH"
 }
