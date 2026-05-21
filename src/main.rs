@@ -250,6 +250,7 @@ async fn main() -> anyhow::Result<()> {
         peer_repo: state.peer_repo.clone(),
         probe_repo: state.probe_repo.clone(),
         community_repo: state.community_repo.clone(),
+        settings_repo: state.settings_repo.clone(),
         jwt_secret: jwt_secret.clone(),
         cluster_key: Arc::new(cluster_key.clone()),
         listen_addr: listen_addr.clone(),
