@@ -212,6 +212,7 @@ async fn main() -> anyhow::Result<()> {
     let probe_interval = cfg.cluster.probe_interval_secs;
     let peer_nodes = cfg.cluster.peer_nodes.clone();
     let cluster_key = cfg.cluster.cluster_key.clone();
+    let tunnel_ip_range = cfg.cluster.tunnel_ip_range.clone();
     let cfg_arc = Arc::new(cfg);
     APP_CONFIG.set(cfg_arc.clone())
         .map_err(|_| anyhow::anyhow!("APP_CONFIG already set"))?;
@@ -357,6 +358,23 @@ async fn main() -> anyhow::Result<()> {
                                 &info.description,
                             ).await;
                         }
+
+                        // Sync cluster configs after discovering new nodes
+                        if !tunnel_ip_range.is_empty() {
+                            let nodes = state.node_repo.list_all().await?;
+                            let my_tunnel_ip = nodes.iter()
+                                .find(|n| n.listen_addr == listen_addr)
+                                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                                .unwrap_or_default();
+                            if !my_tunnel_ip.is_empty() {
+                                let _ = crate::cluster::tunnel::sync_cluster_wg(&state.node_repo, "").await;
+                                let settings = state.settings_repo.load().await?;
+                                let _ = crate::cluster::tunnel::sync_cluster_bird(
+                                    &state.peer_repo, &settings, &state.node_repo, &my_tunnel_ip,
+                                ).await;
+                            }
+                        }
+
                         tracing::info!(
                             "Discovered {} nodes from bootstrap peer {}",
                             remote_nodes.len(),
@@ -373,6 +391,51 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+
+        // Init cluster WG tunnel
+        let _wg_private_key = if !tunnel_ip_range.is_empty() {
+            match crate::cluster::tunnel::init_local_node(
+                &state.node_repo,
+                &node.id,
+                &tunnel_ip_range,
+            ).await {
+                Ok((priv_key, pub_key, tunnel_ip)) => {
+                    tracing::info!(
+                        "Cluster tunnel initialized: key={}, ip={}",
+                        pub_key,
+                        tunnel_ip
+                    );
+
+                    // Apply initial wg-cluster config
+                    if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(
+                        &state.node_repo,
+                        &priv_key,
+                    ).await {
+                        tracing::warn!("Failed to apply initial wg-cluster config: {e}");
+                    }
+
+                    // Apply initial bird config with iBGP
+                    let settings = state.settings_repo.load().await?;
+                    if let Err(e) = crate::cluster::tunnel::sync_cluster_bird(
+                        &state.peer_repo,
+                        &settings,
+                        &state.node_repo,
+                        &tunnel_ip,
+                    ).await {
+                        tracing::warn!("Failed to apply initial cluster bird config: {e}");
+                    }
+
+                    priv_key
+                }
+                Err(e) => {
+                    tracing::warn!("Cluster tunnel init failed: {e}");
+                    String::new()
+                }
+            }
+        } else {
+            tracing::debug!("No tunnel_ip_range configured, skipping cluster WG tunnels");
+            String::new()
+        };
 
         // Spawn periodic stale-node cleanup task
         let stale_state = state.clone();
@@ -487,6 +550,9 @@ async fn main() -> anyhow::Result<()> {
         let node_repo_sync = state.node_repo.clone();
         let cluster_key_sync = cluster_key.clone();
         let listen_addr_sync = listen_addr.clone();
+        let tunnel_ip_range_sync = tunnel_ip_range.clone();
+        let settings_repo_sync = state.settings_repo.clone();
+        let peer_repo_sync = state.peer_repo.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(sync_interval_dur);
@@ -560,6 +626,25 @@ async fn main() -> anyhow::Result<()> {
                                     &info.description,
                                 )
                                 .await;
+                        }
+
+                        // After discovering new nodes, sync cluster configs
+                        if !tunnel_ip_range_sync.is_empty() {
+                            let nodes = match node_repo_sync.list_all().await {
+                                Ok(n) => n,
+                                Err(_) => continue,
+                            };
+                            let my_tunnel_ip = nodes.iter()
+                                .find(|n| n.listen_addr == listen_addr_sync)
+                                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                                .unwrap_or_default();
+                            if !my_tunnel_ip.is_empty() {
+                                if let Ok(settings) = settings_repo_sync.load().await {
+                                    let _ = crate::cluster::tunnel::sync_cluster_bird(
+                                        &peer_repo_sync, &settings, &node_repo_sync, &my_tunnel_ip,
+                                    ).await;
+                                }
+                            }
                         }
                     }
                     Err(e) => {
