@@ -61,6 +61,8 @@ pub struct ClusterConfig {
     pub probe_interval_secs: u64,
     #[serde(default = "default_sync_interval")]
     pub sync_interval_secs: u64,
+    #[serde(default)]
+    pub tunnel_ip_range: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -138,6 +140,7 @@ impl Default for ClusterConfig {
             peer_nodes: Vec::new(),
             probe_interval_secs: default_probe_interval(),
             sync_interval_secs: default_sync_interval(),
+            tunnel_ip_range: String::new(),
         }
     }
 }

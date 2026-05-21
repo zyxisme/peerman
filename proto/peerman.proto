@@ -309,6 +309,8 @@ message NodeInfo {
   int64 local_asn = 3;
   string description = 4;
   string last_seen_at = 5;
+  string wg_public_key = 6;
+  string tunnel_ip = 7;
 }
 
 message ExchangeNodesRequest {
@@ -362,6 +364,52 @@ message NodeTracerouteResult {
   string node_id = 1;
   string node_name = 2;
   string output = 3;
+}
+
+// ── Management Service ──
+
+service ManagementService {
+  rpc GetWireGuardStatus(GetWGStatusRequest) returns (WGStatusResponse);
+  rpc GetBirdStatus(GetBirdStatusRequest) returns (BirdStatusResponse);
+}
+
+message GetWGStatusRequest {
+  string interface = 1;
+}
+
+message WGStatusResponse {
+  repeated WGInterface interfaces = 1;
+}
+
+message WGInterface {
+  string name = 1;
+  string public_key = 2;
+  uint32 listen_port = 3;
+  repeated WGPeerStatus peers = 4;
+}
+
+message WGPeerStatus {
+  string public_key = 1;
+  string endpoint = 2;
+  string allowed_ips = 3;
+  string latest_handshake = 4;
+  string transfer_rx = 5;
+  string transfer_tx = 6;
+}
+
+message GetBirdStatusRequest {}
+
+message BirdStatusResponse {
+  repeated BirdProtocol protocols = 1;
+}
+
+message BirdProtocol {
+  string name = 1;
+  string proto = 2;
+  string table = 3;
+  string state = 4;
+  string since = 5;
+  string info = 6;
 }
 
 // ── Flap Detection Service ──

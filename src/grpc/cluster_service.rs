@@ -16,6 +16,7 @@ use crate::models::community::CommunityRuleRepository;
 use crate::models::node::NodeRepository;
 use crate::models::peer::PeerRepository;
 use crate::models::probe::ProbeResultRepository;
+use crate::models::settings::SettingsRepository;
 use crate::services;
 
 pub struct ClusterServiceImpl {
@@ -23,6 +24,7 @@ pub struct ClusterServiceImpl {
     pub peer_repo: PeerRepository,
     pub probe_repo: ProbeResultRepository,
     pub community_repo: CommunityRuleRepository,
+    pub settings_repo: SettingsRepository,
     pub jwt_secret: std::sync::Arc<String>,
     pub cluster_key: std::sync::Arc<String>,
     pub listen_addr: String,
@@ -406,12 +408,55 @@ impl ClusterService for ClusterServiceImpl {
 
         // Upsert nodes received from peer
         for ni in &req.nodes {
-            if let Err(e) = self
+            let node = match self
                 .node_repo
                 .upsert_by_name(&ni.name, &ni.listen_addr, ni.local_asn, &ni.description)
                 .await
             {
-                tracing::warn!("Failed to upsert node {} from exchange: {}", ni.name, e);
+                Ok(n) => n,
+                Err(e) => {
+                    tracing::warn!("Failed to upsert node {} from exchange: {}", ni.name, e);
+                    continue;
+                }
+            };
+            // Update cluster fields if they changed
+            let wg_changed = !ni.wg_public_key.is_empty()
+                && ni.wg_public_key != node.wg_pubkey;
+            let tunnel_changed =
+                !ni.tunnel_ip.is_empty() && ni.tunnel_ip != node.tunnel_ip;
+            if wg_changed || tunnel_changed {
+                let _ = self
+                    .node_repo
+                    .update_cluster_fields(
+                        &node.id,
+                        if wg_changed { &ni.wg_public_key } else { &node.wg_pubkey },
+                        if tunnel_changed { &ni.tunnel_ip } else { &node.tunnel_ip },
+                    )
+                    .await;
+            }
+        }
+
+        // Sync cluster configs after receiving new/updated nodes
+        if !self.cluster_key.is_empty() {
+            let nodes = self.node_repo.list_all().await.unwrap_or_default();
+            let my_tunnel_ip = nodes.iter()
+                .find(|n| n.listen_addr == self.listen_addr)
+                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                .unwrap_or_default();
+
+            if !my_tunnel_ip.is_empty() {
+                if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(
+                    &self.node_repo, "",
+                ).await {
+                    tracing::warn!("Failed to sync cluster WG after exchange: {e}");
+                }
+                if let Ok(settings) = self.settings_repo.load().await {
+                    if let Err(e) = crate::cluster::tunnel::sync_cluster_bird(
+                        &self.peer_repo, &settings, &self.node_repo, &my_tunnel_ip,
+                    ).await {
+                        tracing::warn!("Failed to sync cluster BIRD after exchange: {e}");
+                    }
+                }
             }
         }
 
@@ -430,6 +475,8 @@ impl ClusterService for ClusterServiceImpl {
                 local_asn: n.local_asn,
                 description: n.description.clone().unwrap_or_default(),
                 last_seen_at: n.last_seen_at.clone(),
+                wg_public_key: n.wg_pubkey.clone(),
+                tunnel_ip: n.tunnel_ip.clone(),
             })
             .collect();
 

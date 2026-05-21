@@ -32,11 +32,13 @@ fn app_config() -> Arc<config::Config> {
 use crate::grpc::generated::bird_service_server::BirdServiceServer;
 use crate::grpc::generated::cluster_service_server::ClusterServiceServer;
 use crate::grpc::generated::flap_service_server::FlapServiceServer;
+use crate::grpc::generated::management_service_server::ManagementServiceServer;
 use crate::grpc::generated::peer_service_server::PeerServiceServer;
 use crate::grpc::generated::settings_service_server::SettingsServiceServer;
 use crate::grpc::bird_service::BirdServiceImpl;
 use crate::grpc::cluster_service::ClusterServiceImpl;
 use crate::grpc::flap_service::FlapServiceImpl;
+use crate::grpc::management_service::ManagementServiceImpl;
 use crate::grpc::peer_service::PeerServiceImpl;
 use crate::grpc::settings_service::SettingsServiceImpl;
 
@@ -210,6 +212,7 @@ async fn main() -> anyhow::Result<()> {
     let probe_interval = cfg.cluster.probe_interval_secs;
     let peer_nodes = cfg.cluster.peer_nodes.clone();
     let cluster_key = cfg.cluster.cluster_key.clone();
+    let tunnel_ip_range = cfg.cluster.tunnel_ip_range.clone();
     let cfg_arc = Arc::new(cfg);
     APP_CONFIG.set(cfg_arc.clone())
         .map_err(|_| anyhow::anyhow!("APP_CONFIG already set"))?;
@@ -247,6 +250,7 @@ async fn main() -> anyhow::Result<()> {
         peer_repo: state.peer_repo.clone(),
         probe_repo: state.probe_repo.clone(),
         community_repo: state.community_repo.clone(),
+        settings_repo: state.settings_repo.clone(),
         jwt_secret: jwt_secret.clone(),
         cluster_key: Arc::new(cluster_key.clone()),
         listen_addr: listen_addr.clone(),
@@ -258,6 +262,7 @@ async fn main() -> anyhow::Result<()> {
     let flap_svc = FlapServiceImpl {
         flap_repo: state.flap_event_repo.clone(),
     };
+    let mgmt_svc = ManagementServiceImpl;
 
     // Build tonic gRPC router with tonic-web wrapper
     let grpc_router = tonic::transport::Server::builder()
@@ -268,6 +273,7 @@ async fn main() -> anyhow::Result<()> {
         .add_service(ClusterServiceServer::new(cluster_svc))
         .add_service(BirdServiceServer::new(bird_svc))
         .add_service(FlapServiceServer::new(flap_svc))
+        .add_service(ManagementServiceServer::new(mgmt_svc))
         .into_router();
 
     // Build axum router: auth endpoints + gRPC + static files
@@ -316,6 +322,8 @@ async fn main() -> anyhow::Result<()> {
                     local_asn: n.local_asn,
                     description: n.description.clone().unwrap_or_default(),
                     last_seen_at: n.last_seen_at.clone(),
+                    wg_public_key: String::new(),
+                    tunnel_ip: String::new(),
                 })
                 .collect();
 
@@ -351,6 +359,23 @@ async fn main() -> anyhow::Result<()> {
                                 &info.description,
                             ).await;
                         }
+
+                        // Sync cluster configs after discovering new nodes
+                        if !tunnel_ip_range.is_empty() {
+                            let nodes = state.node_repo.list_all().await?;
+                            let my_tunnel_ip = nodes.iter()
+                                .find(|n| n.listen_addr == listen_addr)
+                                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                                .unwrap_or_default();
+                            if !my_tunnel_ip.is_empty() {
+                                let _ = crate::cluster::tunnel::sync_cluster_wg(&state.node_repo, "").await;
+                                let settings = state.settings_repo.load().await?;
+                                let _ = crate::cluster::tunnel::sync_cluster_bird(
+                                    &state.peer_repo, &settings, &state.node_repo, &my_tunnel_ip,
+                                ).await;
+                            }
+                        }
+
                         tracing::info!(
                             "Discovered {} nodes from bootstrap peer {}",
                             remote_nodes.len(),
@@ -367,6 +392,51 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+
+        // Init cluster WG tunnel
+        let _wg_private_key = if !tunnel_ip_range.is_empty() {
+            match crate::cluster::tunnel::init_local_node(
+                &state.node_repo,
+                &node.id,
+                &tunnel_ip_range,
+            ).await {
+                Ok((priv_key, pub_key, tunnel_ip)) => {
+                    tracing::info!(
+                        "Cluster tunnel initialized: key={}, ip={}",
+                        pub_key,
+                        tunnel_ip
+                    );
+
+                    // Apply initial wg-cluster config
+                    if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(
+                        &state.node_repo,
+                        &priv_key,
+                    ).await {
+                        tracing::warn!("Failed to apply initial wg-cluster config: {e}");
+                    }
+
+                    // Apply initial bird config with iBGP
+                    let settings = state.settings_repo.load().await?;
+                    if let Err(e) = crate::cluster::tunnel::sync_cluster_bird(
+                        &state.peer_repo,
+                        &settings,
+                        &state.node_repo,
+                        &tunnel_ip,
+                    ).await {
+                        tracing::warn!("Failed to apply initial cluster bird config: {e}");
+                    }
+
+                    priv_key
+                }
+                Err(e) => {
+                    tracing::warn!("Cluster tunnel init failed: {e}");
+                    String::new()
+                }
+            }
+        } else {
+            tracing::debug!("No tunnel_ip_range configured, skipping cluster WG tunnels");
+            String::new()
+        };
 
         // Spawn periodic stale-node cleanup task
         let stale_state = state.clone();
@@ -481,6 +551,9 @@ async fn main() -> anyhow::Result<()> {
         let node_repo_sync = state.node_repo.clone();
         let cluster_key_sync = cluster_key.clone();
         let listen_addr_sync = listen_addr.clone();
+        let tunnel_ip_range_sync = tunnel_ip_range.clone();
+        let settings_repo_sync = state.settings_repo.clone();
+        let peer_repo_sync = state.peer_repo.clone();
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(sync_interval_dur);
@@ -523,6 +596,8 @@ async fn main() -> anyhow::Result<()> {
                         local_asn: n.local_asn,
                         description: n.description.clone().unwrap_or_default(),
                         last_seen_at: n.last_seen_at.clone(),
+                        wg_public_key: String::new(),
+                        tunnel_ip: String::new(),
                     })
                     .collect();
 
@@ -552,6 +627,25 @@ async fn main() -> anyhow::Result<()> {
                                     &info.description,
                                 )
                                 .await;
+                        }
+
+                        // After discovering new nodes, sync cluster configs
+                        if !tunnel_ip_range_sync.is_empty() {
+                            let nodes = match node_repo_sync.list_all().await {
+                                Ok(n) => n,
+                                Err(_) => continue,
+                            };
+                            let my_tunnel_ip = nodes.iter()
+                                .find(|n| n.listen_addr == listen_addr_sync)
+                                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                                .unwrap_or_default();
+                            if !my_tunnel_ip.is_empty() {
+                                if let Ok(settings) = settings_repo_sync.load().await {
+                                    let _ = crate::cluster::tunnel::sync_cluster_bird(
+                                        &peer_repo_sync, &settings, &node_repo_sync, &my_tunnel_ip,
+                                    ).await;
+                                }
+                            }
                         }
                     }
                     Err(e) => {
