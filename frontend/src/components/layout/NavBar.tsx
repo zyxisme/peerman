@@ -12,6 +12,7 @@ const links = [
   { to: '/communities', label: 'Communities', icon: Tag },
   { to: '/looking-glass', label: 'LG', icon: Search },
   { to: '/flaps', label: 'Flaps', icon: AlertCircle },
+  { to: '/status', label: 'Status', icon: Activity },
   { to: '/export', label: 'Export', icon: Download },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
