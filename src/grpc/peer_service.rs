@@ -93,16 +93,17 @@ impl PeerServiceImpl {
         let peer_communities = if settings.enable_community_filters {
             let probe_repo = ProbeResultRepository::new(self.pool.clone());
             let rule_repo = CommunityRuleRepository::new(self.pool.clone());
+            let rules = rule_repo.list_enabled().await.unwrap_or_default();
             let mut map = std::collections::HashMap::new();
             for peer in &peers {
                 if !peer.enabled {
                     continue;
                 }
-                match CommunityMapper::compute_communities(
+                match CommunityMapper::compute_communities_with_rules(
                     peer,
                     &self.listen_addr,
                     &probe_repo,
-                    &rule_repo,
+                    &rules,
                 )
                 .await
                 {
