@@ -37,22 +37,23 @@ pub struct SettingsRepository {
     pool: SqlitePool,
 }
 
+const SETTINGS_COLUMNS: &str = "local_asn, bird_template_name, bird_router_id, \
+    wg_default_listen_port, dn42_ipv4_prefix, dn42_ipv6_prefix, wg_table, \
+    wg_mtu, wg_fwmark, wg_post_up, wg_post_down, \
+    roa_mode, roa_static_v4_url, roa_static_v6_url, roa_rtr_address, roa_rtr_port, \
+    bird_import_limit, bird_export_filter, bird_import_filter, \
+    enable_community_filters, enable_bfd, bfd_interval_ms, bfd_multiplier, \
+    cluster_tunnel_ipv6_range, enable_confederation, confederation_local_asn";
+
 impl SettingsRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 
     pub async fn load(&self) -> Result<Settings, AppError> {
-        let row = sqlx::query_as::<_, Settings>(
-            "SELECT local_asn, bird_template_name, bird_router_id,
-             wg_default_listen_port, dn42_ipv4_prefix, dn42_ipv6_prefix, wg_table,
-             wg_mtu, wg_fwmark, wg_post_up, wg_post_down,
-             roa_mode, roa_static_v4_url, roa_static_v6_url, roa_rtr_address, roa_rtr_port,
-             bird_import_limit, bird_export_filter, bird_import_filter,
-             enable_community_filters, enable_bfd, bfd_interval_ms, bfd_multiplier,
-             cluster_tunnel_ipv6_range, enable_confederation, confederation_local_asn
-             FROM settings WHERE id = 1",
-        )
+        let row = sqlx::query_as::<_, Settings>(&format!(
+            "SELECT {SETTINGS_COLUMNS} FROM settings WHERE id = 1"
+        ))
         .fetch_one(&self.pool)
         .await?;
 

@@ -26,43 +26,34 @@ pub struct NodeRepository {
     pool: SqlitePool,
 }
 
+const NODE_COLUMNS: &str = "id, name, listen_addr, local_asn, description, online, \
+    last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, \
+    wg_private_key";
+
 impl NodeRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 
     pub async fn list_all(&self) -> Result<Vec<Node>, AppError> {
-        sqlx::query_as::<_, Node>(
-            "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
-             wg_private_key
-             FROM nodes ORDER BY name",
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Node>(&format!("SELECT {NODE_COLUMNS} FROM nodes ORDER BY name"))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn find_by_id(&self, id: &str) -> Result<Node, AppError> {
-        sqlx::query_as::<_, Node>(
-            "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
-             wg_private_key
-             FROM nodes WHERE id = ?",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("Node {id} not found")))
+        sqlx::query_as::<_, Node>(&format!("SELECT {NODE_COLUMNS} FROM nodes WHERE id = ?"))
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Node {id} not found")))
     }
 
     pub async fn find_by_listen_addr(&self, addr: &str) -> Result<Option<Node>, AppError> {
-        sqlx::query_as::<_, Node>(
-            "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
-             wg_private_key
-             FROM nodes WHERE listen_addr = ?",
-        )
+        sqlx::query_as::<_, Node>(&format!(
+            "SELECT {NODE_COLUMNS} FROM nodes WHERE listen_addr = ?"
+        ))
         .bind(addr)
         .fetch_optional(&self.pool)
         .await
@@ -79,12 +70,11 @@ impl NodeRepository {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
-        sqlx::query_as::<_, Node>(
+        sqlx::query_as::<_, Node>(&format!(
             "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
-        )
+             RETURNING {NODE_COLUMNS}"
+        ))
         .bind(&id)
         .bind(name)
         .bind(listen_addr)
@@ -104,13 +94,12 @@ impl NodeRepository {
     pub async fn update(&self, node: &Node) -> Result<Node, AppError> {
         let now = Utc::now().to_rfc3339();
 
-        sqlx::query_as::<_, Node>(
+        sqlx::query_as::<_, Node>(&format!(
             "UPDATE nodes SET name = ?, listen_addr = ?, local_asn = ?, description = ?,
              wg_pubkey = ?, tunnel_ip = ?, tunnel_ipv6 = ?, wg_private_key = ?, updated_at = ?
              WHERE id = ?
-             RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
-        )
+             RETURNING {NODE_COLUMNS}"
+        ))
         .bind(&node.name)
         .bind(&node.listen_addr)
         .bind(node.local_asn)
@@ -219,13 +208,12 @@ impl NodeRepository {
         local_asn: i64,
     ) -> Result<Node, AppError> {
         let now = Utc::now().to_rfc3339();
-        let node = sqlx::query_as::<_, Node>(
+        let node = sqlx::query_as::<_, Node>(&format!(
             "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key, created_at, updated_at)
              VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, '', '', '', '', '', ?4, ?4)
              ON CONFLICT(listen_addr) DO UPDATE SET name = ?1, local_asn = ?3, updated_at = ?4
-             RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
-        )
+             RETURNING {NODE_COLUMNS}"
+        ))
         .bind(name)
         .bind(listen_addr)
         .bind(local_asn)
@@ -237,16 +225,11 @@ impl NodeRepository {
 
     #[allow(dead_code)]
     pub async fn find_by_name(&self, name: &str) -> Result<Option<Node>, AppError> {
-        sqlx::query_as::<_, Node>(
-            "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
-             wg_private_key
-             FROM nodes WHERE name = ?",
-        )
-        .bind(name)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Node>(&format!("SELECT {NODE_COLUMNS} FROM nodes WHERE name = ?"))
+            .bind(name)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn upsert_by_name(
@@ -257,13 +240,12 @@ impl NodeRepository {
         description: &str,
     ) -> Result<Node, AppError> {
         let now = Utc::now().to_rfc3339();
-        let node = sqlx::query_as::<_, Node>(
+        let node = sqlx::query_as::<_, Node>(&format!(
             "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key, created_at, updated_at)
              VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, '', '', '', '', ?5, ?5)
              ON CONFLICT(name) DO UPDATE SET listen_addr = ?2, local_asn = ?3, description = ?4, updated_at = ?5
-             RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
-        )
+             RETURNING {NODE_COLUMNS}"
+        ))
         .bind(name)
         .bind(listen_addr)
         .bind(local_asn)
