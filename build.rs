@@ -23,7 +23,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .current_dir(frontend_dir)
             .status();
         if install.is_err() {
-            println!("cargo:warning=pnpm not available, skipping frontend build (use pre-built dist/)");
+            println!(
+                "cargo:warning=pnpm not available, skipping frontend build (use pre-built dist/)"
+            );
             return Ok(());
         }
 

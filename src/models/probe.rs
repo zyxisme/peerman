@@ -107,5 +107,4 @@ impl ProbeResultRepository {
         .await
         .map_err(Into::into)
     }
-
 }

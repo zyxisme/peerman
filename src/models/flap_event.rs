@@ -114,26 +114,23 @@ impl FlapEventRepository {
     }
 
     pub async fn stats(&self) -> Result<FlapStats, AppError> {
-        let active_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM flap_events WHERE active = 1",
-        )
-        .fetch_one(&self.pool)
-        .await?;
+        let active_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM flap_events WHERE active = 1")
+                .fetch_one(&self.pool)
+                .await?;
 
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let total_today: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM flap_events WHERE detected_at >= ?",
-        )
-        .bind(&today)
-        .fetch_one(&self.pool)
-        .await?;
+        let total_today: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM flap_events WHERE detected_at >= ?")
+                .bind(&today)
+                .fetch_one(&self.pool)
+                .await?;
 
-        let total_changes: Option<f64> = sqlx::query_scalar(
-            "SELECT SUM(change_count) FROM flap_events WHERE detected_at >= ?",
-        )
-        .bind(&today)
-        .fetch_optional(&self.pool)
-        .await?;
+        let total_changes: Option<f64> =
+            sqlx::query_scalar("SELECT SUM(change_count) FROM flap_events WHERE detected_at >= ?")
+                .bind(&today)
+                .fetch_optional(&self.pool)
+                .await?;
 
         let midnight = chrono::Utc::now()
             .date_naive()

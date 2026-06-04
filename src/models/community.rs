@@ -110,11 +110,56 @@ impl CommunityRuleRepository {
         }
 
         let defaults = vec![
-            ("Metro (<5ms)", 5.0, 1.0, "<asn>,10", "<asn>,610", 1000.0, 1, 0),
-            ("Regional (5-20ms)", 20.0, 1.0, "<asn>,20", "<asn>,620", 500.0, 1, 100),
-            ("Continental (20-50ms)", 50.0, 2.0, "<asn>,30", "<asn>,630", 200.0, 2, 200),
-            ("Intercontinental (50-150ms)", 150.0, 5.0, "<asn>,40", "<asn>,640", 50.0, 3, 400),
-            ("High latency (>150ms)", 100_000.0, 100.0, "<asn>,50", "<asn>,650", 0.0, 0, 800),
+            (
+                "Metro (<5ms)",
+                5.0,
+                1.0,
+                "<asn>,10",
+                "<asn>,610",
+                1000.0,
+                1,
+                0,
+            ),
+            (
+                "Regional (5-20ms)",
+                20.0,
+                1.0,
+                "<asn>,20",
+                "<asn>,620",
+                500.0,
+                1,
+                100,
+            ),
+            (
+                "Continental (20-50ms)",
+                50.0,
+                2.0,
+                "<asn>,30",
+                "<asn>,630",
+                200.0,
+                2,
+                200,
+            ),
+            (
+                "Intercontinental (50-150ms)",
+                150.0,
+                5.0,
+                "<asn>,40",
+                "<asn>,640",
+                50.0,
+                3,
+                400,
+            ),
+            (
+                "High latency (>150ms)",
+                100_000.0,
+                100.0,
+                "<asn>,50",
+                "<asn>,650",
+                0.0,
+                0,
+                800,
+            ),
         ];
 
         for (desc, max_lat, max_loss, c4, c6, min_bw, crypto_w, med_p) in defaults {

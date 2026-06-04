@@ -146,13 +146,11 @@ impl NodeRepository {
 
     pub async fn mark_stale_node(&self, id: &str) -> Result<(), AppError> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE nodes SET online = 0, updated_at = ?1 WHERE id = ?2",
-        )
-        .bind(&now)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE nodes SET online = 0, updated_at = ?1 WHERE id = ?2")
+            .bind(&now)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -163,43 +161,33 @@ impl NodeRepository {
         tunnel_ip: &str,
     ) -> Result<(), AppError> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE nodes SET wg_pubkey = ?, tunnel_ip = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(wg_pubkey)
-        .bind(tunnel_ip)
-        .bind(&now)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE nodes SET wg_pubkey = ?, tunnel_ip = ?, updated_at = ? WHERE id = ?")
+            .bind(wg_pubkey)
+            .bind(tunnel_ip)
+            .bind(&now)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
-    pub async fn update_tunnel_ipv6(
-        &self,
-        id: &str,
-        tunnel_ipv6: &str,
-    ) -> Result<(), AppError> {
+    pub async fn update_tunnel_ipv6(&self, id: &str, tunnel_ipv6: &str) -> Result<(), AppError> {
         let now = Utc::now().to_rfc3339();
-        sqlx::query(
-            "UPDATE nodes SET tunnel_ipv6 = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(tunnel_ipv6)
-        .bind(&now)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE nodes SET tunnel_ipv6 = ?, updated_at = ? WHERE id = ?")
+            .bind(tunnel_ipv6)
+            .bind(&now)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
     pub async fn mark_stale(&self, threshold_secs: i64) -> Result<(), AppError> {
         let threshold = Utc::now() - chrono::Duration::seconds(threshold_secs);
-        sqlx::query(
-            "UPDATE nodes SET online = 0 WHERE online = 1 AND last_seen_at < ?",
-        )
-        .bind(threshold.to_rfc3339())
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE nodes SET online = 0 WHERE online = 1 AND last_seen_at < ?")
+            .bind(threshold.to_rfc3339())
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 

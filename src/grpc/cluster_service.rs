@@ -205,7 +205,10 @@ impl ClusterService for ClusterServiceImpl {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(PullPeersResponse {
-            peers: peers.iter().map(super::peer_service::peer_to_proto).collect(),
+            peers: peers
+                .iter()
+                .map(super::peer_service::peer_to_proto)
+                .collect(),
         }))
     }
 
@@ -420,10 +423,8 @@ impl ClusterService for ClusterServiceImpl {
                 }
             };
             // Update cluster fields if they changed
-            let wg_changed = !ni.wg_public_key.is_empty()
-                && ni.wg_public_key != node.wg_pubkey;
-            let tunnel_changed =
-                !ni.tunnel_ip.is_empty() && ni.tunnel_ip != node.tunnel_ip;
+            let wg_changed = !ni.wg_public_key.is_empty() && ni.wg_public_key != node.wg_pubkey;
+            let tunnel_changed = !ni.tunnel_ip.is_empty() && ni.tunnel_ip != node.tunnel_ip;
             let tunnel_ipv6_changed =
                 !ni.tunnel_ipv6.is_empty() && ni.tunnel_ipv6 != node.tunnel_ipv6;
             if wg_changed || tunnel_changed {
@@ -431,8 +432,16 @@ impl ClusterService for ClusterServiceImpl {
                     .node_repo
                     .update_cluster_fields(
                         &node.id,
-                        if wg_changed { &ni.wg_public_key } else { &node.wg_pubkey },
-                        if tunnel_changed { &ni.tunnel_ip } else { &node.tunnel_ip },
+                        if wg_changed {
+                            &ni.wg_public_key
+                        } else {
+                            &node.wg_pubkey
+                        },
+                        if tunnel_changed {
+                            &ni.tunnel_ip
+                        } else {
+                            &node.tunnel_ip
+                        },
                     )
                     .await;
             }
@@ -447,21 +456,31 @@ impl ClusterService for ClusterServiceImpl {
         // Sync cluster configs after receiving new/updated nodes
         if !self.cluster_key.is_empty() {
             let nodes = self.node_repo.list_all().await.unwrap_or_default();
-            let my_tunnel_ip = nodes.iter()
+            let my_tunnel_ip = nodes
+                .iter()
                 .find(|n| n.listen_addr == self.listen_addr)
-                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                .and_then(|n| {
+                    if n.tunnel_ip.is_empty() {
+                        None
+                    } else {
+                        Some(n.tunnel_ip.clone())
+                    }
+                })
                 .unwrap_or_default();
 
             if !my_tunnel_ip.is_empty() {
-                if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(
-                    &self.node_repo, "",
-                ).await {
+                if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(&self.node_repo, "").await {
                     tracing::warn!("Failed to sync cluster WG after exchange: {e}");
                 }
                 if let Ok(settings) = self.settings_repo.load().await {
                     if let Err(e) = crate::cluster::tunnel::sync_cluster_bird(
-                        &self.peer_repo, &settings, &self.node_repo, &my_tunnel_ip,
-                    ).await {
+                        &self.peer_repo,
+                        &settings,
+                        &self.node_repo,
+                        &my_tunnel_ip,
+                    )
+                    .await
+                    {
                         tracing::warn!("Failed to sync cluster BIRD after exchange: {e}");
                     }
                 }
@@ -489,9 +508,7 @@ impl ClusterService for ClusterServiceImpl {
             })
             .collect();
 
-        Ok(Response::new(ExchangeNodesResponse {
-            nodes: node_infos,
-        }))
+        Ok(Response::new(ExchangeNodesResponse { nodes: node_infos }))
     }
 
     async fn health_check(

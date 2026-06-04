@@ -14,7 +14,9 @@ pub struct Claims {
 /// Generate a random 64-character hex JWT secret.
 pub fn generate_jwt_secret() -> String {
     let mut rng = rand::thread_rng();
-    (0..32).map(|_| format!("{:02x}", rng.gen::<u8>())).collect()
+    (0..32)
+        .map(|_| format!("{:02x}", rng.gen::<u8>()))
+        .collect()
 }
 
 /// Create a JWT token for the given username, valid for 30 days.
@@ -33,10 +35,7 @@ pub fn create_token(username: &str, secret: &str) -> Result<String, jsonwebtoken
 }
 
 /// Verify and decode a JWT token.
-pub fn verify_token(
-    token: &str,
-    secret: &str,
-) -> Result<Claims, jsonwebtoken::errors::Error> {
+pub fn verify_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
@@ -49,7 +48,11 @@ pub fn verify_token(
 pub fn parse_cookie<'a>(cookie_header: &'a str, name: &str) -> Option<&'a str> {
     cookie_header.split(';').find_map(|pair| {
         let (k, v) = pair.trim().split_once('=')?;
-        if k == name { Some(v) } else { None }
+        if k == name {
+            Some(v)
+        } else {
+            None
+        }
     })
 }
 
@@ -66,12 +69,10 @@ fn extract_jwt(metadata: &MetadataMap) -> Option<String> {
 /// or an unauthenticated Status if not.
 #[allow(clippy::result_large_err)]
 pub fn check_auth<T>(req: &Request<T>, secret: &str) -> Result<(), Status> {
-    let token = extract_jwt(req.metadata()).ok_or_else(|| {
-        Status::unauthenticated("authentication required")
-    })?;
+    let token = extract_jwt(req.metadata())
+        .ok_or_else(|| Status::unauthenticated("authentication required"))?;
 
     verify_token(&token, secret)
         .map(|_| ())
         .map_err(|_| Status::unauthenticated("invalid or expired token"))
 }
-

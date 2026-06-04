@@ -83,11 +83,10 @@ impl BirdSocket {
 
         loop {
             let mut buf = String::new();
-            let n = self
-                .reader
-                .read_line(&mut buf)
-                .await
-                .map_err(|e| AppError::Internal(format!("Failed to read BIRD response: {e}")))?;
+            let n =
+                self.reader.read_line(&mut buf).await.map_err(|e| {
+                    AppError::Internal(format!("Failed to read BIRD response: {e}"))
+                })?;
 
             if n == 0 {
                 break;
