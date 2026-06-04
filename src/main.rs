@@ -78,7 +78,27 @@ struct MeResponse {
 
 async fn handle_login(Json(req): Json<LoginRequest>) -> axum::response::Response {
     let cfg = app_config();
-    if req.username != cfg.auth.username || req.password != cfg.auth.password {
+    if req.username != cfg.auth.username {
+        return json_response(
+            axum::http::StatusCode::UNAUTHORIZED,
+            &LoginResponse {
+                success: false,
+                user: None,
+                error: Some("Invalid credentials".into()),
+            },
+            None,
+        );
+    }
+
+    let password_ok = if cfg.auth.password_hash.is_empty() {
+        tracing::warn!("Using plaintext password comparison — set password_hash in config");
+        req.password == cfg.auth.password
+    } else {
+        auth::password::verify_password(&req.password, &cfg.auth.password_hash)
+            .unwrap_or(false)
+    };
+
+    if !password_ok {
         return json_response(
             axum::http::StatusCode::UNAUTHORIZED,
             &LoginResponse {
@@ -189,9 +209,14 @@ async fn main() -> anyhow::Result<()> {
         cfg.auth.jwt_secret = auth::generate_jwt_secret();
         tracing::info!("Auto-generated JWT secret (tokens will expire on restart)");
     }
-    if cfg.auth.password.is_empty() {
+    // Auto-hash plaintext password if password_hash is not set
+    if cfg.auth.password_hash.is_empty() && !cfg.auth.password.is_empty() {
+        cfg.auth.password_hash = auth::password::hash_password(&cfg.auth.password)
+            .map_err(|e| anyhow::anyhow!("Failed to hash password: {e}"))?;
+        tracing::info!("Auto-hashed plaintext password. Consider replacing 'password' with 'password_hash' in config.toml");
+    } else if cfg.auth.password_hash.is_empty() && cfg.auth.password.is_empty() {
         anyhow::bail!(
-            "auth.password must be set in config.toml. Empty password is not allowed for security reasons."
+            "auth.password or auth.password_hash must be set in config.toml"
         );
     }
 
