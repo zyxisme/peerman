@@ -818,6 +818,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Err(e) => {
                     tracing::warn!("iBGP listener unavailable ({e}), flap detection will use socket polling fallback");
+                    let _keep_tx = tx; // Keep channel alive so rx doesn't close
                     let mut detector =
                         crate::services::flap_detector::FlapDetector::new(node_id, flap_repo);
                     detector.run(rx, flap_token).await;
@@ -825,6 +826,14 @@ async fn main() -> anyhow::Result<()> {
             }
         });
     }
+
+    // Wire SIGINT to graceful shutdown
+    let shutdown_signal = shutdown.clone();
+    tokio::spawn(async move {
+        let _ = tokio::signal::ctrl_c().await;
+        tracing::info!("Received shutdown signal");
+        shutdown_signal.cancel();
+    });
 
     let addr: SocketAddr = listen_addr.parse()?;
     tracing::info!("peerman ready at http://{addr}");
