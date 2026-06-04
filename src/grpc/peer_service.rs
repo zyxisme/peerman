@@ -221,17 +221,10 @@ impl PeerService for PeerServiceImpl {
         )
         .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
-        let mut peer = self
-            .peer_repo
-            .create(&req.name)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-
-        peer.apply_proto(&create_request_to_proto(&req));
-
+        let proto = create_request_to_proto(&req);
         let peer = self
             .peer_repo
-            .update(&peer)
+            .create_full(&proto.into())
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 

@@ -79,6 +79,38 @@ fn opt_i64(v: i32) -> Option<i64> {
     }
 }
 
+impl From<crate::grpc::generated::Peer> for Peer {
+    fn from(p: crate::grpc::generated::Peer) -> Self {
+        Self {
+            id: String::new(),
+            name: p.name,
+            description: opt_string(&p.description),
+            asn: p.asn,
+            local_asn: p.local_asn,
+            wg_private_key: opt_string(&p.wg_private_key),
+            wg_public_key: opt_string(&p.wg_public_key),
+            wg_remote_address: p.wg_remote_address,
+            wg_remote_port: p.wg_remote_port as i64,
+            wg_listen_port: p.wg_listen_port as i64,
+            wg_interface_name: p.wg_interface_name,
+            ipv4_tunnel_local: opt_string(&p.ipv4_tunnel_local),
+            ipv4_tunnel_remote: opt_string(&p.ipv4_tunnel_remote),
+            ipv6_tunnel_local: opt_string(&p.ipv6_tunnel_local),
+            ipv6_tunnel_remote: opt_string(&p.ipv6_tunnel_remote),
+            multiprotocol: p.multiprotocol,
+            extended_nexthop: p.extended_nexthop,
+            sessions: p.sessions,
+            passive: p.passive,
+            import_max_prefix: opt_i64(p.import_max_prefix),
+            export_max_prefix: opt_i64(p.export_max_prefix),
+            enabled: p.enabled,
+            created_at: String::new(),
+            updated_at: String::new(),
+            origin_node_id: opt_string(&p.origin_node_id),
+        }
+    }
+}
+
 impl From<&Peer> for crate::grpc::generated::Peer {
     fn from(p: &Peer) -> Self {
         Self {
@@ -171,6 +203,46 @@ impl PeerRepository {
         .await?;
 
         Ok(peer)
+    }
+
+    /// Create a peer with all fields in a single INSERT ... RETURNING.
+    pub async fn create_full(&self, peer: &Peer) -> Result<Peer, AppError> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        sqlx::query_as::<_, Peer>(&format!(
+            "INSERT INTO peers ({PEER_COLUMNS})
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+             RETURNING {PEER_COLUMNS}"
+        ))
+        .bind(&id)
+        .bind(&peer.name)
+        .bind(&peer.description)
+        .bind(peer.asn)
+        .bind(peer.local_asn)
+        .bind(&peer.wg_private_key)
+        .bind(&peer.wg_public_key)
+        .bind(&peer.wg_remote_address)
+        .bind(peer.wg_remote_port)
+        .bind(peer.wg_listen_port)
+        .bind(&peer.wg_interface_name)
+        .bind(&peer.ipv4_tunnel_local)
+        .bind(&peer.ipv4_tunnel_remote)
+        .bind(&peer.ipv6_tunnel_local)
+        .bind(&peer.ipv6_tunnel_remote)
+        .bind(peer.multiprotocol)
+        .bind(peer.extended_nexthop)
+        .bind(peer.sessions)
+        .bind(peer.passive)
+        .bind(peer.import_max_prefix)
+        .bind(peer.export_max_prefix)
+        // enabled = 1 (hardcoded in VALUES)
+        .bind(&now) // created_at
+        .bind(&now) // updated_at
+        .bind(&peer.origin_node_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn update(&self, peer: &Peer) -> Result<Peer, AppError> {
