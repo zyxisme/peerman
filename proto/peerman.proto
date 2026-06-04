@@ -90,6 +90,8 @@ message Settings {
   uint32 bird_import_limit = 17;
   string bird_export_filter = 18;
   string bird_import_filter = 19;
+  // Community filters
+  bool enable_community_filters = 20;
 }
 
 // ── Peer Service Requests / Responses ──

@@ -25,6 +25,7 @@ const DEFAULT_FORM = {
   birdImportLimit: '9000',
   birdExportFilter: '',
   birdImportFilter: '',
+  enableCommunityFilters: false,
 };
 
 export default function SettingsPage() {
@@ -57,6 +58,7 @@ export default function SettingsPage() {
         birdImportLimit: String(settings.birdImportLimit || '9000'),
         birdExportFilter: settings.birdExportFilter,
         birdImportFilter: settings.birdImportFilter,
+        enableCommunityFilters: settings.enableCommunityFilters,
       });
     }
   }, [settings]);
@@ -87,6 +89,7 @@ export default function SettingsPage() {
       birdImportLimit: Number(form.birdImportLimit || '0'),
       birdExportFilter: form.birdExportFilter,
       birdImportFilter: form.birdImportFilter,
+      enableCommunityFilters: form.enableCommunityFilters,
     });
 
     try {
@@ -186,6 +189,12 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 gap-sm">
             <Input label="Import Prefix Limit" value={f('birdImportLimit')} onChange={(v) => setForm((p) => ({ ...p, birdImportLimit: v }))} type="number" />
           </div>
+          <Toggle
+            label="Enable Community Filters"
+            description="Include DN42 standard AS 64511 community functions (latency, bandwidth, crypto) in BIRD config."
+            checked={form.enableCommunityFilters}
+            onChange={(v) => setForm((p) => ({ ...p, enableCommunityFilters: v }))}
+          />
           <div className="grid grid-cols-1 gap-sm">
             <Textarea label="Import Filter Body" value={f('birdImportFilter')} onChange={(v) => setForm((p) => ({ ...p, birdImportFilter: v }))} placeholder="if is_valid_network() && !is_self_net() then { ... }" code />
             <Textarea label="Export Filter Body" value={f('birdExportFilter')} onChange={(v) => setForm((p) => ({ ...p, birdExportFilter: v }))} placeholder="if is_valid_network() && source ~ [RTS_STATIC, RTS_BGP] then accept; else reject;" code />
@@ -235,6 +244,32 @@ function Textarea({
         className={code ? 'form-input font-mono' : 'form-input'}
         style={code ? { fontFamily: 'Geist Mono, ui-monospace, monospace', fontSize: '13px' } : undefined}
       />
+    </div>
+  );
+}
+
+function Toggle({
+  label, description, checked, onChange,
+}: {
+  label: string; description?: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start gap-sm">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${checked ? 'bg-cyan' : 'bg-surface-3'}`}
+      >
+        <span
+          className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-4' : 'translate-x-0'}`}
+        />
+      </button>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-body-sm-strong text-ink">{label}</span>
+        {description && <span className="text-caption text-mute">{description}</span>}
+      </div>
     </div>
   );
 }
