@@ -266,8 +266,11 @@ async fn main() -> anyhow::Result<()> {
     };
     let flap_svc = FlapServiceImpl {
         flap_repo: state.flap_event_repo.clone(),
+        jwt_secret: jwt_secret.clone(),
     };
-    let mgmt_svc = ManagementServiceImpl;
+    let mgmt_svc = ManagementServiceImpl {
+        jwt_secret: jwt_secret.clone(),
+    };
 
     // Build tonic gRPC router with tonic-web wrapper
     let grpc_router = tonic::transport::Server::builder()

@@ -78,8 +78,9 @@ fn community_rule_to_proto(r: &crate::models::community::CommunityRule) -> Commu
 impl ClusterService for ClusterServiceImpl {
     async fn list_nodes(
         &self,
-        _request: Request<ListNodesRequest>,
+        request: Request<ListNodesRequest>,
     ) -> Result<Response<ListNodesResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let nodes = self
             .node_repo
             .list_all()
@@ -251,6 +252,7 @@ impl ClusterService for ClusterServiceImpl {
         &self,
         request: Request<ListProbeResultsRequest>,
     ) -> Result<Response<ListProbeResultsResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let results = self
             .probe_repo
@@ -292,8 +294,9 @@ impl ClusterService for ClusterServiceImpl {
 
     async fn list_community_rules(
         &self,
-        _request: Request<ListCommunityRulesRequest>,
+        request: Request<ListCommunityRulesRequest>,
     ) -> Result<Response<ListCommunityRulesResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let rules = self
             .community_repo
             .list_all()
