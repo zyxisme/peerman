@@ -182,7 +182,13 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - **Connection pool reuse**: `ClusterAggregator::connect()` is a `pub(crate)` static method that caches gRPC channels in a global `DashMap`. Use it instead of `Endpoint::from_shared().connect()` for inter-node calls.
 - **Frontend 401 interceptor**: `frontend/src/lib/http.ts` provides `fetchJson<T>()` and `fetchWithAuth()` with automatic redirect to `/login` on 401. Use for all non-gRPC HTTP calls.
 
-## Version update & release
+## Release & Versioning
+
+- Default version bump: `0.0.1` unless user specifies otherwise
+- Pre-publish: version bump → commit Cargo.toml + Cargo.lock + frontend/package.json → push to CI → wait for CI pass → `cargo publish` → push tag. Publish on a clean tree, don't use `--allow-dirty`.
+- Release CI triggers on `v*` tag push, builds 2 Linux musl static targets (x86_64 + aarch64), uploads to GitHub Releases
+
+### Version update checklist
 
 Check existing tags: `git tag -l 'v*' --sort=-v:refname`. Bump from the latest tag (e.g. `v0.1.5` → `v0.1.6`).
 
@@ -192,4 +198,4 @@ Check existing tags: `git tag -l 'v*' --sort=-v:refname`. Bump from the latest t
 4. Push to master: `git push origin master`
 5. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z` — this triggers the Release workflow (`.github/workflows/release.yml`)
 6. Monitor release: `gh run list --limit 3` then `gh run watch <id> --exit-status`
-7. Release produces amd64 + arm64 Linux binaries with SHA256 checksums
+7. Release produces 2 targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl (fully static binaries)

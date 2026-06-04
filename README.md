@@ -1,6 +1,17 @@
+<div align="center">
+
 # Peerman
 
-DN42 对等互联管理工具。通过 Web 界面管理 WireGuard 隧道和 BGP 会话，**创建 Peer 后自动生成并应用配置**，无需手动操作。
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-2021_edition-%23dea584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/zyxisme/peerman/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/peerman.svg?style=for-the-badge&logo=rust&logoColor=white)](https://crates.io/crates/peerman)
+
+**DN42 对等互联管理工具。**
+
+通过 Web 界面管理 WireGuard 隧道和 BGP 会话，**创建 Peer 后自动生成并应用配置**，无需手动操作。
+
+</div>
 
 ## 功能
 
@@ -14,6 +25,15 @@ DN42 对等互联管理工具。通过 Web 界面管理 WireGuard 隧道和 BGP 
 - **BGP 抖动检测** — 基于 iBGP 监听 + BIRD socket 轮询的双通道检测
 - **自动探测** — 定期 ICMP 探测节点间延迟和丢包率
 - **Web 界面** — React 前端，Vercel 风格设计系统
+
+## 快速开始
+
+```bash
+cargo install peerman
+peerman -c config.toml
+```
+
+浏览器打开 `http://localhost:3000`，默认管理员账号 `admin`，密码在 `config.toml` 中设置。
 
 ## 安装
 
@@ -217,3 +237,7 @@ migrations/     # SQLite 数据库迁移文件
 | BirdService | ExecuteCommand, RunTraceroute |
 | ManagementService | GetWireGuardStatus, GetBirdStatus |
 | FlapService | ListFlapEvents, GetFlapStats |
+
+## 开源协议
+
+MIT

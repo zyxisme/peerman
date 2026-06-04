@@ -4,27 +4,40 @@ on:
   push:
     tags: ["v*"]
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
-    name: Build ${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
+    name: Build ${{ matrix.target.triple }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
+        target:
+          - triple: x86_64-unknown-linux-musl
+          - triple: aarch64-unknown-linux-musl
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.target.triple }}
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Install aarch64 musl toolchain
+        if: matrix.target.triple == 'aarch64-unknown-linux-musl'
+        run: |
+          curl -sSL https://github.com/cross-tools/musl-cross/releases/latest/download/aarch64-unknown-linux-musl.tar.xz | tar -xJ -C /tmp
+          echo "/tmp/aarch64-unknown-linux-musl/bin" >> $GITHUB_PATH
+
+      - name: Set cross-compile env
+        if: matrix.target.triple == 'aarch64-unknown-linux-musl'
+        run: |
+          echo "CC_aarch64_unknown_linux_musl=aarch64-unknown-linux-musl-gcc" >> $GITHUB_ENV
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-unknown-linux-musl-gcc" >> $GITHUB_ENV
 
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
@@ -44,24 +57,16 @@ jobs:
       - name: Install frontend dependencies
         run: cd frontend && pnpm install --frozen-lockfile
 
-      - name: Build binary
-        run: cargo build --release --target ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
 
-      - name: Package tarball
-        run: |
-          cd target/${{ matrix.target }}/release
-          # Strip debug symbols (reduces binary from ~80MB to ~15MB)
-          strip peerman
-          tar czf peerman-${{ github.ref_name }}-${{ matrix.arch }}-unknown-linux-gnu.tar.gz peerman
-          sha256sum peerman-${{ github.ref_name }}-${{ matrix.arch }}-unknown-linux-gnu.tar.gz > peerman-${{ github.ref_name }}-${{ matrix.arch }}-unknown-linux-gnu.tar.gz.sha256
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target.triple }}
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: peerman-${{ matrix.arch }}
-          path: |
-            target/${{ matrix.target }}/release/peerman-*.tar.gz
-            target/${{ matrix.target }}/release/peerman-*.tar.gz.sha256
+          name: peerman-${{ matrix.target.triple }}
+          path: target/${{ matrix.target.triple }}/release/peerman
 
   release:
     name: Create Release
@@ -69,16 +74,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          merge-multiple: true
 
-      - name: List assets
-        run: ls -lh artifacts/
+      - name: Package and checksum
+        run: |
+          cd artifacts
+          for dir in peerman-*/; do
+            triple="${dir%/}"
+            triple="${triple#peerman-}"
+            mv "$dir/peerman" "peerman-${triple}"
+          done
+          rm -rf peerman-*/
+          sha256sum peerman-* > SHA256SUMS
+          ls -lh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
