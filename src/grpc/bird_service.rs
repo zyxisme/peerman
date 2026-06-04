@@ -90,6 +90,9 @@ impl BirdService for BirdServiceImpl {
             return Err(Status::invalid_argument("target is required"));
         }
 
+        crate::services::validation::validate_host(&target)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+
         // Run traceroute subprocess
         let output = match tokio::process::Command::new("traceroute")
             .arg("-n")
@@ -118,6 +121,9 @@ impl BirdService for BirdServiceImpl {
 }
 
 async fn execute_local(command: &str) -> Result<String, Status> {
+    crate::services::bird_allowlist::validate_bird_command(command)
+        .map_err(|e| Status::permission_denied(e.to_string()))?;
+
     let mut socket = BirdSocket::connect()
         .await
         .map_err(|e| Status::unavailable(format!("Cannot connect to BIRD socket: {e}")))?;
