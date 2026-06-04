@@ -14,11 +14,12 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 
 ## Testing
 
-- `cargo test` — run all 53 unit tests (validation, wireguard, bird, probe, cluster, community, confederation)
+- `cargo test` — run all 71 unit tests
 - `cargo clippy` — lint check
 - `cargo fmt` — format all Rust code (separate from clippy, run both after changes)
 - `cd frontend && pnpm exec tsc --noEmit` — TypeScript type-check
 - **Disk space:** Machine has ~30GB disk. If `cargo test` fails with disk errors, clean other projects' target dirs: `rm -rf <other-project>/target`
+- **CI:** `.github/workflows/ci.yml` runs fmt, clippy, test, tsc on push/PR to master
 
 ## Key crate/version constraints
 
@@ -35,10 +36,13 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 
 ## Patterns
 
-- **Proto conversion**: `Peer::apply_proto()` in `src/models/peer.rs` handles proto→model field mapping; `peer_to_proto()` in `peer_service.rs` for model→proto
-- **Validation**: `validate_peer_fields()` in `peer_service.rs` centralizes all peer field validation (name, ASN, WG key, tunnel IPs)
+- **Proto conversion**: `Peer::apply_proto()` in `src/models/peer.rs`; `peer_to_proto()` redacts `wg_private_key` (security)
+- **Validation**: `src/services/validation.rs` — `validate_peer_fields()`, `validate_settings()`, `validate_host()`, `validate_wg_interface_name()`, `validate_port()`, `validate_asn()`, `validate_wg_public_key()`
+- **Input sanitization**: `src/services/input_sanitizer.rs` — `validate_post_script()` blocks shell metacharacters in WG PostUp/PostDown
+- **BIRD allowlist**: `src/services/bird_allowlist.rs` — Looking Glass restricted to `show *` commands only
 - **Dynamic SQL**: Use `sqlx::QueryBuilder` for queries with optional WHERE clauses (see `ProbeResultRepository::list_by_filters`)
 - **Graceful shutdown**: `tokio_util::sync::CancellationToken` propagated to all background tasks (stale cleanup, probe, flap detection) via `tokio::select!`
+- **SQL column const**: `PEER_COLUMNS` in `src/models/peer.rs` deduplicates the 25-column SELECT list
 
 ## sqlx — use runtime API, not macros
 
@@ -58,6 +62,7 @@ sqlx macros (`query_as!`, `query!`) need DATABASE_URL at compile time. Use runti
 ## SQLite WAL
 
 PRAGMA journal_mode=WAL must run OUTSIDE a transaction. Set it before `sqlx::migrate!()`, not inside the migration SQL.
+- `PRAGMA foreign_keys = ON` and `PRAGMA busy_timeout = 5000` are set after pool creation in `src/db.rs`
 
 ## DESIGN.md
 
@@ -83,7 +88,8 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 
 ## Cluster module (`src/cluster/`)
 
-- `auth.rs` — `check_cluster_key()` validates `x-cluster-key` metadata against shared secret
+- `auth.rs` — `check_cluster_key()` validates `x-cluster-key` metadata against shared secret (constant-time comparison)
+- `aggregator.rs` — fan-out methods use `futures::future::join_all` for parallel execution; gRPC channels cached in `DashMap` pool
 - `cache.rs` — `ClusterCache` in-memory cache with partial update methods (`update_peers`, `update_probe_results`, `update_community_rules`), keyed by node `listen_addr`
 - `aggregator.rs` — `ClusterAggregator` with `fanout_peers()`, `fanout_probe_results()`, `fanout_community_rules()`, `health_check()`, `exchange_with()`; 2s timeout, cache fallback on failure
 - `tunnel.rs` — Cluster inter-node WG tunnel management: keypair generation, tunnel IP assignment from `tunnel_ip_range`, `sync_cluster_wg()` writes `/etc/wireguard/wg-cluster.conf` + `wg syncconf`, `sync_cluster_bird()` regenerates bird.conf with iBGP full mesh.
@@ -94,7 +100,9 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 
 ## WG & BIRD auto-apply
 
-- **Peer CRUD → auto-apply:** `create_peer`/`update_peer`/`delete_peer`/`toggle_peer` call `auto_apply_wg_bird()` which regenerates `/etc/wireguard/wg0.conf` → `wg syncconf` and `/etc/bird/bird.conf` → `birdc configure`. No manual apply step needed.
+- **Peer CRUD → debounced apply:** `create_peer`/`update_peer`/`delete_peer`/`toggle_peer` set `config_dirty` flag. Background task applies WG+BIRD configs every 5 seconds if dirty. `apply_wg_bird()` in `src/grpc/peer_service.rs`.
+- **Config file permissions:** Generated config files (wg0.conf, bird.conf, wg-cluster.conf) set to 0o600 before atomic rename.
+- **WG keypair persistence:** Node WG private key stored in DB (`wg_private_key` column, migration 011). Only generated on first startup.
 - **Cluster interconnect:** `wg-cluster` interface managed via `sync_cluster_wg()`, node keypairs auto-generated and exchanged via `ExchangeNodes` gossip (new fields: `wg_pubkey`, `tunnel_ip`).
 - **iBGP full mesh:** `generate_ibgp_blocks()` creates `protocol bgp node_<name>` blocks for all nodes with assigned tunnel IPs, using `direct` + `next hop self yes`.
 - **Atomic writes:** Config files written to `.tmp` then `rename` to avoid partial reads.
@@ -144,11 +152,13 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 ## Auth (JWT + httpOnly cookie)
 
 - Single admin user — credentials in `[auth]` config section. `jwt_secret` empty = auto-generate on startup.
-- JWT issued via `POST /api/auth/login` (axum handler, not gRPC), stored as httpOnly cookie (30 day expiry).
-- Write gRPC methods call `crate::auth::check_auth(&request, &secret)?` for per-method auth.
+- JWT issued via `POST /api/auth/login` (axum handler, not gRPC), stored as httpOnly cookie (1 hour expiry, Secure flag).
+- **ALL** gRPC methods (read + write) call `crate::auth::check_auth(&request, &secret)?` for per-method auth.
+- **Password hashing:** argon2id via `src/auth/password.rs`. Config supports `password_hash` (preferred) or `password` (auto-hashed on startup).
+- **Rate limiting:** Login endpoint limited to 5 attempts/min per IP via `LoginRateLimiter` in `main.rs`.
 - **Tonic interceptor gotcha:** tonic's `.interceptor()` on Server::builder has type issues with tonic-web's GrpcWebLayer. Per-method checks are simpler and avoid this.
 - **Axum State + tonic Router(.nest()) gotcha:** `.nest("/api", grpc_router)` requires both routers to have the same state type. Tonic's `into_router()` returns `Router<()>` which can't use `.with_state(S)`. Use `std::sync::OnceLock<Arc<Config>>` static for sharing config across HTTP handlers instead of axum's `State` extractor.
-- `jsonwebtoken` crate for HS256 signing. `src/auth.rs` contains JWT utils + `check_auth()` helper.
+- `jsonwebtoken` crate for HS256 signing. `src/auth/mod.rs` contains JWT utils + `check_auth()` helper; `src/auth/password.rs` has argon2id hash/verify.
 - Frontend: `AuthProvider` in `main.tsx`, `ProtectedRoute` wrapping write pages, `LoginPage` at `/login`.
 
 ## Adding a new gRPC service
