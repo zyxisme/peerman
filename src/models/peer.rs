@@ -129,23 +129,21 @@ impl PeerRepository {
     }
 
     pub async fn list_all(&self) -> Result<Vec<Peer>, AppError> {
-        let peers = sqlx::query_as::<_, Peer>(&format!(
-            "SELECT {PEER_COLUMNS} FROM peers ORDER BY name"
-        ))
-        .fetch_all(&self.pool)
-        .await?;
+        let peers =
+            sqlx::query_as::<_, Peer>(&format!("SELECT {PEER_COLUMNS} FROM peers ORDER BY name"))
+                .fetch_all(&self.pool)
+                .await?;
 
         Ok(peers)
     }
 
     pub async fn find_by_id(&self, id: &str) -> Result<Peer, AppError> {
-        let peer = sqlx::query_as::<_, Peer>(&format!(
-            "SELECT {PEER_COLUMNS} FROM peers WHERE id = ?"
-        ))
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("Peer {id} not found")))?;
+        let peer =
+            sqlx::query_as::<_, Peer>(&format!("SELECT {PEER_COLUMNS} FROM peers WHERE id = ?"))
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?
+                .ok_or_else(|| AppError::NotFound(format!("Peer {id} not found")))?;
 
         Ok(peer)
     }
