@@ -401,12 +401,19 @@ pub fn get_bird_status() -> Result<Vec<crate::grpc::generated::BirdProtocol>, cr
 
 /// Generate iBGP full-mesh protocol blocks for cluster nodes.
 /// `my_tunnel_ip` is the local node's tunnel IP, used to skip self.
+///
+/// When `settings.enable_confederation` is true and `confederation_local_asn > 0`,
+/// generates BGP Confederation blocks instead of standard iBGP:
+/// - Uses `confederation_local_asn` as the local AS (private ASN per node)
+/// - Uses `settings.local_asn` as the confederation identifier (DN42 ASN)
+/// - Adds `confederation member yes` and `neighbor <ip> external`
 pub fn generate_ibgp_blocks(
     nodes: &[crate::models::node::Node],
     settings: &Settings,
     my_tunnel_ip: &str,
 ) -> String {
     let mut blocks = String::new();
+    let use_confederation = settings.enable_confederation && settings.confederation_local_asn > 0;
 
     for node in nodes {
         if node.tunnel_ip == my_tunnel_ip || node.tunnel_ip.is_empty() {
@@ -414,27 +421,110 @@ pub fn generate_ibgp_blocks(
         }
 
         let name = sanitize_name(&node.name);
-        blocks.push_str(&format!(
-            "protocol bgp node_{name} from {tpl} {{\n",
-            tpl = settings.bird_template_name
-        ));
-        blocks.push_str(&format!(
-            "    neighbor {tunnel_ip} as {local_asn};\n",
-            tunnel_ip = node.tunnel_ip,
-            local_asn = settings.local_asn
-        ));
-        blocks.push_str("    direct;\n");
-        blocks.push_str("    ipv4 {\n");
-        blocks.push_str("        next hop self yes;\n");
-        blocks.push_str("        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
-        blocks.push_str("        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
-        blocks.push_str("    };\n");
-        blocks.push_str("    ipv6 {\n");
-        blocks.push_str("        next hop self yes;\n");
-        blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-        blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-        blocks.push_str("    };\n");
-        blocks.push_str("}\n\n");
+
+        if use_confederation {
+            // BGP Confederation mode
+            blocks.push_str(&format!(
+                "protocol bgp node_{name} from {tpl} {{\n",
+                tpl = settings.bird_template_name
+            ));
+            blocks.push_str(&format!(
+                "    local as {};\n",
+                settings.confederation_local_asn
+            ));
+            blocks.push_str(&format!(
+                "    confederation {};\n",
+                settings.local_asn
+            ));
+            blocks.push_str("    confederation member yes;\n");
+            blocks.push_str(&format!(
+                "    neighbor {} external;\n",
+                node.tunnel_ip
+            ));
+            blocks.push_str("    direct;\n");
+            blocks.push_str("    ipv4 {\n");
+            blocks.push_str("        next hop self yes;\n");
+            blocks.push_str("        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+            blocks.push_str("        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+            blocks.push_str("    };\n");
+            blocks.push_str("    ipv6 {\n");
+            blocks.push_str("        next hop self yes;\n");
+            blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+            blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+            blocks.push_str("    };\n");
+            blocks.push_str("}\n\n");
+
+            // Add separate IPv6 confederation neighbor if tunnel_ipv6 is assigned
+            if !node.tunnel_ipv6.is_empty() {
+                blocks.push_str(&format!(
+                    "protocol bgp node_{name}_v6 from {tpl} {{\n",
+                    tpl = settings.bird_template_name
+                ));
+                blocks.push_str(&format!(
+                    "    local as {};\n",
+                    settings.confederation_local_asn
+                ));
+                blocks.push_str(&format!(
+                    "    confederation {};\n",
+                    settings.local_asn
+                ));
+                blocks.push_str("    confederation member yes;\n");
+                blocks.push_str(&format!(
+                    "    neighbor {} external;\n",
+                    node.tunnel_ipv6
+                ));
+                blocks.push_str("    direct;\n");
+                blocks.push_str("    ipv6 {\n");
+                blocks.push_str("        next hop self yes;\n");
+                blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+                blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+                blocks.push_str("    };\n");
+                blocks.push_str("}\n\n");
+            }
+        } else {
+            // Standard iBGP full mesh
+            blocks.push_str(&format!(
+                "protocol bgp node_{name} from {tpl} {{\n",
+                tpl = settings.bird_template_name
+            ));
+            blocks.push_str(&format!(
+                "    neighbor {tunnel_ip} as {local_asn};\n",
+                tunnel_ip = node.tunnel_ip,
+                local_asn = settings.local_asn
+            ));
+            blocks.push_str("    direct;\n");
+            blocks.push_str("    ipv4 {\n");
+            blocks.push_str("        next hop self yes;\n");
+            blocks.push_str("        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+            blocks.push_str("        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+            blocks.push_str("    };\n");
+            blocks.push_str("    ipv6 {\n");
+            blocks.push_str("        next hop self yes;\n");
+            blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+            blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+            blocks.push_str("    };\n");
+            blocks.push_str("}\n\n");
+
+            // Add separate IPv6 iBGP neighbor if tunnel_ipv6 is assigned
+            if !node.tunnel_ipv6.is_empty() {
+                blocks.push_str(&format!(
+                    "protocol bgp node_{name}_v6 from {tpl} {{\n",
+                    tpl = settings.bird_template_name
+                ));
+                blocks.push_str(&format!(
+                    "    neighbor {tunnel_ipv6} as {local_asn};\n",
+                    tunnel_ipv6 = node.tunnel_ipv6,
+                    local_asn = settings.local_asn
+                ));
+                blocks.push_str("    direct;\n");
+                blocks.push_str("    ipv6 {\n");
+                blocks.push_str("        next hop self yes;\n");
+                blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+                blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
+                blocks.push_str("    };\n");
+                blocks.push_str("}\n\n");
+            }
+        }
     }
 
     blocks
@@ -475,6 +565,9 @@ mod tests {
             enable_bfd: false,
             bfd_interval_ms: 300,
             bfd_multiplier: 3,
+            cluster_tunnel_ipv6_range: String::new(),
+            enable_confederation: false,
+            confederation_local_asn: 0,
         }
     }
 
@@ -596,6 +689,7 @@ mod tests {
                 last_seen_at: String::new(), created_at: String::new(),
                 updated_at: String::new(),
                 wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+                tunnel_ipv6: String::new(),
             },
             crate::models::node::Node {
                 id: "n2".into(), name: "node-b".into(),
@@ -604,6 +698,7 @@ mod tests {
                 last_seen_at: String::new(), created_at: String::new(),
                 updated_at: String::new(),
                 wg_pubkey: "pk-b".into(), tunnel_ip: "10.255.0.2".into(),
+                tunnel_ipv6: String::new(),
             },
         ];
         let settings = test_settings();
@@ -623,6 +718,7 @@ mod tests {
                 last_seen_at: String::new(), created_at: String::new(),
                 updated_at: String::new(),
                 wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+                tunnel_ipv6: String::new(),
             },
             crate::models::node::Node {
                 id: "n2".into(), name: "no-tunnel".into(),
@@ -631,6 +727,7 @@ mod tests {
                 last_seen_at: String::new(), created_at: String::new(),
                 updated_at: String::new(),
                 wg_pubkey: String::new(), tunnel_ip: String::new(),
+                tunnel_ipv6: String::new(),
             },
         ];
         let settings = test_settings();
@@ -705,5 +802,76 @@ mod tests {
         s.enable_bfd = false;
         let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
         assert!(!config.contains("protocol bfd"));
+    }
+
+    #[test]
+    fn test_generate_ibgp_blocks_confederation() {
+        let mut s = test_settings();
+        s.enable_confederation = true;
+        s.confederation_local_asn = 65000;
+        s.local_asn = 4242420000;
+        let nodes = vec![
+            crate::models::node::Node {
+                id: "n1".into(), name: "node-a".into(),
+                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
+                description: None, online: true,
+                last_seen_at: String::new(), created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+                tunnel_ipv6: String::new(),
+            },
+        ];
+        let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
+        assert!(blocks.contains("confederation 4242420000"));
+        assert!(blocks.contains("confederation member yes"));
+        assert!(blocks.contains("local as 65000"));
+        assert!(blocks.contains("neighbor 10.255.0.1 external"));
+    }
+
+    #[test]
+    fn test_generate_ibgp_blocks_no_confederation_when_disabled() {
+        let mut s = test_settings();
+        s.enable_confederation = false;
+        let nodes = vec![
+            crate::models::node::Node {
+                id: "n1".into(), name: "node-a".into(),
+                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
+                description: None, online: true,
+                last_seen_at: String::new(), created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+                tunnel_ipv6: String::new(),
+            },
+        ];
+        let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
+        assert!(!blocks.contains("confederation"));
+        assert!(blocks.contains("neighbor 10.255.0.1 as 4242420000"));
+    }
+
+    #[test]
+    fn test_generate_ibgp_blocks_confederation_with_ipv6() {
+        let mut s = test_settings();
+        s.enable_confederation = true;
+        s.confederation_local_asn = 65000;
+        s.local_asn = 4242420000;
+        let nodes = vec![
+            crate::models::node::Node {
+                id: "n1".into(), name: "node-a".into(),
+                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
+                description: None, online: true,
+                last_seen_at: String::new(), created_at: String::new(),
+                updated_at: String::new(),
+                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+                tunnel_ipv6: "fd00:255::1".into(),
+            },
+        ];
+        let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
+        // IPv4 block should have confederation directives
+        assert!(blocks.contains("confederation 4242420000"));
+        assert!(blocks.contains("neighbor 10.255.0.1 external"));
+        // IPv6 block should also have confederation directives
+        assert!(blocks.contains("neighbor fd00:255::1 external"));
+        // Should have two separate protocol blocks (v4 + v6)
+        assert_eq!(blocks.matches("confederation member yes").count(), 2);
     }
 }

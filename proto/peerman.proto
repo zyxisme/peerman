@@ -15,6 +15,7 @@ service PeerService {
   rpc GetBirdConfig(GetConfigRequest) returns (ConfigResponse);
   rpc ExportAllWireGuard(ExportAllRequest) returns (ConfigResponse);
   rpc ExportAllBird(ExportAllRequest) returns (ConfigResponse);
+  rpc RestartWireGuard(RestartWireGuardRequest) returns (RestartWireGuardResponse);
 }
 
 // ── Settings Service ──
@@ -96,6 +97,11 @@ message Settings {
   bool enable_bfd = 21;
   uint32 bfd_interval_ms = 22;
   uint32 bfd_multiplier = 23;
+  // Cluster IPv6
+  string cluster_tunnel_ipv6_range = 24;
+  // BGP Confederation
+  bool enable_confederation = 25;
+  int64 confederation_local_asn = 26;
 }
 
 // ── Peer Service Requests / Responses ──
@@ -185,6 +191,12 @@ message ConfigResponse {
 }
 
 message ExportAllRequest {}
+
+message RestartWireGuardRequest {
+  string interface_name = 1;
+}
+
+message RestartWireGuardResponse {}
 
 // ── Settings Service Requests ──
 
@@ -317,6 +329,7 @@ message NodeInfo {
   string last_seen_at = 5;
   string wg_public_key = 6;
   string tunnel_ip = 7;
+  string tunnel_ipv6 = 8;
 }
 
 message ExchangeNodesRequest {
