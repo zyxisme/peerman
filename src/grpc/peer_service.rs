@@ -85,7 +85,7 @@ impl PeerServiceImpl {
         }
 
         // 2. BIRD: full regenerate bird.conf + apply
-        let mut bird_config = crate::services::bird::generate_full_config(&peers, &settings, "");
+        let mut bird_config = crate::services::bird::generate_full_config(&peers, &settings, "", &std::collections::HashMap::new());
 
         // Append cluster iBGP blocks if any nodes exist (cluster mode)
         if let Ok(nodes) = self.node_repo.list_all().await {
@@ -280,6 +280,7 @@ impl PeerService for PeerServiceImpl {
         &self,
         request: Request<GetConfigRequest>,
     ) -> Result<Response<ConfigResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
             .peer_repo
@@ -300,6 +301,7 @@ impl PeerService for PeerServiceImpl {
         &self,
         request: Request<GetConfigRequest>,
     ) -> Result<Response<ConfigResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
             .peer_repo
@@ -318,8 +320,9 @@ impl PeerService for PeerServiceImpl {
 
     async fn export_all_wire_guard(
         &self,
-        _request: Request<ExportAllRequest>,
+        request: Request<ExportAllRequest>,
     ) -> Result<Response<ConfigResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let peers = self
             .peer_repo
             .list_all()
@@ -343,8 +346,9 @@ impl PeerService for PeerServiceImpl {
 
     async fn export_all_bird(
         &self,
-        _request: Request<ExportAllRequest>,
+        request: Request<ExportAllRequest>,
     ) -> Result<Response<ConfigResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let peers = self
             .peer_repo
             .list_all()
@@ -356,7 +360,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        let content = services::bird::generate_full_config(&peers, &settings, "");
+        let content = services::bird::generate_full_config(&peers, &settings, "", &std::collections::HashMap::new());
         Ok(Response::new(ConfigResponse { content }))
     }
 }

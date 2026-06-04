@@ -103,7 +103,7 @@ pub async fn sync_cluster_bird(
     let peers = peer_repo.list_all().await?;
     let nodes = node_repo.list_all().await?;
 
-    let mut config = services::bird::generate_full_config(&peers, settings, "");
+    let mut config = services::bird::generate_full_config(&peers, settings, "", &std::collections::HashMap::new());
 
     let ibgp = services::bird::generate_ibgp_blocks(&nodes, settings, my_tunnel_ip);
     config.push_str(&ibgp);
