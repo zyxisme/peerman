@@ -2,9 +2,9 @@ use axum::http::header::SET_COOKIE;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use super::rate_limit::LOGIN_RATE_LIMITER;
 use crate::app_config;
 use crate::auth;
-use super::rate_limit::LOGIN_RATE_LIMITER;
 
 #[derive(Deserialize)]
 pub(crate) struct LoginRequest {

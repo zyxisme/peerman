@@ -43,6 +43,9 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 - **Dynamic SQL**: Use `sqlx::QueryBuilder` for queries with optional WHERE clauses (see `ProbeResultRepository::list_by_filters`)
 - **Graceful shutdown**: `tokio_util::sync::CancellationToken` propagated to all background tasks (stale cleanup, probe, flap detection) via `tokio::select!`
 - **SQL column const**: `PEER_COLUMNS` in `src/models/peer.rs` deduplicates the 25-column SELECT list
+- **SQL column constants**: `PEER_COLUMNS`, `NODE_COLUMNS`, `SETTINGS_COLUMNS` in respective model files. Use `format!("SELECT {CONST} FROM ...")` for all `query_as` calls.
+- **Single-step create**: `PeerRepository::create_full()` does INSERT ... RETURNING in one query. Don't use the old two-step `create` + `apply_proto` + `update` pattern.
+- **PeerState sub-struct**: `src/app_state.rs` has `PeerState` grouping `peer_repo`, `settings_repo`, `node_repo`. gRPC services hold `state: PeerState` instead of individual repo fields.
 
 ## sqlx — use runtime API, not macros
 
@@ -89,7 +92,7 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 ## Cluster module (`src/cluster/`)
 
 - `auth.rs` — `check_cluster_key()` validates `x-cluster-key` metadata against shared secret (constant-time comparison)
-- `aggregator.rs` — fan-out methods use `futures::future::join_all` for parallel execution; gRPC channels cached in `DashMap` pool
+- `aggregator.rs` — fan-out methods use `futures::future::join_all` for parallel execution; `call_node()` helper handles timeout + cache fallback. gRPC channels cached in `DashMap` pool via `ClusterAggregator::connect()` (pub(crate) static method).
 - `cache.rs` — `ClusterCache` in-memory cache with partial update methods (`update_peers`, `update_probe_results`, `update_community_rules`), keyed by node `listen_addr`
 - `aggregator.rs` — `ClusterAggregator` with `fanout_peers()`, `fanout_probe_results()`, `fanout_community_rules()`, `health_check()`, `exchange_with()`; 2s timeout, cache fallback on failure
 - `tunnel.rs` — Cluster inter-node WG tunnel management: keypair generation, tunnel IP assignment from `tunnel_ip_range`, `sync_cluster_wg()` writes `/etc/wireguard/wg-cluster.conf` + `wg syncconf`, `sync_cluster_bird()` regenerates bird.conf with iBGP full mesh.
@@ -155,7 +158,7 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - JWT issued via `POST /api/auth/login` (axum handler, not gRPC), stored as httpOnly cookie (1 hour expiry, Secure flag).
 - **ALL** gRPC methods (read + write) call `crate::auth::check_auth(&request, &secret)?` for per-method auth.
 - **Password hashing:** argon2id via `src/auth/password.rs`. Config supports `password_hash` (preferred) or `password` (auto-hashed on startup).
-- **Rate limiting:** Login endpoint limited to 5 attempts/min per IP via `LoginRateLimiter` in `main.rs`.
+- **Rate limiting:** Login endpoint limited to 5 attempts/min per IP via `LoginRateLimiter` in `src/http/rate_limit.rs`.
 - **Tonic interceptor gotcha:** tonic's `.interceptor()` on Server::builder has type issues with tonic-web's GrpcWebLayer. Per-method checks are simpler and avoid this.
 - **Axum State + tonic Router(.nest()) gotcha:** `.nest("/api", grpc_router)` requires both routers to have the same state type. Tonic's `into_router()` returns `Router<()>` which can't use `.with_state(S)`. Use `std::sync::OnceLock<Arc<Config>>` static for sharing config across HTTP handlers instead of axum's `State` extractor.
 - `jsonwebtoken` crate for HS256 signing. `src/auth/mod.rs` contains JWT utils + `check_auth()` helper; `src/auth/password.rs` has argon2id hash/verify.
@@ -166,9 +169,15 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 1. Define service + messages in `proto/peerman.proto`
 2. `build.rs` auto-generates Rust stubs (tonic) — no extra config needed
 3. Implement `XServiceImpl` in `src/grpc/X_service.rs`
-4. Register in `main.rs`: import `XServiceServer`, instantiate, add to tonic router
+4. Register in `main.rs`: import `XServiceServer`, instantiate, add to tonic router. Use `state.peer_state()` for repo dependencies.
 5. Regenerate frontend stubs: `PATH="frontend/node_modules/.bin:$PATH" protoc -I proto --es_out frontend/src/lib --es_opt target=ts proto/peerman.proto`
 6. Add client in `frontend/src/lib/grpc.ts`: `createClient(XService, transport)`
 7. Add hooks in `frontend/src/hooks/useX.ts`
 8. Add page component + route in `App.tsx` + nav item in `NavBar.tsx`
 9. If service has DB state: model in `src/models/`, repository in same file, migration SQL, repo field on `AppState`
+
+## Project structure (post-refactor)
+
+- **Module structure**: `src/http/` has HTTP handlers (`handlers.rs`) and rate limiter (`rate_limit.rs`). `src/tasks/` has background task spawning (`cluster.rs`, `apply.rs`, `retention.rs`). `main.rs` handles startup orchestration only (~400 lines).
+- **Connection pool reuse**: `ClusterAggregator::connect()` is a `pub(crate)` static method that caches gRPC channels in a global `DashMap`. Use it instead of `Endpoint::from_shared().connect()` for inter-node calls.
+- **Frontend 401 interceptor**: `frontend/src/lib/http.ts` provides `fetchJson<T>()` and `fetchWithAuth()` with automatic redirect to `/login` on 401. Use for all non-gRPC HTTP calls.
