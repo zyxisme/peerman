@@ -1,7 +1,14 @@
 [package]
 name = "peerman"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
+description = "DN42 peer manager with WireGuard, BIRD, and cluster support"
+license = "MIT"
+repository = "https://github.com/zyxisme/peerman"
+documentation = "https://docs.rs/peerman"
+readme = "README.md"
+keywords = ["dn42", "wireguard", "bird", "networking", "vpn"]
+categories = ["command-line-utilities", "network-programming"]
 
 [dependencies]
 # gRPC
@@ -41,6 +48,12 @@ dashmap = "6"
 futures = "0.3"
 jsonwebtoken = "9"
 argon2 = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
 
 [build-dependencies]
 tonic-build = "0.12"
