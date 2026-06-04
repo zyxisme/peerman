@@ -178,24 +178,17 @@ impl Config {
 
     pub fn validate(&self) -> anyhow::Result<()> {
         // Validate listen address is parseable
-        self.server
-            .listen_addr
-            .parse::<SocketAddr>()
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "Invalid server.listen_addr '{}': {}",
-                    self.server.listen_addr,
-                    e
-                )
-            })?;
+        self.server.listen_addr.parse::<SocketAddr>().map_err(|e| {
+            anyhow::anyhow!(
+                "Invalid server.listen_addr '{}': {}",
+                self.server.listen_addr,
+                e
+            )
+        })?;
 
         // Validate log level
         EnvFilter::try_new(&self.logging.level).map_err(|e| {
-            anyhow::anyhow!(
-                "Invalid logging.level '{}': {}",
-                self.logging.level,
-                e
-            )
+            anyhow::anyhow!("Invalid logging.level '{}': {}", self.logging.level, e)
         })?;
 
         // Validate cluster config consistency
@@ -206,13 +199,11 @@ impl Config {
         }
 
         // Validate tunnel IP range format if set
-        if !self.cluster.tunnel_ip_range.is_empty() {
-            if !self.cluster.tunnel_ip_range.contains('/') {
-                anyhow::bail!(
-                    "Invalid cluster.tunnel_ip_range '{}': must be CIDR format (e.g., 10.255.0.0/24)",
-                    self.cluster.tunnel_ip_range
-                );
-            }
+        if !self.cluster.tunnel_ip_range.is_empty() && !self.cluster.tunnel_ip_range.contains('/') {
+            anyhow::bail!(
+                "Invalid cluster.tunnel_ip_range '{}': must be CIDR format (e.g., 10.255.0.0/24)",
+                self.cluster.tunnel_ip_range
+            );
         }
 
         Ok(())

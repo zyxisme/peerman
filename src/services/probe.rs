@@ -121,6 +121,35 @@ pub async fn probe_between(
     Ok(result)
 }
 
+/// Run probes from this node to all other nodes. Returns probe results.
+#[allow(dead_code)]
+pub async fn probe_all(
+    local_node: &Node,
+    all_nodes: &[Node],
+    repo: &ProbeResultRepository,
+) -> Vec<ProbeResult> {
+    let mut results = Vec::new();
+
+    for node in all_nodes {
+        if node.id == local_node.id {
+            continue;
+        }
+        match probe_between(local_node, node, repo).await {
+            Ok(r) => results.push(r),
+            Err(e) => {
+                tracing::warn!(
+                    "Probe failed from {} to {}: {}",
+                    local_node.name,
+                    node.name,
+                    e
+                );
+            }
+        }
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,33 +193,4 @@ mod tests {
         };
         assert_eq!(resolve_target_ip(&node), "10.0.0.1");
     }
-}
-
-/// Run probes from this node to all other nodes. Returns probe results.
-#[allow(dead_code)]
-pub async fn probe_all(
-    local_node: &Node,
-    all_nodes: &[Node],
-    repo: &ProbeResultRepository,
-) -> Vec<ProbeResult> {
-    let mut results = Vec::new();
-
-    for node in all_nodes {
-        if node.id == local_node.id {
-            continue;
-        }
-        match probe_between(local_node, node, repo).await {
-            Ok(r) => results.push(r),
-            Err(e) => {
-                tracing::warn!(
-                    "Probe failed from {} to {}: {}",
-                    local_node.name,
-                    node.name,
-                    e
-                );
-            }
-        }
-    }
-
-    results
 }
