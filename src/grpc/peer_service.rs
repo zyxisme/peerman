@@ -1,3 +1,4 @@
+use std::os::unix::fs::PermissionsExt;
 use tonic::transport::Endpoint;
 use tonic::{Request, Response, Status};
 
@@ -59,6 +60,11 @@ pub async fn apply_wg_bird(
         let tmp_path = "/etc/wireguard/wg0.conf.tmp";
         std::fs::write(tmp_path, &wg_config)
             .map_err(|e| Status::internal(format!("Cannot write wg0.conf: {e}")))?;
+        std::fs::set_permissions(
+            tmp_path,
+            std::fs::Permissions::from_mode(0o600),
+        )
+        .map_err(|e| Status::internal(format!("Cannot set permissions on wg0.conf: {e}")))?;
         std::fs::rename(tmp_path, conf_path)
             .map_err(|e| Status::internal(format!("Cannot rename wg0.conf: {e}")))?;
         crate::services::wireguard::apply_syncconf("wg0", conf_path)
