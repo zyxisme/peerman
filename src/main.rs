@@ -115,6 +115,10 @@ struct MeResponse {
     username: Option<String>,
 }
 
+async fn handle_health() -> &'static str {
+    "ok"
+}
+
 async fn handle_login(
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<LoginRequest>,
@@ -365,6 +369,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build axum router: auth endpoints + gRPC + static files
     let app = Router::new()
+        .route("/health", get(handle_health))
         .route("/api/auth/login", post(handle_login))
         .route("/api/auth/logout", post(handle_logout))
         .route("/api/auth/me", get(handle_me))
