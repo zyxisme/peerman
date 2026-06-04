@@ -76,4 +76,71 @@ impl CommunityMapper {
 
         lines
     }
+
+    /// Map latency (ms) to DN42 community tier (1-5).
+    pub fn latency_to_tier(latency_ms: f64) -> i32 {
+        if latency_ms <= 5.0 { 1 }
+        else if latency_ms <= 20.0 { 2 }
+        else if latency_ms <= 50.0 { 3 }
+        else if latency_ms <= 150.0 { 4 }
+        else { 5 }
+    }
+
+    /// Extract the numeric tier from a community string like "4242420000,10".
+    pub fn parse_community_tier(community: &str) -> i32 {
+        community
+            .split(',')
+            .nth(1)
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0)
+    }
+
+    /// Extract the best (lowest) latency tier from a list of community strings.
+    pub fn best_latency_tier(communities: &[String]) -> i32 {
+        communities.iter()
+            .map(|c| Self::parse_community_tier(c))
+            .min()
+            .unwrap_or(0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_latency_to_tier_metro() {
+        assert_eq!(CommunityMapper::latency_to_tier(3.0), 1);
+    }
+
+    #[test]
+    fn test_latency_to_tier_regional() {
+        assert_eq!(CommunityMapper::latency_to_tier(15.0), 2);
+    }
+
+    #[test]
+    fn test_latency_to_tier_continental() {
+        assert_eq!(CommunityMapper::latency_to_tier(35.0), 3);
+    }
+
+    #[test]
+    fn test_latency_to_tier_intercontinental() {
+        assert_eq!(CommunityMapper::latency_to_tier(100.0), 4);
+    }
+
+    #[test]
+    fn test_latency_to_tier_high() {
+        assert_eq!(CommunityMapper::latency_to_tier(200.0), 5);
+    }
+
+    #[test]
+    fn test_parse_community_tier() {
+        assert_eq!(CommunityMapper::parse_community_tier("4242420000,10"), 10);
+        assert_eq!(CommunityMapper::parse_community_tier("4242420000,620"), 620);
+    }
+
+    #[test]
+    fn test_parse_community_tier_invalid() {
+        assert_eq!(CommunityMapper::parse_community_tier("invalid"), 0);
+    }
 }
