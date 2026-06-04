@@ -120,6 +120,22 @@ pub fn generate_peer_block(peer: &Peer, settings: &Settings) -> String {
     generate_peer_block_with_communities(peer, settings, &[], &[])
 }
 
+fn generate_bfd_section(settings: &Settings) -> String {
+    if !settings.enable_bfd {
+        return String::new();
+    }
+    let interval = if settings.bfd_interval_ms > 0 { settings.bfd_interval_ms } else { 300 };
+    let multiplier = if settings.bfd_multiplier > 0 { settings.bfd_multiplier } else { 3 };
+    format!(
+        "protocol bfd {{\n\
+         \x20   interface \"wg*\" {{\n\
+         \x20       interval {interval}ms;\n\
+         \x20       multiplier {multiplier};\n\
+         \x20   }};\n\
+         }}\n\n"
+    )
+}
+
 fn generate_roa_section(settings: &Settings) -> String {
     match settings.roa_mode.as_str() {
         "static_file" => {
@@ -250,6 +266,9 @@ pub fn generate_full_config(
     if settings.enable_community_filters {
         config.push_str(&generate_community_functions());
     }
+
+    // BFD
+    config.push_str(&generate_bfd_section(settings));
 
     // BGP template
     config.push_str(&format!("template bgp {tpl} {{\n", tpl = settings.bird_template_name));
@@ -453,6 +472,9 @@ mod tests {
             bird_export_filter: String::new(),
             bird_import_filter: String::new(),
             enable_community_filters: false,
+            enable_bfd: false,
+            bfd_interval_ms: 300,
+            bfd_multiplier: 3,
         }
     }
 
@@ -663,5 +685,25 @@ mod tests {
         s.enable_community_filters = true;
         let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
         assert!(config.contains("function update_latency"));
+    }
+
+    #[test]
+    fn test_generate_full_config_has_bfd_when_enabled() {
+        let mut s = test_settings();
+        s.enable_bfd = true;
+        s.bfd_interval_ms = 300;
+        s.bfd_multiplier = 3;
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
+        assert!(config.contains("protocol bfd"));
+        assert!(config.contains("interval 300ms"));
+        assert!(config.contains("multiplier 3"));
+    }
+
+    #[test]
+    fn test_generate_full_config_no_bfd_when_disabled() {
+        let mut s = test_settings();
+        s.enable_bfd = false;
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
+        assert!(!config.contains("protocol bfd"));
     }
 }

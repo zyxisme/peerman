@@ -33,6 +33,9 @@ fn settings_to_proto(s: &crate::models::settings::Settings) -> Settings {
         bird_export_filter: s.bird_export_filter.clone(),
         bird_import_filter: s.bird_import_filter.clone(),
         enable_community_filters: s.enable_community_filters,
+        enable_bfd: s.enable_bfd,
+        bfd_interval_ms: s.bfd_interval_ms as u32,
+        bfd_multiplier: s.bfd_multiplier as u32,
     }
 }
 
@@ -96,6 +99,13 @@ fn apply_settings(s: &mut crate::models::settings::Settings, proto: &Settings) {
     }
     // Bool field: always apply (false is a valid value)
     s.enable_community_filters = proto.enable_community_filters;
+    s.enable_bfd = proto.enable_bfd;
+    if proto.bfd_interval_ms > 0 {
+        s.bfd_interval_ms = proto.bfd_interval_ms as i64;
+    }
+    if proto.bfd_multiplier > 0 {
+        s.bfd_multiplier = proto.bfd_multiplier as i64;
+    }
 }
 
 #[tonic::async_trait]
