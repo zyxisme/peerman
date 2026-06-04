@@ -9,10 +9,13 @@ use super::generated::{
     PushPeerRequest, TogglePeerRequest, UpdatePeerRequest,
 };
 
+use crate::models::community::CommunityRuleRepository;
 use crate::models::node::NodeRepository;
 use crate::models::peer::PeerRepository;
+use crate::models::probe::ProbeResultRepository;
 use crate::models::settings::SettingsRepository;
 use crate::services;
+use crate::services::community_mapper::CommunityMapper;
 
 pub struct PeerServiceImpl {
     pub peer_repo: PeerRepository,
@@ -21,6 +24,7 @@ pub struct PeerServiceImpl {
     pub node_repo: NodeRepository,
     pub cluster_key: std::sync::Arc<String>,
     pub listen_addr: String,
+    pub pool: sqlx::SqlitePool,
 }
 
 impl PeerServiceImpl {
@@ -85,7 +89,34 @@ impl PeerServiceImpl {
         }
 
         // 2. BIRD: full regenerate bird.conf + apply
-        let mut bird_config = crate::services::bird::generate_full_config(&peers, &settings, "", &std::collections::HashMap::new());
+        let peer_communities = if settings.enable_community_filters {
+            let probe_repo = ProbeResultRepository::new(self.pool.clone());
+            let rule_repo = CommunityRuleRepository::new(self.pool.clone());
+            let mut map = std::collections::HashMap::new();
+            for peer in &peers {
+                if !peer.enabled {
+                    continue;
+                }
+                match CommunityMapper::compute_communities(
+                    peer,
+                    &self.listen_addr,
+                    &probe_repo,
+                    &rule_repo,
+                )
+                .await
+                {
+                    Ok((v4, v6)) if !v4.is_empty() || !v6.is_empty() => {
+                        map.insert(peer.id.clone(), (v4, v6));
+                    }
+                    _ => {}
+                }
+            }
+            map
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        let mut bird_config = crate::services::bird::generate_full_config(&peers, &settings, "", &peer_communities);
 
         // Append cluster iBGP blocks if any nodes exist (cluster mode)
         if let Ok(nodes) = self.node_repo.list_all().await {
