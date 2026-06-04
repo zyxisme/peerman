@@ -178,6 +178,47 @@ fn generate_filter_functions(settings: &Settings) -> String {
     )
 }
 
+fn generate_community_functions() -> String {
+    "\
+function update_latency(int link_latency) {\n\
+    bgp_community.add((64511, link_latency));\n\
+}\n\n\
+function update_bandwidth(int link_bandwidth) {\n\
+    bgp_community.add((64511, 10 + link_bandwidth));\n\
+}\n\n\
+function update_crypto(int link_crypto) {\n\
+    bgp_community.add((64511, 30 + link_crypto));\n\
+}\n\n\
+function update_flags(int link_latency; int link_bandwidth; int link_crypto) {\n\
+    update_latency(link_latency);\n\
+    update_bandwidth(link_bandwidth);\n\
+    update_crypto(link_crypto);\n\
+}\n\n\
+function dn42_import_filter(int link_latency; int link_bandwidth; int link_crypto) {\n\
+    if is_valid_network() && !is_self_net() then {\n\
+        if (roa_check(dn42_roa, net, bgp_path.last) != ROA_VALID) then {\n\
+            print \"[dn42] ROA check failed for \", net, \" ASN \", bgp_path.last;\n\
+            reject;\n\
+        }\n\
+        update_flags(link_latency, link_bandwidth, link_crypto);\n\
+        if (bgp_path.len = 1) then {\n\
+            bgp_local_pref = bgp_local_pref + 500;\n\
+        }\n\
+        accept;\n\
+    } else reject;\n\
+}\n\n\
+function dn42_export_filter(int link_latency; int link_bandwidth; int link_crypto) {\n\
+    if is_valid_network() || is_valid_network_v6() then {\n\
+        update_flags(link_latency, link_bandwidth, link_crypto);\n\
+        bgp_med = bgp_med + 4 * link_crypto;\n\
+        bgp_med = bgp_med + 9 * link_bandwidth;\n\
+        bgp_med = bgp_med + link_latency;\n\
+        accept;\n\
+    } else reject;\n\
+}\n\n\
+".to_string()
+}
+
 /// Generate a complete BIRD2 configuration with template, filters, and all peer blocks.
 pub fn generate_full_config(
     peers: &[Peer],
@@ -202,6 +243,9 @@ pub fn generate_full_config(
 
     // Filter functions
     config.push_str(&generate_filter_functions(settings));
+
+    // Community filter functions (DN42 standard AS 64511)
+    config.push_str(&generate_community_functions());
 
     // BGP template
     config.push_str(&format!("template bgp {tpl} {{\n", tpl = settings.bird_template_name));
@@ -561,5 +605,22 @@ mod tests {
         let settings = test_settings();
         let blocks = generate_ibgp_blocks(&nodes, &settings, "10.255.0.1");
         assert!(blocks.is_empty());
+    }
+
+    #[test]
+    fn test_generate_full_config_has_community_functions() {
+        let config = generate_full_config(&[], &test_settings(), "");
+        assert!(config.contains("function update_latency"));
+        assert!(config.contains("function update_bandwidth"));
+        assert!(config.contains("function update_crypto"));
+        assert!(config.contains("function update_flags"));
+        assert!(config.contains("function dn42_import_filter"));
+        assert!(config.contains("function dn42_export_filter"));
+    }
+
+    #[test]
+    fn test_generate_full_config_community_functions_use_64511() {
+        let config = generate_full_config(&[], &test_settings(), "");
+        assert!(config.contains("bgp_community.add((64511,"));
     }
 }
