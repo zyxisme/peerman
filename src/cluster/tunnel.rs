@@ -17,11 +17,17 @@ pub async fn init_local_node(
 ) -> Result<(String, String, String, String), AppError> {
     let node = node_repo.find_by_id(node_id).await?;
 
-    // Generate fresh WG keypair on every startup
-    let (priv_key, pub_key) = services::wireguard::generate_keypair();
-    node_repo
-        .update_cluster_fields(node_id, &pub_key, &node.tunnel_ip)
-        .await?;
+    // Only generate keypair if node doesn't have one persisted
+    let (priv_key, pub_key) = if node.wg_pubkey.is_empty() || node.wg_private_key.is_empty() {
+        let (pk, pubk) = services::wireguard::generate_keypair();
+        node_repo
+            .update_cluster_fields(node_id, &pubk, &node.tunnel_ip)
+            .await?;
+        node_repo.update_wg_private_key(node_id, &pk).await?;
+        (pk, pubk)
+    } else {
+        (node.wg_private_key.clone(), node.wg_pubkey.clone())
+    };
 
     // Assign tunnel IP if missing
     let tunnel_ip = if node.tunnel_ip.is_empty() {
@@ -152,7 +158,7 @@ pub async fn sync_cluster_wg(
         .map_err(|e| AppError::Internal(format!("Cannot rename wg-cluster config: {e}")))?;
 
     // Apply via wg syncconf
-    services::wireguard::apply_syncconf(CLUSTER_WG_INTERFACE, &config_path)
+    services::wireguard::apply_syncconf(CLUSTER_WG_INTERFACE, &config_path).await
 }
 
 /// Rebuild bird.conf (full config with iBGP) and apply it.
