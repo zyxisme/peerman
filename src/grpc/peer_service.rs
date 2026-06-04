@@ -24,7 +24,100 @@ pub struct PeerServiceImpl {
     pub node_repo: NodeRepository,
     pub cluster_key: std::sync::Arc<String>,
     pub listen_addr: String,
-    pub pool: sqlx::SqlitePool,
+    pub config_dirty: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// Apply WireGuard and BIRD configs from current DB state. Extracted from
+/// `PeerServiceImpl::auto_apply_wg_bird` so it can be called from the
+/// background debounce task without holding a reference to the service.
+pub async fn apply_wg_bird(
+    peer_repo: &PeerRepository,
+    settings_repo: &SettingsRepository,
+    node_repo: &NodeRepository,
+    listen_addr: &str,
+    pool: &sqlx::SqlitePool,
+) -> Result<(), Status> {
+    let peers = peer_repo
+        .list_all()
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+    let settings = settings_repo
+        .load()
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+    // 1. WireGuard: full regenerate wg0.conf + apply
+    let wg_config: String = peers
+        .iter()
+        .filter(|p| p.enabled)
+        .map(|p| crate::services::wireguard::generate_config(p, &settings))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if !wg_config.is_empty() {
+        let conf_path = "/etc/wireguard/wg0.conf";
+        let tmp_path = "/etc/wireguard/wg0.conf.tmp";
+        std::fs::write(tmp_path, &wg_config)
+            .map_err(|e| Status::internal(format!("Cannot write wg0.conf: {e}")))?;
+        std::fs::rename(tmp_path, conf_path)
+            .map_err(|e| Status::internal(format!("Cannot rename wg0.conf: {e}")))?;
+        crate::services::wireguard::apply_syncconf("wg0", conf_path)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+    }
+
+    // 2. BIRD: full regenerate bird.conf + apply
+    let peer_communities = if settings.enable_community_filters {
+        let probe_repo = ProbeResultRepository::new(pool.clone());
+        let rule_repo = CommunityRuleRepository::new(pool.clone());
+        let rules = rule_repo.list_enabled().await.unwrap_or_default();
+        let mut map = std::collections::HashMap::new();
+        for peer in &peers {
+            if !peer.enabled {
+                continue;
+            }
+            match CommunityMapper::compute_communities_with_rules(
+                peer,
+                listen_addr,
+                &probe_repo,
+                &rules,
+            )
+            .await
+            {
+                Ok((v4, v6)) if !v4.is_empty() || !v6.is_empty() => {
+                    map.insert(peer.id.clone(), (v4, v6));
+                }
+                _ => {}
+            }
+        }
+        map
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    let mut bird_config =
+        crate::services::bird::generate_full_config(&peers, &settings, "", &peer_communities);
+
+    // Append cluster iBGP blocks if any nodes exist (cluster mode)
+    if let Ok(nodes) = node_repo.list_all().await {
+        let my_tunnel_ip = nodes
+            .iter()
+            .find(|n| n.listen_addr == listen_addr)
+            .map(|n| n.tunnel_ip.clone())
+            .unwrap_or_default();
+        if !my_tunnel_ip.is_empty() {
+            bird_config.push_str(&crate::services::bird::generate_ibgp_blocks(
+                &nodes,
+                &settings,
+                &my_tunnel_ip,
+            ));
+        }
+    }
+
+    crate::services::bird::apply_config(&bird_config)
+        .map_err(|e| Status::internal(e.to_string()))?;
+
+    Ok(())
 }
 
 impl PeerServiceImpl {
@@ -57,91 +150,6 @@ impl PeerServiceImpl {
         Ok(peer)
     }
 
-    async fn auto_apply_wg_bird(&self) -> Result<(), Status> {
-        let peers = self
-            .peer_repo
-            .list_all()
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-        let settings = self
-            .settings_repo
-            .load()
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
-
-        // 1. WireGuard: full regenerate wg0.conf + apply
-        let wg_config: String = peers
-            .iter()
-            .filter(|p| p.enabled)
-            .map(|p| crate::services::wireguard::generate_config(p, &settings))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        if !wg_config.is_empty() {
-            let conf_path = "/etc/wireguard/wg0.conf";
-            let tmp_path = "/etc/wireguard/wg0.conf.tmp";
-            std::fs::write(tmp_path, &wg_config)
-                .map_err(|e| Status::internal(format!("Cannot write wg0.conf: {e}")))?;
-            std::fs::rename(tmp_path, conf_path)
-                .map_err(|e| Status::internal(format!("Cannot rename wg0.conf: {e}")))?;
-            crate::services::wireguard::apply_syncconf("wg0", conf_path)
-                .await
-                .map_err(|e| Status::internal(e.to_string()))?;
-        }
-
-        // 2. BIRD: full regenerate bird.conf + apply
-        let peer_communities = if settings.enable_community_filters {
-            let probe_repo = ProbeResultRepository::new(self.pool.clone());
-            let rule_repo = CommunityRuleRepository::new(self.pool.clone());
-            let rules = rule_repo.list_enabled().await.unwrap_or_default();
-            let mut map = std::collections::HashMap::new();
-            for peer in &peers {
-                if !peer.enabled {
-                    continue;
-                }
-                match CommunityMapper::compute_communities_with_rules(
-                    peer,
-                    &self.listen_addr,
-                    &probe_repo,
-                    &rules,
-                )
-                .await
-                {
-                    Ok((v4, v6)) if !v4.is_empty() || !v6.is_empty() => {
-                        map.insert(peer.id.clone(), (v4, v6));
-                    }
-                    _ => {}
-                }
-            }
-            map
-        } else {
-            std::collections::HashMap::new()
-        };
-
-        let mut bird_config =
-            crate::services::bird::generate_full_config(&peers, &settings, "", &peer_communities);
-
-        // Append cluster iBGP blocks if any nodes exist (cluster mode)
-        if let Ok(nodes) = self.node_repo.list_all().await {
-            let my_tunnel_ip = nodes
-                .iter()
-                .find(|n| n.listen_addr == self.listen_addr)
-                .map(|n| n.tunnel_ip.clone())
-                .unwrap_or_default();
-            if !my_tunnel_ip.is_empty() {
-                bird_config.push_str(&crate::services::bird::generate_ibgp_blocks(
-                    &nodes,
-                    &settings,
-                    &my_tunnel_ip,
-                ));
-            }
-        }
-
-        crate::services::bird::apply_config(&bird_config)
-            .map_err(|e| Status::internal(e.to_string()))?;
-
-        Ok(())
-    }
 }
 
 pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
@@ -228,7 +236,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        self.auto_apply_wg_bird().await?;
+        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(peer_to_proto(&peer)))
     }
@@ -281,7 +289,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        self.auto_apply_wg_bird().await?;
+        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(peer_to_proto(&peer)))
     }
@@ -297,7 +305,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
 
-        self.auto_apply_wg_bird().await?;
+        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(DeletePeerResponse {}))
     }
@@ -314,7 +322,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
 
-        self.auto_apply_wg_bird().await?;
+        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(peer_to_proto(&peer)))
     }
