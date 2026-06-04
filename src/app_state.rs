@@ -8,6 +8,15 @@ use crate::models::peer::PeerRepository;
 use crate::models::probe::ProbeResultRepository;
 use crate::models::settings::SettingsRepository;
 
+/// Focused sub-state for peer-related gRPC services.
+/// Groups the three repositories that PeerServiceImpl and apply_wg_bird need.
+#[derive(Clone)]
+pub struct PeerState {
+    pub peer_repo: PeerRepository,
+    pub settings_repo: SettingsRepository,
+    pub node_repo: NodeRepository,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub peer_repo: PeerRepository,
@@ -29,6 +38,15 @@ impl AppState {
             community_repo: CommunityRuleRepository::new(pool.clone()),
             flap_event_repo: FlapEventRepository::new(pool),
             cluster_cache: ClusterCache::new(),
+        }
+    }
+
+    /// Extract a PeerState containing the repos needed by PeerServiceImpl.
+    pub fn peer_state(&self) -> PeerState {
+        PeerState {
+            peer_repo: self.peer_repo.clone(),
+            settings_repo: self.settings_repo.clone(),
+            node_repo: self.node_repo.clone(),
         }
     }
 }
