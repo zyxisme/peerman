@@ -9,8 +9,9 @@ mod models;
 mod services;
 mod static_files;
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 use std::time::Duration;
 
 use axum::http::header::SET_COOKIE;
@@ -31,6 +32,43 @@ fn app_config() -> Arc<config::Config> {
         .expect("APP_CONFIG not initialized")
         .clone()
 }
+
+// ---------------------------------------------------------------------------
+// Login rate limiting
+// ---------------------------------------------------------------------------
+
+struct LoginRateLimiter {
+    attempts: Mutex<HashMap<String, (u32, std::time::Instant)>>,
+}
+
+impl LoginRateLimiter {
+    fn new() -> Self {
+        Self {
+            attempts: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn check(&self, ip: &str) -> Result<(), u64> {
+        let mut attempts = self.attempts.lock().unwrap();
+        let now = std::time::Instant::now();
+        let entry = attempts.entry(ip.to_string()).or_insert((0, now));
+
+        if now.duration_since(entry.1).as_secs() >= 60 {
+            *entry = (0, now);
+        }
+
+        entry.0 += 1;
+        if entry.0 > 5 {
+            let elapsed = now.duration_since(entry.1).as_secs();
+            let retry_after = 60_u64.saturating_sub(elapsed);
+            Err(retry_after)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+static LOGIN_RATE_LIMITER: LazyLock<LoginRateLimiter> = LazyLock::new(LoginRateLimiter::new);
 
 use crate::grpc::bird_service::BirdServiceImpl;
 use crate::grpc::cluster_service::ClusterServiceImpl;
@@ -76,7 +114,24 @@ struct MeResponse {
     username: Option<String>,
 }
 
-async fn handle_login(Json(req): Json<LoginRequest>) -> axum::response::Response {
+async fn handle_login(
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    Json(req): Json<LoginRequest>,
+) -> axum::response::Response {
+    let ip = addr.ip().to_string();
+
+    if let Err(retry_after) = LOGIN_RATE_LIMITER.check(&ip) {
+        return json_response(
+            axum::http::StatusCode::TOO_MANY_REQUESTS,
+            &LoginResponse {
+                success: false,
+                user: None,
+                error: Some(format!("Too many attempts. Try again in {retry_after}s")),
+            },
+            None,
+        );
+    }
+
     let cfg = app_config();
     if req.username != cfg.auth.username {
         return json_response(
@@ -94,8 +149,7 @@ async fn handle_login(Json(req): Json<LoginRequest>) -> axum::response::Response
         tracing::warn!("Using plaintext password comparison — set password_hash in config");
         req.password == cfg.auth.password
     } else {
-        auth::password::verify_password(&req.password, &cfg.auth.password_hash)
-            .unwrap_or(false)
+        auth::password::verify_password(&req.password, &cfg.auth.password_hash).unwrap_or(false)
     };
 
     if !password_ok {
@@ -119,7 +173,7 @@ async fn handle_login(Json(req): Json<LoginRequest>) -> axum::response::Response
     match auth::create_token(&req.username, secret) {
         Ok(token) => {
             let cookie = format!(
-                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600",
+                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600; Secure",
                 token
             );
             json_response(
@@ -150,7 +204,7 @@ async fn handle_logout() -> axum::response::Response {
     json_response(
         axum::http::StatusCode::OK,
         &serde_json::json!({"success": true}),
-        Some("jwt=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"),
+        Some("jwt=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure"),
     )
 }
 
@@ -215,9 +269,7 @@ async fn main() -> anyhow::Result<()> {
             .map_err(|e| anyhow::anyhow!("Failed to hash password: {e}"))?;
         tracing::info!("Auto-hashed plaintext password. Consider replacing 'password' with 'password_hash' in config.toml");
     } else if cfg.auth.password_hash.is_empty() && cfg.auth.password.is_empty() {
-        anyhow::bail!(
-            "auth.password or auth.password_hash must be set in config.toml"
-        );
+        anyhow::bail!("auth.password or auth.password_hash must be set in config.toml");
     }
 
     tracing_subscriber::fmt()
@@ -780,7 +832,7 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
     tokio::select! {
-        result = axum::serve(listener, app) => {
+        result = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()) => {
             if let Err(e) = result {
                 tracing::error!("Server error: {e}");
             }
