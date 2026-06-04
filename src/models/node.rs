@@ -18,6 +18,7 @@ pub struct Node {
     pub wg_pubkey: String,
     pub tunnel_ip: String,
     pub tunnel_ipv6: String,
+    pub wg_private_key: String,
 }
 
 #[derive(Clone)]
@@ -33,7 +34,8 @@ impl NodeRepository {
     pub async fn list_all(&self) -> Result<Vec<Node>, AppError> {
         sqlx::query_as::<_, Node>(
             "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
+             wg_private_key
              FROM nodes ORDER BY name",
         )
         .fetch_all(&self.pool)
@@ -44,7 +46,8 @@ impl NodeRepository {
     pub async fn find_by_id(&self, id: &str) -> Result<Node, AppError> {
         sqlx::query_as::<_, Node>(
             "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
+             wg_private_key
              FROM nodes WHERE id = ?",
         )
         .bind(id)
@@ -56,7 +59,8 @@ impl NodeRepository {
     pub async fn find_by_listen_addr(&self, addr: &str) -> Result<Option<Node>, AppError> {
         sqlx::query_as::<_, Node>(
             "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
+             wg_private_key
              FROM nodes WHERE listen_addr = ?",
         )
         .bind(addr)
@@ -76,16 +80,17 @@ impl NodeRepository {
         let now = Utc::now().to_rfc3339();
 
         sqlx::query_as::<_, Node>(
-            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6",
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
         )
         .bind(&id)
         .bind(name)
         .bind(listen_addr)
         .bind(local_asn)
         .bind(description)
+        .bind("")
         .bind("")
         .bind("")
         .bind("")
@@ -101,10 +106,10 @@ impl NodeRepository {
 
         sqlx::query_as::<_, Node>(
             "UPDATE nodes SET name = ?, listen_addr = ?, local_asn = ?, description = ?,
-             wg_pubkey = ?, tunnel_ip = ?, tunnel_ipv6 = ?, updated_at = ?
+             wg_pubkey = ?, tunnel_ip = ?, tunnel_ipv6 = ?, wg_private_key = ?, updated_at = ?
              WHERE id = ?
              RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6",
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
         )
         .bind(&node.name)
         .bind(&node.listen_addr)
@@ -113,6 +118,7 @@ impl NodeRepository {
         .bind(&node.wg_pubkey)
         .bind(&node.tunnel_ip)
         .bind(&node.tunnel_ipv6)
+        .bind(&node.wg_private_key)
         .bind(&now)
         .bind(&node.id)
         .fetch_one(&self.pool)
@@ -182,6 +188,21 @@ impl NodeRepository {
         Ok(())
     }
 
+    pub async fn update_wg_private_key(
+        &self,
+        id: &str,
+        wg_private_key: &str,
+    ) -> Result<(), AppError> {
+        let now = Utc::now().to_rfc3339();
+        sqlx::query("UPDATE nodes SET wg_private_key = ?, updated_at = ? WHERE id = ?")
+            .bind(wg_private_key)
+            .bind(&now)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn mark_stale(&self, threshold_secs: i64) -> Result<(), AppError> {
         let threshold = Utc::now() - chrono::Duration::seconds(threshold_secs);
         sqlx::query("UPDATE nodes SET online = 0 WHERE online = 1 AND last_seen_at < ?")
@@ -199,11 +220,11 @@ impl NodeRepository {
     ) -> Result<Node, AppError> {
         let now = Utc::now().to_rfc3339();
         let node = sqlx::query_as::<_, Node>(
-            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, created_at, updated_at)
-             VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, '', '', '', '', ?4, ?4)
+            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key, created_at, updated_at)
+             VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, '', '', '', '', '', ?4, ?4)
              ON CONFLICT(listen_addr) DO UPDATE SET name = ?1, local_asn = ?3, updated_at = ?4
              RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6",
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
         )
         .bind(name)
         .bind(listen_addr)
@@ -214,10 +235,12 @@ impl NodeRepository {
         Ok(node)
     }
 
+    #[allow(dead_code)]
     pub async fn find_by_name(&self, name: &str) -> Result<Option<Node>, AppError> {
         sqlx::query_as::<_, Node>(
             "SELECT id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6,
+             wg_private_key
              FROM nodes WHERE name = ?",
         )
         .bind(name)
@@ -235,11 +258,11 @@ impl NodeRepository {
     ) -> Result<Node, AppError> {
         let now = Utc::now().to_rfc3339();
         let node = sqlx::query_as::<_, Node>(
-            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, created_at, updated_at)
-             VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, '', '', '', ?5, ?5)
+            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key, created_at, updated_at)
+             VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, '', '', '', '', ?5, ?5)
              ON CONFLICT(name) DO UPDATE SET listen_addr = ?2, local_asn = ?3, description = ?4, updated_at = ?5
              RETURNING id, name, listen_addr, local_asn, description, online,
-             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6",
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6, wg_private_key",
         )
         .bind(name)
         .bind(listen_addr)
