@@ -2,6 +2,19 @@
 
 DN42 对等互联管理工具。通过 Web 界面管理 WireGuard 隧道和 BGP 会话，**创建 Peer 后自动生成并应用配置**，无需手动操作。
 
+## 功能
+
+- **WireGuard 管理** — 自动生成 per-peer 配置，`wg syncconf` 无缝更新，支持接口重启
+- **BIRD2 管理** — 自动生成完整 bird.conf，`birdc configure` 热重载
+- **DN42 标准 BGP Communities** — 基于 AS 64511 标准的 latency/bandwidth/crypto 三级社区标记，自动根据探测结果匹配
+- **ROA/RPKI 验证** — 支持静态文件和 RTR 两种模式
+- **BFD 快速故障检测** — 可配置 interval/multiplier，加速链路故障发现
+- **集群模式** — 多节点自动发现、WG 隧道建立、iBGP full mesh 或 BGP Confederation
+- **跨节点 Looking Glass** — 在任意集群节点执行 BIRD 命令和 traceroute
+- **BGP 抖动检测** — 基于 iBGP 监听 + BIRD socket 轮询的双通道检测
+- **自动探测** — 定期 ICMP 探测节点间延迟和丢包率
+- **Web 界面** — React 前端，Vercel 风格设计系统
+
 ## 安装
 
 ### 前提条件
@@ -9,6 +22,8 @@ DN42 对等互联管理工具。通过 Web 界面管理 WireGuard 隧道和 BGP 
 - [Rust](https://rustup.rs) (1.75+)
 - [pnpm](https://pnpm.io) (11.x，用于编译前端)
 - 运行环境需要 `ping` 和 `traceroute` 命令（探测功能）
+- `wg-quick`（WireGuard 生命周期管理）
+- `birdc`（BIRD2 配置热重载）
 
 ### 编译
 
@@ -67,9 +82,10 @@ cp config.toml.example config.toml
 配置 `[cluster]` 段后，Peerman 自动管理节点间互联：
 
 - 自动生成 WG 密钥对，通过 gossip 交换公钥
-- 自动建立节点间 WG 隧道（`wg-cluster` 接口）
-- 自动配置 iBGP full mesh，使用独立的内部 tunnel IP
+- 自动建立节点间 WG 隧道（`wg-cluster` 接口），支持 IPv4 + IPv6 双栈
+- 自动配置 iBGP full mesh 或 BGP Confederation，使用独立的内部 tunnel IP
 - 新节点加入/离开时自动更新配置
+- 跨节点 Looking Glass：在任意节点执行 BIRD 命令
 
 需要 Peerman 进程具有 root 权限（写系统配置文件和执行 `wg`/`birdc` 命令）。
 
@@ -89,9 +105,12 @@ level = "info"                  # 日志级别: trace, debug, info, warn, error
 node_name = ""                  # 设为非空即启用集群模式
 cluster_key = ""                # 集群共享密钥（用于 inter-node gRPC 认证）
 peer_nodes = []                 # 引导节点列表，格式 ["10.0.0.1:3000", "10.0.0.2:3000"]
-tunnel_ip_range = ""            # 内部 tunnel IP 段（如 10.255.0.0/24），用于节点间 iBGP
+tunnel_ip_range = ""            # 内部 IPv4 tunnel IP 段（如 10.255.0.0/24），用于节点间 iBGP
+tunnel_ipv6_range = ""          # 内部 IPv6 tunnel IP 段（如 fd42:cluster::/48），可选
 probe_interval_secs = 60        # ICMP 探测间隔（秒），0 表示禁用
 sync_interval_secs = 30         # 过期节点下线检查间隔（秒）
+enable_confederation = false    # 启用 BGP Confederation 替代 iBGP full mesh
+confederation_local_asn = 0     # Confederation 模式下的私有 ASN
 
 [auth]
 username = "admin"              # 管理员用户名
@@ -100,6 +119,49 @@ jwt_secret = ""                 # JWT 签名密钥（空则启动时自动生成
 ```
 
 集群模式用于多机部署，支持节点发现、跨节点延迟探测和 BGP Community 自动匹配。单机使用时无需修改 `[cluster]` 配置。
+
+## 网络配置功能
+
+### BGP Communities（DN42 标准）
+
+启用 `enable_community_filters` 后，系统自动根据探测结果为每个 peer 生成符合 DN42 AS 64511 标准的社区标记：
+
+- **Latency tier**（1-5）：`<asn>,10`（<5ms）到 `<asn>,50`（>150ms）
+- **Bandwidth tier**（1-4）：`<asn>,11`（>1Gbps）到 `<asn>,14`（<50Mbps）
+- **Crypto tier**（1-3）：`<asn>,31`（无加密）到 `<asn>,33`（强加密）
+
+生成的 BIRD 配置包含标准的 `dn42_import_filter` 和 `dn42_export_filter` 函数，带 ROA 验证和 MED 惩罚。
+
+### BFD（快速故障检测）
+
+启用 `enable_bfd` 后，在 bird.conf 中生成：
+
+```bird
+protocol bfd {
+    interface "wg*" {
+        interval 300ms;
+        multiplier 3;
+    };
+}
+```
+
+### BGP Confederation
+
+启用 `enable_confederation` 后，iBGP full mesh 替换为 confederation 模式：
+
+```bird
+protocol bgp node_<name> from dnpeers {
+    local as <private_asn>;
+    confederation <dn42_asn>;
+    confederation member yes;
+    neighbor <tunnel_ip> external;
+    ...
+}
+```
+
+### 跨节点 Looking Glass
+
+在 Looking Glass 页面选择目标集群节点，即可远程执行 BIRD 命令（`show protocols`、`show route all` 等）和 traceroute。
 
 ## 开发
 
@@ -115,6 +177,12 @@ cd frontend && pnpm run build
 
 # 类型检查
 cd frontend && pnpm exec tsc --noEmit
+
+# 测试
+cargo test
+
+# Lint + 格式化
+cargo clippy && cargo fmt
 ```
 
 ## 项目结构
@@ -124,7 +192,7 @@ src/            # Rust 后端
   cluster/      # 集群管理：tunnel（节点间 WG）、aggregator、cache、auth
   grpc/         # gRPC 服务实现（Peer, Settings, Cluster, Bird, Flap, Management）
   models/       # 数据模型 + SQLite 仓库（peer, node, settings, probe, community, flap）
-  services/     # WireGuard/BIRD 配置生成与系统命令执行、验证、探测
+  services/     # WireGuard/BIRD 配置生成与系统命令执行、验证、探测、社区映射
 frontend/       # React 前端 (Vite + TypeScript + Tailwind)
 proto/          # Protobuf 服务定义
 migrations/     # SQLite 数据库迁移文件
@@ -138,3 +206,14 @@ migrations/     # SQLite 数据库迁移文件
 | 前端 | React 18, TypeScript, Vite, Tailwind CSS |
 | API | gRPC-Web (tonic-web，无需 envoy 边车) |
 | 设计 | Vercel 风格设计系统 (详见 [DESIGN.md](DESIGN.md)) |
+
+## gRPC 服务一览
+
+| 服务 | 主要 RPC |
+|------|----------|
+| PeerService | CreatePeer, UpdatePeer, DeletePeer, TogglePeer, GenerateKeypair, RestartWireGuard, ExportAllWireGuard, ExportAllBird |
+| SettingsService | GetSettings, SaveSettings |
+| ClusterService | ListNodes, ExchangeNodes, HealthCheck, RunProbe, ListCommunityRules, SaveCommunityRule, GetPeerCommunities |
+| BirdService | ExecuteCommand, RunTraceroute |
+| ManagementService | GetWireGuardStatus, GetBirdStatus |
+| FlapService | ListFlapEvents, GetFlapStats |
