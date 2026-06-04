@@ -181,3 +181,15 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - **Module structure**: `src/http/` has HTTP handlers (`handlers.rs`) and rate limiter (`rate_limit.rs`). `src/tasks/` has background task spawning (`cluster.rs`, `apply.rs`, `retention.rs`). `main.rs` handles startup orchestration only (~400 lines).
 - **Connection pool reuse**: `ClusterAggregator::connect()` is a `pub(crate)` static method that caches gRPC channels in a global `DashMap`. Use it instead of `Endpoint::from_shared().connect()` for inter-node calls.
 - **Frontend 401 interceptor**: `frontend/src/lib/http.ts` provides `fetchJson<T>()` and `fetchWithAuth()` with automatic redirect to `/login` on 401. Use for all non-gRPC HTTP calls.
+
+## Version update & release
+
+Check existing tags: `git tag -l 'v*' --sort=-v:refname`. Bump from the latest tag (e.g. `v0.1.5` → `v0.1.6`).
+
+1. Update version in `Cargo.toml` and `frontend/package.json` (must match)
+2. Run `source "$HOME/.cargo/env" && cargo generate-lockfile` to update `Cargo.lock`
+3. Commit all three files: `git add Cargo.toml Cargo.lock frontend/package.json && git commit -m "chore: bump version to X.Y.Z"`
+4. Push to master: `git push origin master`
+5. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z` — this triggers the Release workflow (`.github/workflows/release.yml`)
+6. Monitor release: `gh run list --limit 3` then `gh run watch <id> --exit-status`
+7. Release produces amd64 + arm64 Linux binaries with SHA256 checksums
