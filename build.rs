@@ -2,6 +2,13 @@ use std::path::Path;
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Only re-run if these files change
+    println!("cargo:rerun-if-changed=proto/peerman.proto");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=frontend/src");
+    println!("cargo:rerun-if-changed=frontend/package.json");
+    println!("cargo:rerun-if-changed=frontend/vite.config.ts");
+
     // 1. Compile proto → Rust (tonic + prost)
     tonic_build::configure()
         .build_server(true)
