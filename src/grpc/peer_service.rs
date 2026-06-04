@@ -1,13 +1,11 @@
 use std::os::unix::fs::PermissionsExt;
-use tonic::transport::Endpoint;
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    cluster_service_client::ClusterServiceClient, peer_service_server::PeerService, ConfigResponse,
-    CreatePeerRequest, DeletePeerRequest, DeletePeerResponse, ExportAllRequest,
-    GenerateKeypairRequest, GenerateKeypairResponse, GetConfigRequest, GetPeerRequest,
-    ListPeersRequest, ListPeersResponse, Peer, PushPeerRequest, RestartWireGuardRequest,
-    RestartWireGuardResponse, TogglePeerRequest, UpdatePeerRequest,
+    peer_service_server::PeerService, ConfigResponse, CreatePeerRequest, DeletePeerRequest,
+    DeletePeerResponse, ExportAllRequest, GenerateKeypairRequest, GenerateKeypairResponse,
+    GetConfigRequest, GetPeerRequest, ListPeersRequest, ListPeersResponse, Peer, PushPeerRequest,
+    RestartWireGuardRequest, RestartWireGuardResponse, TogglePeerRequest, UpdatePeerRequest,
 };
 
 use crate::models::community::CommunityRuleRepository;
@@ -26,6 +24,9 @@ pub struct PeerServiceImpl {
     pub cluster_key: std::sync::Arc<String>,
     pub listen_addr: String,
     pub config_dirty: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    #[allow(dead_code)]
+    // Pre-defined for cluster API; used when ClusterAggregator instance methods are needed
+    pub aggregator: crate::cluster::aggregator::ClusterAggregator,
 }
 
 /// Apply WireGuard and BIRD configs from current DB state. Extracted from
@@ -125,13 +126,12 @@ pub async fn apply_wg_bird(
 
 impl PeerServiceImpl {
     async fn proxy_push_peer(&self, target_addr: &str, peer: Peer) -> Result<Peer, Status> {
-        let uri = format!("http://{}", target_addr);
-        let channel = Endpoint::from_shared(uri)
-            .map_err(|e| Status::internal(format!("invalid uri: {e}")))?
-            .connect()
-            .await
-            .map_err(|e| Status::internal(format!("connect failed: {e}")))?;
-        let mut client = ClusterServiceClient::new(channel);
+        use crate::grpc::generated::cluster_service_client::ClusterServiceClient;
+
+        let mut client: ClusterServiceClient<tonic::transport::Channel> =
+            crate::cluster::aggregator::ClusterAggregator::connect(target_addr)
+                .await
+                .map_err(|e| Status::internal(format!("connect failed: {e}")))?;
 
         let mut req = Request::new(PushPeerRequest {
             peer: Some(peer.clone()),
@@ -144,7 +144,7 @@ impl PeerServiceImpl {
             }
         }
 
-        let _resp = client
+        client
             .push_peer(req)
             .await
             .map_err(|e| Status::internal(format!("proxy push failed: {e}")))?;

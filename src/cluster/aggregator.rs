@@ -33,7 +33,7 @@ impl ClusterAggregator {
         Self { cache, cluster_key }
     }
 
-    async fn connect(
+    pub(crate) async fn connect(
         addr: &str,
     ) -> Result<ClusterServiceClient<tonic::transport::Channel>, String> {
         if let Some(client) = CHANNEL_POOL.get(addr) {
