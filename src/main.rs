@@ -99,7 +99,7 @@ async fn handle_login(Json(req): Json<LoginRequest>) -> axum::response::Response
     match auth::create_token(&req.username, secret) {
         Ok(token) => {
             let cookie = format!(
-                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000",
+                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600",
                 token
             );
             json_response(

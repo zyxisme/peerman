@@ -19,13 +19,13 @@ pub fn generate_jwt_secret() -> String {
         .collect()
 }
 
-/// Create a JWT token for the given username, valid for 30 days.
+/// Create a JWT token for the given username, valid for 1 hour.
 pub fn create_token(username: &str, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now().timestamp() as usize;
     let claims = Claims {
         sub: username.to_string(),
         iat: now,
-        exp: now + 30 * 24 * 3600,
+        exp: now + 3600, // 1 hour (was 30 days)
     };
     encode(
         &Header::default(),
