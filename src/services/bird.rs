@@ -220,10 +220,12 @@ function dn42_export_filter(int link_latency; int link_bandwidth; int link_crypt
 }
 
 /// Generate a complete BIRD2 configuration with template, filters, and all peer blocks.
+/// `peer_communities` maps peer ID to (v4_communities, v6_communities).
 pub fn generate_full_config(
     peers: &[Peer],
     settings: &Settings,
     template_body: &str,
+    peer_communities: &std::collections::HashMap<String, (Vec<String>, Vec<String>)>,
 ) -> String {
     let mut config = String::new();
 
@@ -305,7 +307,11 @@ pub fn generate_full_config(
 
     // Peer blocks
     for peer in peers.iter().filter(|p| p.enabled) {
-        config.push_str(&generate_peer_block(peer, settings));
+        let (v4, v6) = peer_communities
+            .get(&peer.id)
+            .map(|(a, b)| (a.as_slice(), b.as_slice()))
+            .unwrap_or((&[], &[]));
+        config.push_str(&generate_peer_block_with_communities(peer, settings, v4, v6));
     }
 
     config
@@ -513,7 +519,7 @@ mod tests {
         let mut s = test_settings();
         s.roa_mode = "rtr".into();
         s.roa_rtr_address = "rpki.dn42.example".into();
-        let config = generate_full_config(&[], &s, "");
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
         assert!(config.contains("protocol rpki roa_dn42"));
         assert!(config.contains("rpki.dn42.example"));
     }
@@ -523,13 +529,13 @@ mod tests {
         let mut s = test_settings();
         s.roa_mode = "static_file".into();
         s.roa_static_v4_url = "https://example.com/roa_v4.conf".into();
-        let config = generate_full_config(&[], &s, "");
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
         assert!(config.contains("include \"/etc/bird/roa_dn42_v4.conf\""));
     }
 
     #[test]
     fn test_generate_full_config_has_filter_functions() {
-        let config = generate_full_config(&[], &test_settings(), "");
+        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("function is_valid_network()"));
         assert!(config.contains("function is_valid_network_v6()"));
         assert!(config.contains("function is_self_net()"));
@@ -537,13 +543,13 @@ mod tests {
 
     #[test]
     fn test_generate_full_config_has_import_limit() {
-        let config = generate_full_config(&[], &test_settings(), "");
+        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("import limit 9000 action block"));
     }
 
     #[test]
     fn test_generate_full_config_has_roa_check() {
-        let config = generate_full_config(&[], &test_settings(), "");
+        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("roa_check(dn42_roa, net, bgp_path.last)"));
     }
 
@@ -551,7 +557,7 @@ mod tests {
     fn test_generate_full_config_custom_export_filter() {
         let mut s = test_settings();
         s.bird_export_filter = "accept;".into();
-        let config = generate_full_config(&[], &s, "");
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
         assert!(config.contains("export filter { accept; }"));
     }
 
@@ -608,8 +614,20 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_peer_block_with_community_tiers() {
+        let block = generate_peer_block_with_communities(
+            &test_peer(),
+            &test_settings(),
+            &["4242420000,10".into()],
+            &["4242420000,610".into()],
+        );
+        // Should contain community add calls in export filter
+        assert!(block.contains("bgp_community.add"));
+    }
+
+    #[test]
     fn test_generate_full_config_has_community_functions() {
-        let config = generate_full_config(&[], &test_settings(), "");
+        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("function update_latency"));
         assert!(config.contains("function update_bandwidth"));
         assert!(config.contains("function update_crypto"));
@@ -620,7 +638,7 @@ mod tests {
 
     #[test]
     fn test_generate_full_config_community_functions_use_64511() {
-        let config = generate_full_config(&[], &test_settings(), "");
+        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("bgp_community.add((64511,"));
     }
 }
