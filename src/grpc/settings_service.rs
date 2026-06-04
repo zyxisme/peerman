@@ -36,6 +36,9 @@ fn settings_to_proto(s: &crate::models::settings::Settings) -> Settings {
         enable_bfd: s.enable_bfd,
         bfd_interval_ms: s.bfd_interval_ms as u32,
         bfd_multiplier: s.bfd_multiplier as u32,
+        cluster_tunnel_ipv6_range: s.cluster_tunnel_ipv6_range.clone(),
+        enable_confederation: s.enable_confederation,
+        confederation_local_asn: s.confederation_local_asn,
     }
 }
 
@@ -105,6 +108,13 @@ fn apply_settings(s: &mut crate::models::settings::Settings, proto: &Settings) {
     }
     if proto.bfd_multiplier > 0 {
         s.bfd_multiplier = proto.bfd_multiplier as i64;
+    }
+    // Always apply cluster_tunnel_ipv6_range (empty string is valid — clears the range)
+    s.cluster_tunnel_ipv6_range = proto.cluster_tunnel_ipv6_range.clone();
+    // Bool field: always apply (false is a valid value)
+    s.enable_confederation = proto.enable_confederation;
+    if proto.confederation_local_asn != 0 {
+        s.confederation_local_asn = proto.confederation_local_asn;
     }
 }
 

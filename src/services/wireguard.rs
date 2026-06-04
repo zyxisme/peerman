@@ -35,6 +35,26 @@ pub fn apply_syncconf(interface: &str, config_path: &str) -> Result<(), AppError
     Ok(())
 }
 
+/// Restart a WireGuard interface (down + up via wg-quick).
+pub fn restart_interface(iface: &str) -> Result<(), AppError> {
+    let _ = std::process::Command::new("wg-quick")
+        .args(["down", iface])
+        .output(); // Ignore error on down (interface may not be up)
+
+    let output = std::process::Command::new("wg-quick")
+        .args(["up", iface])
+        .output()
+        .map_err(|e| AppError::Internal(format!("wg-quick up failed: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Internal(
+            format!("wg-quick up {iface} failed: {stderr}")
+        ));
+    }
+    Ok(())
+}
+
 /// Parse `wg show <interface> dump` output into structured status.
 pub fn get_wg_status(interface: &str) -> Result<Vec<crate::grpc::generated::WgInterface>, AppError> {
     let output = std::process::Command::new("wg")
@@ -110,7 +130,11 @@ pub fn generate_cluster_wg_config(
             .map(|(h, _)| h)
             .unwrap_or(&node.listen_addr);
         config.push_str(&format!("Endpoint = {host}:{listen_port}\n"));
-        config.push_str(&format!("AllowedIPs = {}/32\n", node.tunnel_ip));
+        let mut allowed = format!("{}/32", node.tunnel_ip);
+        if !node.tunnel_ipv6.is_empty() {
+            allowed.push_str(&format!(", {}/128", node.tunnel_ipv6));
+        }
+        config.push_str(&format!("AllowedIPs = {allowed}\n"));
         config.push_str("PersistentKeepalive = 25\n\n");
     }
 
@@ -228,6 +252,9 @@ mod tests {
             enable_bfd: false,
             bfd_interval_ms: 300,
             bfd_multiplier: 3,
+            cluster_tunnel_ipv6_range: String::new(),
+            enable_confederation: false,
+            confederation_local_asn: 0,
         }
     }
 
@@ -341,6 +368,7 @@ mod tests {
                 updated_at: String::new(),
                 wg_pubkey: "pubkey-a".into(),
                 tunnel_ip: "10.255.0.1".into(),
+                tunnel_ipv6: String::new(),
             },
             crate::models::node::Node {
                 id: "n2".into(),
@@ -354,6 +382,7 @@ mod tests {
                 updated_at: String::new(),
                 wg_pubkey: "pubkey-b".into(),
                 tunnel_ip: "10.255.0.2".into(),
+                tunnel_ipv6: String::new(),
             },
         ];
         let config = generate_cluster_wg_config(&nodes, "key-a", 51821);

@@ -27,6 +27,9 @@ pub struct Settings {
     pub enable_bfd: bool,
     pub bfd_interval_ms: i64,
     pub bfd_multiplier: i64,
+    pub cluster_tunnel_ipv6_range: String,
+    pub enable_confederation: bool,
+    pub confederation_local_asn: i64,
 }
 
 #[derive(Clone)]
@@ -46,7 +49,8 @@ impl SettingsRepository {
              wg_mtu, wg_fwmark, wg_post_up, wg_post_down,
              roa_mode, roa_static_v4_url, roa_static_v6_url, roa_rtr_address, roa_rtr_port,
              bird_import_limit, bird_export_filter, bird_import_filter,
-             enable_community_filters, enable_bfd, bfd_interval_ms, bfd_multiplier
+             enable_community_filters, enable_bfd, bfd_interval_ms, bfd_multiplier,
+             cluster_tunnel_ipv6_range, enable_confederation, confederation_local_asn
              FROM settings WHERE id = 1",
         )
         .fetch_one(&self.pool)
@@ -66,7 +70,8 @@ impl SettingsRepository {
              roa_rtr_address = ?, roa_rtr_port = ?,
              bird_import_limit = ?, bird_export_filter = ?, bird_import_filter = ?,
              enable_community_filters = ?, enable_bfd = ?, bfd_interval_ms = ?,
-             bfd_multiplier = ?
+             bfd_multiplier = ?, cluster_tunnel_ipv6_range = ?,
+             enable_confederation = ?, confederation_local_asn = ?
              WHERE id = 1",
         )
         .bind(settings.local_asn)
@@ -92,6 +97,9 @@ impl SettingsRepository {
         .bind(settings.enable_bfd)
         .bind(settings.bfd_interval_ms)
         .bind(settings.bfd_multiplier)
+        .bind(&settings.cluster_tunnel_ipv6_range)
+        .bind(settings.enable_confederation)
+        .bind(settings.confederation_local_asn)
         .execute(&self.pool)
         .await?;
 
