@@ -1,0 +1,2 @@
+ALTER TABLE nodes ADD COLUMN tunnel_ipv6 TEXT NOT NULL DEFAULT '';
+ALTER TABLE settings ADD COLUMN cluster_tunnel_ipv6_range TEXT NOT NULL DEFAULT '';

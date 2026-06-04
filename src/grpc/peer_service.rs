@@ -6,7 +6,8 @@ use super::generated::{
     peer_service_server::PeerService, ConfigResponse, CreatePeerRequest, DeletePeerRequest,
     DeletePeerResponse, ExportAllRequest, GenerateKeypairRequest, GenerateKeypairResponse,
     GetConfigRequest, GetPeerRequest, ListPeersRequest, ListPeersResponse, Peer,
-    PushPeerRequest, TogglePeerRequest, UpdatePeerRequest,
+    PushPeerRequest, RestartWireGuardRequest, RestartWireGuardResponse, TogglePeerRequest,
+    UpdatePeerRequest,
 };
 
 use crate::models::community::CommunityRuleRepository;
@@ -393,6 +394,18 @@ impl PeerService for PeerServiceImpl {
 
         let content = services::bird::generate_full_config(&peers, &settings, "", &std::collections::HashMap::new());
         Ok(Response::new(ConfigResponse { content }))
+    }
+
+    async fn restart_wire_guard(
+        &self,
+        request: Request<RestartWireGuardRequest>,
+    ) -> Result<Response<RestartWireGuardResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        let req = request.into_inner();
+        let iface = if req.interface_name.is_empty() { "wg0" } else { &req.interface_name };
+        crate::services::wireguard::restart_interface(iface)
+            .map_err(|e| Status::internal(e.to_string()))?;
+        Ok(Response::new(RestartWireGuardResponse {}))
     }
 }
 

@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
 use crate::error::AppError;
@@ -13,7 +13,8 @@ pub async fn init_local_node(
     node_repo: &NodeRepository,
     node_id: &str,
     tunnel_ip_range: &str,
-) -> Result<(String, String, String), AppError> {
+    tunnel_ipv6_range: &str,
+) -> Result<(String, String, String, String), AppError> {
     let node = node_repo.find_by_id(node_id).await?;
 
     // Generate fresh WG keypair on every startup
@@ -29,7 +30,16 @@ pub async fn init_local_node(
         node.tunnel_ip.clone()
     };
 
-    Ok((priv_key, pub_key, tunnel_ip))
+    // Assign IPv6 tunnel IP if missing and range is configured
+    let tunnel_ipv6 = if node.tunnel_ipv6.is_empty() && !tunnel_ipv6_range.is_empty() {
+        let ip = assign_tunnel_ipv6(node_repo, tunnel_ipv6_range).await?;
+        node_repo.update_tunnel_ipv6(node_id, &ip).await?;
+        ip
+    } else {
+        node.tunnel_ipv6.clone()
+    };
+
+    Ok((priv_key, pub_key, tunnel_ip, tunnel_ipv6))
 }
 
 /// Assign the first unused IP from the given range (e.g. "10.255.0.0/24").
@@ -66,6 +76,45 @@ async fn assign_tunnel_ip(node_repo: &NodeRepository, range: &str) -> Result<Str
     }
 
     Err(AppError::Internal("no available IP in tunnel_ip_range".into()))
+}
+
+/// Assign the first unused IPv6 address from the given range (e.g. "fd00:cluster::/64").
+async fn assign_tunnel_ipv6(node_repo: &NodeRepository, range: &str) -> Result<String, AppError> {
+    let (base, prefix_len) = range
+        .split_once('/')
+        .ok_or_else(|| AppError::Internal("invalid tunnel_ipv6_range format".into()))?;
+
+    let base_ip = Ipv6Addr::from_str(base)
+        .map_err(|e| AppError::Internal(format!("invalid tunnel_ipv6_range base: {e}")))?;
+    let prefix_len: u8 = prefix_len
+        .parse()
+        .map_err(|_| AppError::Internal("invalid tunnel_ipv6_range prefix".into()))?;
+
+    let base_u128 = u128::from(base_ip);
+    let mask = !((1u128 << (128 - prefix_len)) - 1);
+    let network = base_u128 & mask;
+    let broadcast = network | !mask;
+
+    let all_nodes = node_repo.list_all().await?;
+    let used_ips: std::collections::HashSet<String> = all_nodes
+        .iter()
+        .filter_map(|n| {
+            if n.tunnel_ipv6.is_empty() { None } else { Some(n.tunnel_ipv6.clone()) }
+        })
+        .collect();
+
+    // Skip network address (offset 0), start from offset 1
+    // Limit iteration to avoid huge ranges
+    let max_hosts = std::cmp::min(broadcast - network, 65536);
+    for offset in 1..max_hosts {
+        let candidate = Ipv6Addr::from(network + offset);
+        let candidate_str = candidate.to_string();
+        if !used_ips.contains(&candidate_str) {
+            return Ok(candidate_str);
+        }
+    }
+
+    Err(AppError::Internal("no available IPv6 in tunnel_ipv6_range".into()))
 }
 
 /// Rebuild wg-cluster config and write it to /etc/wireguard/.

@@ -255,6 +255,47 @@ impl ClusterAggregator {
             .unwrap_or(false)
     }
 
+    /// Execute a BIRD command on a specific remote node via BirdService RPC.
+    pub async fn execute_bird_command(
+        &self,
+        node_addr: &str,
+        command: &str,
+    ) -> Result<String, String> {
+        use crate::grpc::generated::bird_service_client::BirdServiceClient;
+        use crate::grpc::generated::ExecuteCommandRequest;
+
+        let uri = format!("http://{}", node_addr);
+        let channel = Endpoint::from_shared(uri)
+            .map_err(|e| format!("invalid uri: {e}"))?
+            .connect()
+            .await
+            .map_err(|e| format!("connect failed: {e}"))?;
+
+        let mut client = BirdServiceClient::new(channel);
+        let mut req = Request::new(ExecuteCommandRequest {
+            command: command.to_string(),
+            target_node_id: String::new(), // empty = local on remote node
+        });
+        self.set_cluster_key(&mut req);
+
+        let response = timeout(FANOUT_TIMEOUT, client.execute_command(req))
+            .await
+            .map_err(|_| "timeout".to_string())?
+            .map_err(|e| format!("rpc: {e}"))?;
+
+        let results = response.into_inner().results;
+        results
+            .first()
+            .filter(|r| r.status_code == 0)
+            .map(|r| r.output.clone())
+            .ok_or_else(|| {
+                results
+                    .first()
+                    .map(|r| r.error.clone())
+                    .unwrap_or_else(|| "no result".to_string())
+            })
+    }
+
     /// Exchange node list with a peer. Returns the peer's node list.
     pub async fn exchange_with(
         node_addr: &str,

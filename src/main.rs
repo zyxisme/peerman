@@ -215,6 +215,7 @@ async fn main() -> anyhow::Result<()> {
     let peer_nodes = cfg.cluster.peer_nodes.clone();
     let cluster_key = cfg.cluster.cluster_key.clone();
     let tunnel_ip_range = cfg.cluster.tunnel_ip_range.clone();
+    let tunnel_ipv6_range = cfg.cluster.tunnel_ipv6_range.clone();
     let cfg_arc = Arc::new(cfg);
     APP_CONFIG.set(cfg_arc.clone())
         .map_err(|_| anyhow::anyhow!("APP_CONFIG already set"))?;
@@ -261,6 +262,9 @@ async fn main() -> anyhow::Result<()> {
     let bird_svc = BirdServiceImpl {
         node_name: node_name.clone(),
         jwt_secret: jwt_secret.clone(),
+        cluster_key: Arc::new(cluster_key.clone()),
+        node_repo: state.node_repo.clone(),
+        cache: state.cluster_cache.clone(),
     };
     let flap_svc = FlapServiceImpl {
         flap_repo: state.flap_event_repo.clone(),
@@ -327,6 +331,7 @@ async fn main() -> anyhow::Result<()> {
                     last_seen_at: n.last_seen_at.clone(),
                     wg_public_key: String::new(),
                     tunnel_ip: String::new(),
+                    tunnel_ipv6: String::new(),
                 })
                 .collect();
 
@@ -402,13 +407,23 @@ async fn main() -> anyhow::Result<()> {
                 &state.node_repo,
                 &node.id,
                 &tunnel_ip_range,
+                &tunnel_ipv6_range,
             ).await {
-                Ok((priv_key, pub_key, tunnel_ip)) => {
-                    tracing::info!(
-                        "Cluster tunnel initialized: key={}, ip={}",
-                        pub_key,
-                        tunnel_ip
-                    );
+                Ok((priv_key, pub_key, tunnel_ip, tunnel_ipv6)) => {
+                    if !tunnel_ipv6.is_empty() {
+                        tracing::info!(
+                            "Cluster tunnel initialized: key={}, ip={}, ipv6={}",
+                            pub_key,
+                            tunnel_ip,
+                            tunnel_ipv6
+                        );
+                    } else {
+                        tracing::info!(
+                            "Cluster tunnel initialized: key={}, ip={}",
+                            pub_key,
+                            tunnel_ip
+                        );
+                    }
 
                     // Apply initial wg-cluster config
                     if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(
@@ -601,6 +616,7 @@ async fn main() -> anyhow::Result<()> {
                         last_seen_at: n.last_seen_at.clone(),
                         wg_public_key: String::new(),
                         tunnel_ip: String::new(),
+                        tunnel_ipv6: String::new(),
                     })
                     .collect();
 
