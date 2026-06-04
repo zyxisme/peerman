@@ -262,6 +262,7 @@ fn json_response(
 async fn main() -> anyhow::Result<()> {
     let cli = config::Cli::parse();
     let mut cfg = config::Config::load(&cli.config)?;
+    cfg.validate()?;
 
     // Generate JWT secret if not configured
     if cfg.auth.jwt_secret.is_empty() {

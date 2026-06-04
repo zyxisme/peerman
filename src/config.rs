@@ -1,6 +1,8 @@
 use clap::Parser;
 use serde::Deserialize;
+use std::net::SocketAddr;
 use std::path::Path;
+use tracing_subscriber::EnvFilter;
 
 /// CLI — only the config file path.
 #[derive(Parser, Debug)]
@@ -172,5 +174,47 @@ impl Config {
         let cfg: Config = toml::from_str(&content)
             .map_err(|e| anyhow::anyhow!("Failed to parse config file {:?}: {}", path, e))?;
         Ok(cfg)
+    }
+
+    pub fn validate(&self) -> anyhow::Result<()> {
+        // Validate listen address is parseable
+        self.server
+            .listen_addr
+            .parse::<SocketAddr>()
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Invalid server.listen_addr '{}': {}",
+                    self.server.listen_addr,
+                    e
+                )
+            })?;
+
+        // Validate log level
+        EnvFilter::try_new(&self.logging.level).map_err(|e| {
+            anyhow::anyhow!(
+                "Invalid logging.level '{}': {}",
+                self.logging.level,
+                e
+            )
+        })?;
+
+        // Validate cluster config consistency
+        if !self.cluster.node_name.is_empty() && self.cluster.cluster_key.is_empty() {
+            tracing::warn!(
+                "Cluster mode enabled (node_name set) but cluster_key is empty — inter-node auth disabled"
+            );
+        }
+
+        // Validate tunnel IP range format if set
+        if !self.cluster.tunnel_ip_range.is_empty() {
+            if !self.cluster.tunnel_ip_range.contains('/') {
+                anyhow::bail!(
+                    "Invalid cluster.tunnel_ip_range '{}': must be CIDR format (e.g., 10.255.0.0/24)",
+                    self.cluster.tunnel_ip_range
+                );
+            }
+        }
+
+        Ok(())
     }
 }
