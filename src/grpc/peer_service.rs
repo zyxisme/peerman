@@ -143,7 +143,9 @@ impl PeerServiceImpl {
 }
 
 pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
-    p.into()
+    let mut proto: Peer = p.into();
+    proto.wg_private_key = String::new();
+    proto
 }
 
 #[tonic::async_trait]
@@ -527,4 +529,49 @@ fn validate_peer_fields(
         validation::validate_ipv6(ipv6_remote)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_peer() -> crate::models::peer::Peer {
+        crate::models::peer::Peer {
+            id: "test".into(),
+            name: "test".into(),
+            description: None,
+            asn: 4242420001,
+            local_asn: 4242420000,
+            wg_private_key: Some("super-secret-key".into()),
+            wg_public_key: Some("pubkey".into()),
+            wg_remote_address: "10.0.0.1".into(),
+            wg_remote_port: 42420,
+            wg_listen_port: 42420,
+            wg_interface_name: "wg0".into(),
+            ipv4_tunnel_local: Some("172.20.1.1".into()),
+            ipv4_tunnel_remote: Some("172.20.1.2".into()),
+            ipv6_tunnel_local: None,
+            ipv6_tunnel_remote: None,
+            multiprotocol: false,
+            extended_nexthop: false,
+            sessions: 0,
+            passive: false,
+            import_max_prefix: None,
+            export_max_prefix: None,
+            enabled: true,
+            created_at: "2025-01-01T00:00:00Z".into(),
+            updated_at: "2025-01-01T00:00:00Z".into(),
+            origin_node_id: None,
+        }
+    }
+
+    #[test]
+    fn test_peer_to_proto_redacts_private_key() {
+        let peer = make_test_peer();
+        let proto = peer_to_proto(&peer);
+        assert!(
+            proto.wg_private_key.is_empty(),
+            "Private key should be redacted"
+        );
+    }
 }
