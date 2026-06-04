@@ -5,71 +5,31 @@ mod config;
 mod db;
 mod error;
 mod grpc;
+mod http;
 mod models;
 mod services;
 mod static_files;
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, LazyLock, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use axum::http::header::SET_COOKIE;
 use axum::routing::{get, post};
-use axum::Json;
 use axum::Router;
 use clap::Parser;
-use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
 /// Global config (set once at startup, read by HTTP handlers).
-static APP_CONFIG: OnceLock<Arc<config::Config>> = OnceLock::new();
-fn app_config() -> Arc<config::Config> {
+pub(crate) static APP_CONFIG: OnceLock<Arc<config::Config>> = OnceLock::new();
+pub(crate) fn app_config() -> Arc<config::Config> {
     APP_CONFIG
         .get()
         .expect("APP_CONFIG not initialized")
         .clone()
 }
-
-// ---------------------------------------------------------------------------
-// Login rate limiting
-// ---------------------------------------------------------------------------
-
-struct LoginRateLimiter {
-    attempts: Mutex<HashMap<String, (u32, std::time::Instant)>>,
-}
-
-impl LoginRateLimiter {
-    fn new() -> Self {
-        Self {
-            attempts: Mutex::new(HashMap::new()),
-        }
-    }
-
-    fn check(&self, ip: &str) -> Result<(), u64> {
-        let mut attempts = self.attempts.lock().unwrap();
-        let now = std::time::Instant::now();
-        let entry = attempts.entry(ip.to_string()).or_insert((0, now));
-
-        if now.duration_since(entry.1).as_secs() >= 60 {
-            *entry = (0, now);
-        }
-
-        entry.0 += 1;
-        if entry.0 > 5 {
-            let elapsed = now.duration_since(entry.1).as_secs();
-            let retry_after = 60_u64.saturating_sub(elapsed);
-            Err(retry_after)
-        } else {
-            Ok(())
-        }
-    }
-}
-
-static LOGIN_RATE_LIMITER: LazyLock<LoginRateLimiter> = LazyLock::new(LoginRateLimiter::new);
 
 use crate::grpc::bird_service::BirdServiceImpl;
 use crate::grpc::cluster_service::ClusterServiceImpl;
@@ -83,177 +43,6 @@ use crate::grpc::generated::settings_service_server::SettingsServiceServer;
 use crate::grpc::management_service::ManagementServiceImpl;
 use crate::grpc::peer_service::PeerServiceImpl;
 use crate::grpc::settings_service::SettingsServiceImpl;
-
-// ---------------------------------------------------------------------------
-// Auth HTTP handlers (not gRPC)
-// ---------------------------------------------------------------------------
-
-#[derive(Deserialize)]
-struct LoginRequest {
-    username: String,
-    password: String,
-}
-
-#[derive(Serialize)]
-struct LoginResponse {
-    success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    user: Option<UserInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-#[derive(Serialize)]
-struct UserInfo {
-    username: String,
-}
-
-#[derive(Serialize)]
-struct MeResponse {
-    authenticated: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    username: Option<String>,
-}
-
-async fn handle_health() -> &'static str {
-    "ok"
-}
-
-async fn handle_login(
-    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
-    Json(req): Json<LoginRequest>,
-) -> axum::response::Response {
-    let ip = addr.ip().to_string();
-
-    if let Err(retry_after) = LOGIN_RATE_LIMITER.check(&ip) {
-        return json_response(
-            axum::http::StatusCode::TOO_MANY_REQUESTS,
-            &LoginResponse {
-                success: false,
-                user: None,
-                error: Some(format!("Too many attempts. Try again in {retry_after}s")),
-            },
-            None,
-        );
-    }
-
-    let cfg = app_config();
-    if req.username != cfg.auth.username {
-        return json_response(
-            axum::http::StatusCode::UNAUTHORIZED,
-            &LoginResponse {
-                success: false,
-                user: None,
-                error: Some("Invalid credentials".into()),
-            },
-            None,
-        );
-    }
-
-    let password_ok = if cfg.auth.password_hash.is_empty() {
-        tracing::warn!("Using plaintext password comparison — set password_hash in config");
-        req.password == cfg.auth.password
-    } else {
-        auth::password::verify_password(&req.password, &cfg.auth.password_hash).unwrap_or(false)
-    };
-
-    if !password_ok {
-        return json_response(
-            axum::http::StatusCode::UNAUTHORIZED,
-            &LoginResponse {
-                success: false,
-                user: None,
-                error: Some("Invalid credentials".into()),
-            },
-            None,
-        );
-    }
-
-    let secret = if cfg.auth.jwt_secret.is_empty() {
-        ""
-    } else {
-        &cfg.auth.jwt_secret
-    };
-
-    match auth::create_token(&req.username, secret) {
-        Ok(token) => {
-            let cookie = format!(
-                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600; Secure",
-                token
-            );
-            json_response(
-                axum::http::StatusCode::OK,
-                &LoginResponse {
-                    success: true,
-                    user: Some(UserInfo {
-                        username: req.username,
-                    }),
-                    error: None,
-                },
-                Some(&cookie),
-            )
-        }
-        Err(e) => json_response(
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            &LoginResponse {
-                success: false,
-                user: None,
-                error: Some(format!("Token creation failed: {e}")),
-            },
-            None,
-        ),
-    }
-}
-
-async fn handle_logout() -> axum::response::Response {
-    json_response(
-        axum::http::StatusCode::OK,
-        &serde_json::json!({"success": true}),
-        Some("jwt=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure"),
-    )
-}
-
-async fn handle_me(headers: axum::http::HeaderMap) -> Json<MeResponse> {
-    let cfg = app_config();
-    let cookie_header = headers
-        .get("cookie")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    match auth::parse_cookie(cookie_header, "jwt") {
-        Some(token) => match auth::verify_token(token, &cfg.auth.jwt_secret) {
-            Ok(claims) => Json(MeResponse {
-                authenticated: true,
-                username: Some(claims.sub),
-            }),
-            Err(_) => Json(MeResponse {
-                authenticated: false,
-                username: None,
-            }),
-        },
-        None => Json(MeResponse {
-            authenticated: false,
-            username: None,
-        }),
-    }
-}
-
-fn json_response(
-    status: axum::http::StatusCode,
-    body: &impl Serialize,
-    cookie: Option<&str>,
-) -> axum::response::Response {
-    let json = serde_json::to_string(body).unwrap_or_default();
-    let mut builder = axum::response::Response::builder()
-        .status(status)
-        .header("content-type", "application/json");
-    if let Some(c) = cookie {
-        builder = builder.header(SET_COOKIE, c);
-    }
-    builder
-        .body(axum::body::Body::from(json))
-        .expect("body is infallible")
-}
 
 // ---------------------------------------------------------------------------
 
@@ -368,10 +157,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Build axum router: auth endpoints + gRPC + static files
     let app = Router::new()
-        .route("/health", get(handle_health))
-        .route("/api/auth/login", post(handle_login))
-        .route("/api/auth/logout", post(handle_logout))
-        .route("/api/auth/me", get(handle_me))
+        .route("/health", get(crate::http::handlers::handle_health))
+        .route("/api/auth/login", post(crate::http::handlers::handle_login))
+        .route("/api/auth/logout", post(crate::http::handlers::handle_logout))
+        .route("/api/auth/me", get(crate::http::handlers::handle_me))
         .nest("/api", grpc_router)
         .fallback(static_files::serve_static)
         .layer(TraceLayer::new_for_http());
