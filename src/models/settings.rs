@@ -24,6 +24,9 @@ pub struct Settings {
     pub bird_export_filter: String,
     pub bird_import_filter: String,
     pub enable_community_filters: bool,
+    pub enable_bfd: bool,
+    pub bfd_interval_ms: i64,
+    pub bfd_multiplier: i64,
 }
 
 #[derive(Clone)]
@@ -43,7 +46,7 @@ impl SettingsRepository {
              wg_mtu, wg_fwmark, wg_post_up, wg_post_down,
              roa_mode, roa_static_v4_url, roa_static_v6_url, roa_rtr_address, roa_rtr_port,
              bird_import_limit, bird_export_filter, bird_import_filter,
-             enable_community_filters
+             enable_community_filters, enable_bfd, bfd_interval_ms, bfd_multiplier
              FROM settings WHERE id = 1",
         )
         .fetch_one(&self.pool)
@@ -62,7 +65,8 @@ impl SettingsRepository {
              roa_mode = ?, roa_static_v4_url = ?, roa_static_v6_url = ?,
              roa_rtr_address = ?, roa_rtr_port = ?,
              bird_import_limit = ?, bird_export_filter = ?, bird_import_filter = ?,
-             enable_community_filters = ?
+             enable_community_filters = ?, enable_bfd = ?, bfd_interval_ms = ?,
+             bfd_multiplier = ?
              WHERE id = 1",
         )
         .bind(settings.local_asn)
@@ -85,6 +89,9 @@ impl SettingsRepository {
         .bind(&settings.bird_export_filter)
         .bind(&settings.bird_import_filter)
         .bind(settings.enable_community_filters)
+        .bind(settings.enable_bfd)
+        .bind(settings.bfd_interval_ms)
+        .bind(settings.bfd_multiplier)
         .execute(&self.pool)
         .await?;
 

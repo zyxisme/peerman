@@ -26,6 +26,9 @@ const DEFAULT_FORM = {
   birdExportFilter: '',
   birdImportFilter: '',
   enableCommunityFilters: false,
+  enableBfd: false,
+  bfdIntervalMs: '300',
+  bfdMultiplier: '3',
 };
 
 export default function SettingsPage() {
@@ -59,6 +62,9 @@ export default function SettingsPage() {
         birdExportFilter: settings.birdExportFilter,
         birdImportFilter: settings.birdImportFilter,
         enableCommunityFilters: settings.enableCommunityFilters,
+        enableBfd: settings.enableBfd,
+        bfdIntervalMs: String(settings.bfdIntervalMs || '300'),
+        bfdMultiplier: String(settings.bfdMultiplier || '3'),
       });
     }
   }, [settings]);
@@ -90,6 +96,9 @@ export default function SettingsPage() {
       birdExportFilter: form.birdExportFilter,
       birdImportFilter: form.birdImportFilter,
       enableCommunityFilters: form.enableCommunityFilters,
+      enableBfd: form.enableBfd,
+      bfdIntervalMs: Number(form.bfdIntervalMs || '300'),
+      bfdMultiplier: Number(form.bfdMultiplier || '3'),
     });
 
     try {
@@ -199,6 +208,24 @@ export default function SettingsPage() {
             <Textarea label="Import Filter Body" value={f('birdImportFilter')} onChange={(v) => setForm((p) => ({ ...p, birdImportFilter: v }))} placeholder="if is_valid_network() && !is_self_net() then { ... }" code />
             <Textarea label="Export Filter Body" value={f('birdExportFilter')} onChange={(v) => setForm((p) => ({ ...p, birdExportFilter: v }))} placeholder="if is_valid_network() && source ~ [RTS_STATIC, RTS_BGP] then accept; else reject;" code />
           </div>
+        </div>
+
+        {/* BFD */}
+        <div className="card space-y-md">
+          <h2 className="text-body-sm-strong text-ink">BFD (Bidirectional Forwarding Detection)</h2>
+          <p className="text-body-sm text-mute">Enable fast failure detection for BGP sessions over WireGuard tunnels.</p>
+          <Toggle
+            label="Enable BFD"
+            description="Add a protocol bfd block monitoring all WireGuard interfaces for rapid link failure detection."
+            checked={form.enableBfd}
+            onChange={(v) => setForm((p) => ({ ...p, enableBfd: v }))}
+          />
+          {form.enableBfd && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-sm">
+              <Input label="BFD Interval (ms)" value={f('bfdIntervalMs')} onChange={(v) => setForm((p) => ({ ...p, bfdIntervalMs: v }))} type="number" placeholder="300" />
+              <Input label="BFD Multiplier" value={f('bfdMultiplier')} onChange={(v) => setForm((p) => ({ ...p, bfdMultiplier: v }))} type="number" placeholder="3" />
+            </div>
+          )}
         </div>
 
         <button type="submit" disabled={saving} className="btn-primary">

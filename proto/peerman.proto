@@ -92,6 +92,10 @@ message Settings {
   string bird_import_filter = 19;
   // Community filters
   bool enable_community_filters = 20;
+  // BFD
+  bool enable_bfd = 21;
+  uint32 bfd_interval_ms = 22;
+  uint32 bfd_multiplier = 23;
 }
 
 // ── Peer Service Requests / Responses ──

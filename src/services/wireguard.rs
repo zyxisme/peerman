@@ -225,6 +225,9 @@ mod tests {
             bird_export_filter: String::new(),
             bird_import_filter: String::new(),
             enable_community_filters: false,
+            enable_bfd: false,
+            bfd_interval_ms: 300,
+            bfd_multiplier: 3,
         }
     }
 
