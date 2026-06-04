@@ -22,30 +22,46 @@ pub fn generate_keypair() -> (String, String) {
 }
 
 /// Apply WG config using wg syncconf — differential update without down/up.
-pub fn apply_syncconf(interface: &str, config_path: &str) -> Result<(), AppError> {
-    let status = std::process::Command::new("wg")
-        .args(["syncconf", interface, config_path])
-        .output()
-        .map_err(|e| AppError::Internal(format!("wg syncconf failed: {e}")))?;
+pub async fn apply_syncconf(interface: &str, config_path: &str) -> Result<(), AppError> {
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::process::Command::new("wg")
+            .args(["syncconf", interface, config_path])
+            .output(),
+    )
+    .await
+    .map_err(|_| AppError::Internal("wg syncconf timed out after 30s".into()))?
+    .map_err(|e| AppError::Internal(format!("wg syncconf failed: {e}")))?;
 
-    if !status.status.success() {
-        let stderr = String::from_utf8_lossy(&status.stderr);
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(AppError::Internal(format!("wg syncconf error: {stderr}")));
     }
     Ok(())
 }
 
 /// Restart a WireGuard interface (down + up via wg-quick).
-pub fn restart_interface(iface: &str) -> Result<(), AppError> {
+pub async fn restart_interface(iface: &str) -> Result<(), AppError> {
     crate::services::validation::validate_wg_interface_name(iface)?;
-    let _ = std::process::Command::new("wg-quick")
-        .args(["down", iface])
-        .output(); // Ignore error on down (interface may not be up)
 
-    let output = std::process::Command::new("wg-quick")
-        .args(["up", iface])
-        .output()
-        .map_err(|e| AppError::Internal(format!("wg-quick up failed: {e}")))?;
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::process::Command::new("wg-quick")
+            .args(["down", iface])
+            .output(),
+    )
+    .await;
+    // Ignore error on down (interface may not be up)
+
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::process::Command::new("wg-quick")
+            .args(["up", iface])
+            .output(),
+    )
+    .await
+    .map_err(|_| AppError::Internal("wg-quick up timed out after 30s".into()))?
+    .map_err(|e| AppError::Internal(format!("wg-quick up failed: {e}")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -57,13 +73,18 @@ pub fn restart_interface(iface: &str) -> Result<(), AppError> {
 }
 
 /// Parse `wg show <interface> dump` output into structured status.
-pub fn get_wg_status(
+pub async fn get_wg_status(
     interface: &str,
 ) -> Result<Vec<crate::grpc::generated::WgInterface>, AppError> {
-    let output = std::process::Command::new("wg")
-        .args(["show", interface, "dump"])
-        .output()
-        .map_err(|e| AppError::Internal(format!("wg show failed: {e}")))?;
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        tokio::process::Command::new("wg")
+            .args(["show", interface, "dump"])
+            .output(),
+    )
+    .await
+    .map_err(|_| AppError::Internal("wg show timed out after 30s".into()))?
+    .map_err(|e| AppError::Internal(format!("wg show failed: {e}")))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut interfaces: Vec<crate::grpc::generated::WgInterface> = Vec::new();

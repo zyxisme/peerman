@@ -85,6 +85,7 @@ impl PeerServiceImpl {
             std::fs::rename(tmp_path, conf_path)
                 .map_err(|e| Status::internal(format!("Cannot rename wg0.conf: {e}")))?;
             crate::services::wireguard::apply_syncconf("wg0", conf_path)
+                .await
                 .map_err(|e| Status::internal(e.to_string()))?;
         }
 
@@ -433,6 +434,7 @@ impl PeerService for PeerServiceImpl {
             &req.interface_name
         };
         crate::services::wireguard::restart_interface(iface)
+            .await
             .map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(RestartWireGuardResponse {}))
     }

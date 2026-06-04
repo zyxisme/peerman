@@ -24,6 +24,7 @@ impl ManagementService for ManagementServiceImpl {
         };
 
         let interfaces = crate::services::wireguard::get_wg_status(iface)
+            .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(WgStatusResponse { interfaces }))
