@@ -8,19 +8,15 @@ use super::generated::{
     RestartWireGuardRequest, RestartWireGuardResponse, TogglePeerRequest, UpdatePeerRequest,
 };
 
+use crate::app_state::PeerState;
 use crate::models::community::CommunityRuleRepository;
-use crate::models::node::NodeRepository;
-use crate::models::peer::PeerRepository;
 use crate::models::probe::ProbeResultRepository;
-use crate::models::settings::SettingsRepository;
 use crate::services;
 use crate::services::community_mapper::CommunityMapper;
 
 pub struct PeerServiceImpl {
-    pub peer_repo: PeerRepository,
-    pub settings_repo: SettingsRepository,
+    pub state: PeerState,
     pub jwt_secret: std::sync::Arc<String>,
-    pub node_repo: NodeRepository,
     pub cluster_key: std::sync::Arc<String>,
     pub listen_addr: String,
     pub config_dirty: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -30,17 +26,17 @@ pub struct PeerServiceImpl {
 /// `PeerServiceImpl::auto_apply_wg_bird` so it can be called from the
 /// background debounce task without holding a reference to the service.
 pub async fn apply_wg_bird(
-    peer_repo: &PeerRepository,
-    settings_repo: &SettingsRepository,
-    node_repo: &NodeRepository,
+    state: &PeerState,
     listen_addr: &str,
     pool: &sqlx::SqlitePool,
 ) -> Result<(), Status> {
-    let peers = peer_repo
+    let peers = state
+        .peer_repo
         .list_all()
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
-    let settings = settings_repo
+    let settings = state
+        .settings_repo
         .load()
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
@@ -100,7 +96,7 @@ pub async fn apply_wg_bird(
         crate::services::bird::generate_full_config(&peers, &settings, "", &peer_communities);
 
     // Append cluster iBGP blocks if any nodes exist (cluster mode)
-    if let Ok(nodes) = node_repo.list_all().await {
+    if let Ok(nodes) = state.node_repo.list_all().await {
         let my_tunnel_ip = nodes
             .iter()
             .find(|n| n.listen_addr == listen_addr)
@@ -165,6 +161,7 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<ListPeersResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let peers = self
+            .state
             .peer_repo
             .list_all()
             .await
@@ -179,6 +176,7 @@ impl PeerService for PeerServiceImpl {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
+            .state
             .peer_repo
             .find_by_id(&req.id)
             .await
@@ -198,6 +196,7 @@ impl PeerService for PeerServiceImpl {
         // If targeting a remote node, proxy the write
         if !origin.is_empty() && origin != self.listen_addr {
             let target_node = self
+                .state
                 .node_repo
                 .find_by_id(&origin)
                 .await
@@ -223,6 +222,7 @@ impl PeerService for PeerServiceImpl {
 
         let proto = create_request_to_proto(&req);
         let peer = self
+            .state
             .peer_repo
             .create_full(&proto.into())
             .await
@@ -245,6 +245,7 @@ impl PeerService for PeerServiceImpl {
         // If targeting a remote node, proxy the write
         if !origin.is_empty() && origin != self.listen_addr {
             let target_node = self
+                .state
                 .node_repo
                 .find_by_id(&origin)
                 .await
@@ -269,6 +270,7 @@ impl PeerService for PeerServiceImpl {
         .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let mut peer = self
+            .state
             .peer_repo
             .find_by_id(&req.id)
             .await
@@ -277,6 +279,7 @@ impl PeerService for PeerServiceImpl {
         peer.apply_proto(&update_request_to_proto(&req));
 
         let peer = self
+            .state
             .peer_repo
             .update(&peer)
             .await
@@ -294,7 +297,8 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<DeletePeerResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
-        self.peer_repo
+        self.state
+            .peer_repo
             .delete(&req.id)
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
@@ -312,6 +316,7 @@ impl PeerService for PeerServiceImpl {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
+            .state
             .peer_repo
             .toggle_enabled(&req.id)
             .await
@@ -341,11 +346,13 @@ impl PeerService for PeerServiceImpl {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
+            .state
             .peer_repo
             .find_by_id(&req.id)
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
         let settings = self
+            .state
             .settings_repo
             .load()
             .await
@@ -362,11 +369,13 @@ impl PeerService for PeerServiceImpl {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
+            .state
             .peer_repo
             .find_by_id(&req.id)
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
         let settings = self
+            .state
             .settings_repo
             .load()
             .await
@@ -382,11 +391,13 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<ConfigResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let peers = self
+            .state
             .peer_repo
             .list_all()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
         let settings = self
+            .state
             .settings_repo
             .load()
             .await
@@ -408,11 +419,13 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<ConfigResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let peers = self
+            .state
             .peer_repo
             .list_all()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
         let settings = self
+            .state
             .settings_repo
             .load()
             .await

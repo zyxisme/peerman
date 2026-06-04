@@ -319,10 +319,8 @@ async fn main() -> anyhow::Result<()> {
     // Build gRPC services
     let config_dirty = Arc::new(AtomicBool::new(false));
     let peer_svc = PeerServiceImpl {
-        peer_repo: state.peer_repo.clone(),
-        settings_repo: state.settings_repo.clone(),
+        state: state.peer_state(),
         jwt_secret: jwt_secret.clone(),
-        node_repo: state.node_repo.clone(),
         cluster_key: Arc::new(cluster_key.clone()),
         listen_addr: listen_addr.clone(),
         config_dirty: config_dirty.clone(),
@@ -879,9 +877,7 @@ async fn main() -> anyhow::Result<()> {
     {
         let apply_dirty = config_dirty.clone();
         let apply_pool = pool.clone();
-        let apply_settings_repo = state.settings_repo.clone();
-        let apply_peer_repo = state.peer_repo.clone();
-        let apply_node_repo = state.node_repo.clone();
+        let apply_peer_state = state.peer_state();
         let apply_listen_addr = listen_addr.clone();
         let apply_token = shutdown.clone();
 
@@ -899,9 +895,7 @@ async fn main() -> anyhow::Result<()> {
                 if apply_dirty.swap(false, std::sync::atomic::Ordering::Relaxed) {
                     tracing::info!("Config dirty flag set, applying WG+BIRD configs...");
                     if let Err(e) = crate::grpc::peer_service::apply_wg_bird(
-                        &apply_peer_repo,
-                        &apply_settings_repo,
-                        &apply_node_repo,
+                        &apply_peer_state,
                         &apply_listen_addr,
                         &apply_pool,
                     )
