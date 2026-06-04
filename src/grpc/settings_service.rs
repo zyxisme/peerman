@@ -152,6 +152,9 @@ impl SettingsService for SettingsServiceImpl {
 
         apply_settings(&mut settings, &proto_settings);
 
+        crate::services::validation::validate_settings(&settings)
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+
         let settings = self
             .settings_repo
             .save(&settings)
