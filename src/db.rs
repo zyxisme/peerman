@@ -19,6 +19,16 @@ pub async fn create_pool(db_path: &str) -> Result<SqlitePool, sqlx::Error> {
         .execute(&pool)
         .await?;
 
+    // Enable foreign key enforcement
+    sqlx::query("PRAGMA foreign_keys = ON")
+        .execute(&pool)
+        .await?;
+
+    // Wait up to 5s when the database is locked before returning SQLITE_BUSY
+    sqlx::query("PRAGMA busy_timeout = 5000")
+        .execute(&pool)
+        .await?;
+
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     Ok(pool)
