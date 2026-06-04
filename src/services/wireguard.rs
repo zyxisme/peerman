@@ -37,6 +37,7 @@ pub fn apply_syncconf(interface: &str, config_path: &str) -> Result<(), AppError
 
 /// Restart a WireGuard interface (down + up via wg-quick).
 pub fn restart_interface(iface: &str) -> Result<(), AppError> {
+    crate::services::validation::validate_wg_interface_name(iface)?;
     let _ = std::process::Command::new("wg-quick")
         .args(["down", iface])
         .output(); // Ignore error on down (interface may not be up)
@@ -190,14 +191,25 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
         post_up.push_str(&format!("; ip addr add {ipv6}/128 dev %i"));
     }
     if !settings.wg_post_up.is_empty() {
-        post_up.push_str(&format!("; {}", settings.wg_post_up));
+        if let Err(e) = crate::services::input_sanitizer::validate_post_script(&settings.wg_post_up)
+        {
+            tracing::warn!("Skipping invalid wg_post_up: {e}");
+        } else {
+            post_up.push_str(&format!("; {}", settings.wg_post_up));
+        }
     }
     config.push_str(&format!("{post_up}\n"));
 
     // PostDown — mirror
     let mut post_down = String::from("PostDown = ip link set %i down");
     if !settings.wg_post_down.is_empty() {
-        post_down.push_str(&format!("; {}", settings.wg_post_down));
+        if let Err(e) =
+            crate::services::input_sanitizer::validate_post_script(&settings.wg_post_down)
+        {
+            tracing::warn!("Skipping invalid wg_post_down: {e}");
+        } else {
+            post_down.push_str(&format!("; {}", settings.wg_post_down));
+        }
     }
     config.push_str(&format!("{post_down}\n"));
 
