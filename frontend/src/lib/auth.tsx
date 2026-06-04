@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { fetchWithAuth } from './http';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -31,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/auth/me')
+    fetchWithAuth('/api/auth/me')
       .then((r) => r.json())
       .then((data: { authenticated: boolean; username?: string }) => {
         if (cancelled) return;
