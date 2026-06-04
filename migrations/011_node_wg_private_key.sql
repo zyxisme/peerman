@@ -1,0 +1,1 @@
+ALTER TABLE nodes ADD COLUMN wg_private_key TEXT NOT NULL DEFAULT '';
