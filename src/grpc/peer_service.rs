@@ -24,9 +24,6 @@ pub struct PeerServiceImpl {
     pub cluster_key: std::sync::Arc<String>,
     pub listen_addr: String,
     pub config_dirty: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    #[allow(dead_code)]
-    // Pre-defined for cluster API; used when ClusterAggregator instance methods are needed
-    pub aggregator: crate::cluster::aggregator::ClusterAggregator,
 }
 
 /// Apply WireGuard and BIRD configs from current DB state. Extracted from
