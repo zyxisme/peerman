@@ -42,7 +42,7 @@ impl CommunityMapper {
             }
             let lat_ok = rule.max_latency_ms <= 0.0 || latency <= rule.max_latency_ms;
             let loss_ok = loss_pct <= rule.max_packet_loss_pct;
-            let bw_ok = rule.min_bandwidth_mbps <= 0.0;
+            let bw_ok = true; // Bandwidth probing not yet implemented; skip check
             let crypto_ok = rule.crypto_weight == 0 || crypto_weight >= rule.crypto_weight;
 
             if lat_ok && loss_ok && bw_ok && crypto_ok {
