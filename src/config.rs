@@ -75,6 +75,8 @@ pub struct AuthConfig {
     #[serde(default)]
     pub password: String,
     #[serde(default)]
+    pub password_hash: String,
+    #[serde(default)]
     pub jwt_secret: String,
 }
 
@@ -153,6 +155,7 @@ impl Default for AuthConfig {
         Self {
             username: default_username(),
             password: String::new(),
+            password_hash: String::new(),
             jwt_secret: String::new(),
         }
     }
