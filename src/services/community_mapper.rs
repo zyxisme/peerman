@@ -16,7 +16,16 @@ impl CommunityMapper {
         rule_repo: &CommunityRuleRepository,
     ) -> Result<(Vec<String>, Vec<String>), crate::error::AppError> {
         let rules = rule_repo.list_enabled().await?;
+        Self::compute_communities_with_rules(peer, local_node_id, probe_repo, &rules).await
+    }
 
+    /// Compute communities with pre-fetched rules (avoids N+1 queries).
+    pub async fn compute_communities_with_rules(
+        peer: &Peer,
+        local_node_id: &str,
+        probe_repo: &ProbeResultRepository,
+        rules: &[crate::models::community::CommunityRule],
+    ) -> Result<(Vec<String>, Vec<String>), crate::error::AppError> {
         let origin_node_id = peer.origin_node_id.as_deref().unwrap_or(local_node_id);
 
         let (latency, loss_pct) = if origin_node_id == local_node_id {
@@ -36,7 +45,7 @@ impl CommunityMapper {
         let mut v4 = Vec::new();
         let mut v6 = Vec::new();
 
-        for rule in &rules {
+        for rule in rules {
             if !rule.enabled {
                 continue;
             }
