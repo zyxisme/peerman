@@ -116,21 +116,22 @@ pub struct PeerRepository {
     pool: SqlitePool,
 }
 
+const PEER_COLUMNS: &str = "id, name, description, asn, local_asn, \
+    wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name, \
+    ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote, \
+    multiprotocol, extended_nexthop, sessions, passive, \
+    import_max_prefix, export_max_prefix, \
+    enabled, created_at, updated_at, origin_node_id";
+
 impl PeerRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 
     pub async fn list_all(&self) -> Result<Vec<Peer>, AppError> {
-        let peers = sqlx::query_as::<_, Peer>(
-            "SELECT id, name, description, asn, local_asn,
-             wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name,
-             ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
-             multiprotocol, extended_nexthop, sessions, passive,
-             import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at, origin_node_id
-             FROM peers ORDER BY name",
-        )
+        let peers = sqlx::query_as::<_, Peer>(&format!(
+            "SELECT {PEER_COLUMNS} FROM peers ORDER BY name"
+        ))
         .fetch_all(&self.pool)
         .await?;
 
@@ -138,15 +139,9 @@ impl PeerRepository {
     }
 
     pub async fn find_by_id(&self, id: &str) -> Result<Peer, AppError> {
-        let peer = sqlx::query_as::<_, Peer>(
-            "SELECT id, name, description, asn, local_asn,
-             wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name,
-             ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
-             multiprotocol, extended_nexthop, sessions, passive,
-             import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at, origin_node_id
-             FROM peers WHERE id = ?",
-        )
+        let peer = sqlx::query_as::<_, Peer>(&format!(
+            "SELECT {PEER_COLUMNS} FROM peers WHERE id = ?"
+        ))
         .bind(id)
         .fetch_optional(&self.pool)
         .await?
@@ -163,16 +158,11 @@ impl PeerRepository {
             .load()
             .await?;
 
-        let peer = sqlx::query_as::<_, Peer>(
+        let peer = sqlx::query_as::<_, Peer>(&format!(
             "INSERT INTO peers (id, name, asn, local_asn, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name, created_at, updated_at)
              VALUES (?, ?, 0, ?, '', 0, ?, '', ?, ?)
-             RETURNING id, name, description, asn, local_asn,
-             wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name,
-             ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
-             multiprotocol, extended_nexthop, sessions, passive,
-             import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at, origin_node_id",
-        )
+             RETURNING {PEER_COLUMNS}"
+        ))
         .bind(&id)
         .bind(name)
         .bind(settings.local_asn)
@@ -188,7 +178,7 @@ impl PeerRepository {
     pub async fn update(&self, peer: &Peer) -> Result<Peer, AppError> {
         let now = Utc::now().to_rfc3339();
 
-        let updated = sqlx::query_as::<_, Peer>(
+        let updated = sqlx::query_as::<_, Peer>(&format!(
             "UPDATE peers SET
              name = ?, description = ?, asn = ?, local_asn = ?,
              wg_private_key = ?, wg_public_key = ?, wg_remote_address = ?, wg_remote_port = ?, wg_listen_port = ?, wg_interface_name = ?,
@@ -197,13 +187,8 @@ impl PeerRepository {
              import_max_prefix = ?, export_max_prefix = ?, enabled = ?,
              origin_node_id = ?, updated_at = ?
              WHERE id = ?
-             RETURNING id, name, description, asn, local_asn,
-             wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name,
-             ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
-             multiprotocol, extended_nexthop, sessions, passive,
-             import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at, origin_node_id",
-        )
+             RETURNING {PEER_COLUMNS}"
+        ))
         .bind(&peer.name)
         .bind(&peer.description)
         .bind(peer.asn)
@@ -248,16 +233,11 @@ impl PeerRepository {
 
     pub async fn toggle_enabled(&self, id: &str) -> Result<Peer, AppError> {
         let now = Utc::now().to_rfc3339();
-        let updated = sqlx::query_as::<_, Peer>(
+        let updated = sqlx::query_as::<_, Peer>(&format!(
             "UPDATE peers SET enabled = NOT enabled, updated_at = ?1
              WHERE id = ?2
-             RETURNING id, name, description, asn, local_asn,
-             wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name,
-             ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
-             multiprotocol, extended_nexthop, sessions, passive,
-             import_max_prefix, export_max_prefix,
-             enabled, created_at, updated_at, origin_node_id",
-        )
+             RETURNING {PEER_COLUMNS}"
+        ))
         .bind(&now)
         .bind(id)
         .fetch_optional(&self.pool)
