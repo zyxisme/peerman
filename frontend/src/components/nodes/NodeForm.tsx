@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { create } from '@bufbuild/protobuf';
-import { NodeSchema, RegisterNodeRequestSchema, UpdateNodeRequestSchema } from '../../lib/peerman_pb';
+import { RegisterNodeRequestSchema, UpdateNodeRequestSchema } from '../../lib/peerman_pb';
 import { useNode, useNodes } from '../../hooks/useNodes';
 import { clusterClient } from '../../lib/grpc';
 

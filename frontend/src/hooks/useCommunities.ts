@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CommunityRule } from '../lib/peerman_pb';
-import { create } from '@bufbuild/protobuf';
-import { CommunityRuleSchema } from '../lib/peerman_pb';
 import { clusterClient } from '../lib/grpc';
 
 export function useCommunityRules() {
