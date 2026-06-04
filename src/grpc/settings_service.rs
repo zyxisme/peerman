@@ -32,6 +32,7 @@ fn settings_to_proto(s: &crate::models::settings::Settings) -> Settings {
         bird_import_limit: s.bird_import_limit as u32,
         bird_export_filter: s.bird_export_filter.clone(),
         bird_import_filter: s.bird_import_filter.clone(),
+        enable_community_filters: s.enable_community_filters,
     }
 }
 
@@ -93,6 +94,8 @@ fn apply_settings(s: &mut crate::models::settings::Settings, proto: &Settings) {
     if !proto.bird_import_filter.is_empty() {
         s.bird_import_filter = proto.bird_import_filter.clone();
     }
+    // Bool field: always apply (false is a valid value)
+    s.enable_community_filters = proto.enable_community_filters;
 }
 
 #[tonic::async_trait]

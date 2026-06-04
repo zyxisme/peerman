@@ -23,6 +23,7 @@ pub struct Settings {
     pub bird_import_limit: i64,
     pub bird_export_filter: String,
     pub bird_import_filter: String,
+    pub enable_community_filters: bool,
 }
 
 #[derive(Clone)]
@@ -41,7 +42,8 @@ impl SettingsRepository {
              wg_default_listen_port, dn42_ipv4_prefix, dn42_ipv6_prefix, wg_table,
              wg_mtu, wg_fwmark, wg_post_up, wg_post_down,
              roa_mode, roa_static_v4_url, roa_static_v6_url, roa_rtr_address, roa_rtr_port,
-             bird_import_limit, bird_export_filter, bird_import_filter
+             bird_import_limit, bird_export_filter, bird_import_filter,
+             enable_community_filters
              FROM settings WHERE id = 1",
         )
         .fetch_one(&self.pool)
@@ -59,7 +61,8 @@ impl SettingsRepository {
              wg_mtu = ?, wg_fwmark = ?, wg_post_up = ?, wg_post_down = ?,
              roa_mode = ?, roa_static_v4_url = ?, roa_static_v6_url = ?,
              roa_rtr_address = ?, roa_rtr_port = ?,
-             bird_import_limit = ?, bird_export_filter = ?, bird_import_filter = ?
+             bird_import_limit = ?, bird_export_filter = ?, bird_import_filter = ?,
+             enable_community_filters = ?
              WHERE id = 1",
         )
         .bind(settings.local_asn)
@@ -81,6 +84,7 @@ impl SettingsRepository {
         .bind(settings.bird_import_limit)
         .bind(&settings.bird_export_filter)
         .bind(&settings.bird_import_filter)
+        .bind(settings.enable_community_filters)
         .execute(&self.pool)
         .await?;
 

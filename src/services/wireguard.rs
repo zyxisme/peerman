@@ -224,6 +224,7 @@ mod tests {
             bird_import_limit: 9000,
             bird_export_filter: String::new(),
             bird_import_filter: String::new(),
+            enable_community_filters: false,
         }
     }
 

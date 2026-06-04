@@ -247,7 +247,9 @@ pub fn generate_full_config(
     config.push_str(&generate_filter_functions(settings));
 
     // Community filter functions (DN42 standard AS 64511)
-    config.push_str(&generate_community_functions());
+    if settings.enable_community_filters {
+        config.push_str(&generate_community_functions());
+    }
 
     // BGP template
     config.push_str(&format!("template bgp {tpl} {{\n", tpl = settings.bird_template_name));
@@ -450,6 +452,7 @@ mod tests {
             bird_import_limit: 9000,
             bird_export_filter: String::new(),
             bird_import_filter: String::new(),
+            enable_community_filters: false,
         }
     }
 
@@ -627,7 +630,9 @@ mod tests {
 
     #[test]
     fn test_generate_full_config_has_community_functions() {
-        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
+        let mut s = test_settings();
+        s.enable_community_filters = true;
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
         assert!(config.contains("function update_latency"));
         assert!(config.contains("function update_bandwidth"));
         assert!(config.contains("function update_crypto"));
@@ -638,7 +643,25 @@ mod tests {
 
     #[test]
     fn test_generate_full_config_community_functions_use_64511() {
-        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
+        let mut s = test_settings();
+        s.enable_community_filters = true;
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
         assert!(config.contains("bgp_community.add((64511,"));
+    }
+
+    #[test]
+    fn test_generate_full_config_no_community_functions_when_disabled() {
+        let mut s = test_settings();
+        s.enable_community_filters = false;
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
+        assert!(!config.contains("function update_latency"));
+    }
+
+    #[test]
+    fn test_generate_full_config_has_community_functions_when_enabled() {
+        let mut s = test_settings();
+        s.enable_community_filters = true;
+        let config = generate_full_config(&[], &s, "", &std::collections::HashMap::new());
+        assert!(config.contains("function update_latency"));
     }
 }
