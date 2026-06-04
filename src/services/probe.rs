@@ -10,14 +10,16 @@ use uuid::Uuid;
 fn rtt_regex() -> &'static Regex {
     static RTT_RE: OnceLock<Regex> = OnceLock::new();
     RTT_RE.get_or_init(|| {
-        Regex::new(r"rtt min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/[\d.]+ ms").expect("hardcoded regex")
+        Regex::new(r"rtt min/avg/max/mdev = ([\d.]+)/([\d.]+)/([\d.]+)/[\d.]+ ms")
+            .expect("hardcoded regex")
     })
 }
 
 fn stats_regex() -> &'static Regex {
     static STATS_RE: OnceLock<Regex> = OnceLock::new();
     STATS_RE.get_or_init(|| {
-        Regex::new(r"(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss").expect("hardcoded regex")
+        Regex::new(r"(\d+) packets transmitted, (\d+) received, ([\d.]+)% packet loss")
+            .expect("hardcoded regex")
     })
 }
 
@@ -163,6 +165,7 @@ mod tests {
 }
 
 /// Run probes from this node to all other nodes. Returns probe results.
+#[allow(dead_code)]
 pub async fn probe_all(
     local_node: &Node,
     all_nodes: &[Node],
@@ -177,7 +180,12 @@ pub async fn probe_all(
         match probe_between(local_node, node, repo).await {
             Ok(r) => results.push(r),
             Err(e) => {
-                tracing::warn!("Probe failed from {} to {}: {}", local_node.name, node.name, e);
+                tracing::warn!(
+                    "Probe failed from {} to {}: {}",
+                    local_node.name,
+                    node.name,
+                    e
+                );
             }
         }
     }

@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::grpc::generated::{CommunityRule, Peer, ProbeResult};
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct NodeCacheEntry {
     pub peers: Vec<Peer>,
     pub probe_results: Vec<ProbeResult>,
@@ -17,6 +18,7 @@ pub struct ClusterCache {
     by_node: std::sync::Arc<tokio::sync::RwLock<HashMap<String, NodeCacheEntry>>>,
 }
 
+#[allow(dead_code)]
 impl ClusterCache {
     pub fn new() -> Self {
         Self {
@@ -26,13 +28,15 @@ impl ClusterCache {
 
     pub async fn update_peers(&self, node_addr: &str, peers: Vec<Peer>) {
         let mut map = self.by_node.write().await;
-        let entry = map.entry(node_addr.to_string()).or_insert_with(|| NodeCacheEntry {
-            peers: vec![],
-            probe_results: vec![],
-            community_rules: vec![],
-            fetched_at: Instant::now(),
-            stale: false,
-        });
+        let entry = map
+            .entry(node_addr.to_string())
+            .or_insert_with(|| NodeCacheEntry {
+                peers: vec![],
+                probe_results: vec![],
+                community_rules: vec![],
+                fetched_at: Instant::now(),
+                stale: false,
+            });
         entry.peers = peers;
         entry.fetched_at = Instant::now();
         entry.stale = false;
@@ -40,13 +44,15 @@ impl ClusterCache {
 
     pub async fn update_probe_results(&self, node_addr: &str, results: Vec<ProbeResult>) {
         let mut map = self.by_node.write().await;
-        let entry = map.entry(node_addr.to_string()).or_insert_with(|| NodeCacheEntry {
-            peers: vec![],
-            probe_results: vec![],
-            community_rules: vec![],
-            fetched_at: Instant::now(),
-            stale: false,
-        });
+        let entry = map
+            .entry(node_addr.to_string())
+            .or_insert_with(|| NodeCacheEntry {
+                peers: vec![],
+                probe_results: vec![],
+                community_rules: vec![],
+                fetched_at: Instant::now(),
+                stale: false,
+            });
         entry.probe_results = results;
         entry.fetched_at = Instant::now();
         entry.stale = false;
@@ -54,13 +60,15 @@ impl ClusterCache {
 
     pub async fn update_community_rules(&self, node_addr: &str, rules: Vec<CommunityRule>) {
         let mut map = self.by_node.write().await;
-        let entry = map.entry(node_addr.to_string()).or_insert_with(|| NodeCacheEntry {
-            peers: vec![],
-            probe_results: vec![],
-            community_rules: vec![],
-            fetched_at: Instant::now(),
-            stale: false,
-        });
+        let entry = map
+            .entry(node_addr.to_string())
+            .or_insert_with(|| NodeCacheEntry {
+                peers: vec![],
+                probe_results: vec![],
+                community_rules: vec![],
+                fetched_at: Instant::now(),
+                stale: false,
+            });
         entry.community_rules = rules;
         entry.fetched_at = Instant::now();
         entry.stale = false;

@@ -50,10 +50,12 @@ pub fn generate_peer_block_with_communities(
         }
 
         if has_communities {
-            block.push_str(&crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
-                communities_v4,
-                communities_v6,
-            ));
+            block.push_str(
+                &crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                    communities_v4,
+                    communities_v6,
+                ),
+            );
         }
 
         block.push_str("}\n\n");
@@ -68,18 +70,16 @@ pub fn generate_peer_block_with_communities(
                     "protocol bgp peer_{name}_v4 from {tpl} {{\n",
                     tpl = settings.bird_template_name
                 ));
-                block.push_str(&format!(
-                    "    neighbor {v4} as {};\n",
-                    peer.asn
-                ));
+                block.push_str(&format!("    neighbor {v4} as {};\n", peer.asn));
                 if peer.passive {
                     block.push_str("    passive on;\n");
                 }
                 if !communities_v4.is_empty() {
-                    let v4_filter = crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
-                        communities_v4,
-                        &[],
-                    );
+                    let v4_filter =
+                        crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                            communities_v4,
+                            &[],
+                        );
                     block.push_str(&v4_filter);
                 }
                 block.push_str("}\n\n");
@@ -94,17 +94,17 @@ pub fn generate_peer_block_with_communities(
                 ));
                 block.push_str(&format!(
                     "    neighbor {v6}%{} as {};\n",
-                    peer.wg_interface_name,
-                    peer.asn
+                    peer.wg_interface_name, peer.asn
                 ));
                 if peer.passive {
                     block.push_str("    passive on;\n");
                 }
                 if !communities_v6.is_empty() {
-                    let v6_filter = crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
-                        &[],
-                        communities_v6,
-                    );
+                    let v6_filter =
+                        crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                            &[],
+                            communities_v6,
+                        );
                     block.push_str(&v6_filter);
                 }
                 block.push_str("}\n\n");
@@ -124,8 +124,16 @@ fn generate_bfd_section(settings: &Settings) -> String {
     if !settings.enable_bfd {
         return String::new();
     }
-    let interval = if settings.bfd_interval_ms > 0 { settings.bfd_interval_ms } else { 300 };
-    let multiplier = if settings.bfd_multiplier > 0 { settings.bfd_multiplier } else { 3 };
+    let interval = if settings.bfd_interval_ms > 0 {
+        settings.bfd_interval_ms
+    } else {
+        300
+    };
+    let multiplier = if settings.bfd_multiplier > 0 {
+        settings.bfd_multiplier
+    } else {
+        3
+    };
     format!(
         "protocol bfd {{\n\
          \x20   interface \"wg*\" {{\n\
@@ -232,7 +240,8 @@ function dn42_export_filter(int link_latency; int link_bandwidth; int link_crypt
         accept;\n\
     } else reject;\n\
 }\n\n\
-".to_string()
+"
+    .to_string()
 }
 
 /// Generate a complete BIRD2 configuration with template, filters, and all peer blocks.
@@ -271,7 +280,10 @@ pub fn generate_full_config(
     config.push_str(&generate_bfd_section(settings));
 
     // BGP template
-    config.push_str(&format!("template bgp {tpl} {{\n", tpl = settings.bird_template_name));
+    config.push_str(&format!(
+        "template bgp {tpl} {{\n",
+        tpl = settings.bird_template_name
+    ));
     if !template_body.is_empty() {
         config.push_str(template_body);
     } else {
@@ -332,7 +344,9 @@ pub fn generate_full_config(
             .get(&peer.id)
             .map(|(a, b)| (a.as_slice(), b.as_slice()))
             .unwrap_or((&[], &[]));
-        config.push_str(&generate_peer_block_with_communities(peer, settings, v4, v6));
+        config.push_str(&generate_peer_block_with_communities(
+            peer, settings, v4, v6,
+        ));
     }
 
     config
@@ -347,10 +361,12 @@ pub fn apply_config(config: &str) -> Result<(), crate::error::AppError> {
 
     // Atomic write: tmp then rename
     {
-        let mut f = std::fs::File::create(tmp_path)
-            .map_err(|e| crate::error::AppError::Internal(format!("Cannot create bird.conf.tmp: {e}")))?;
-        f.write_all(config.as_bytes())
-            .map_err(|e| crate::error::AppError::Internal(format!("Cannot write bird.conf.tmp: {e}")))?;
+        let mut f = std::fs::File::create(tmp_path).map_err(|e| {
+            crate::error::AppError::Internal(format!("Cannot create bird.conf.tmp: {e}"))
+        })?;
+        f.write_all(config.as_bytes()).map_err(|e| {
+            crate::error::AppError::Internal(format!("Cannot write bird.conf.tmp: {e}"))
+        })?;
     }
     std::fs::rename(tmp_path, config_path)
         .map_err(|e| crate::error::AppError::Internal(format!("Cannot rename bird.conf: {e}")))?;
@@ -365,15 +381,16 @@ pub fn apply_config(config: &str) -> Result<(), crate::error::AppError> {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     if !output.status.success() {
-        return Err(crate::error::AppError::Internal(
-            format!("birdc configure failed: {stdout} {stderr}")
-        ));
+        return Err(crate::error::AppError::Internal(format!(
+            "birdc configure failed: {stdout} {stderr}"
+        )));
     }
     Ok(())
 }
 
 /// Parse `birdc show protocols` output into structured status.
-pub fn get_bird_status() -> Result<Vec<crate::grpc::generated::BirdProtocol>, crate::error::AppError> {
+pub fn get_bird_status() -> Result<Vec<crate::grpc::generated::BirdProtocol>, crate::error::AppError>
+{
     let output = std::process::Command::new("birdc")
         .args(["show", "protocols"])
         .output()
@@ -432,20 +449,18 @@ pub fn generate_ibgp_blocks(
                 "    local as {};\n",
                 settings.confederation_local_asn
             ));
-            blocks.push_str(&format!(
-                "    confederation {};\n",
-                settings.local_asn
-            ));
+            blocks.push_str(&format!("    confederation {};\n", settings.local_asn));
             blocks.push_str("    confederation member yes;\n");
-            blocks.push_str(&format!(
-                "    neighbor {} external;\n",
-                node.tunnel_ip
-            ));
+            blocks.push_str(&format!("    neighbor {} external;\n", node.tunnel_ip));
             blocks.push_str("    direct;\n");
             blocks.push_str("    ipv4 {\n");
             blocks.push_str("        next hop self yes;\n");
-            blocks.push_str("        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
-            blocks.push_str("        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+            blocks.push_str(
+                "        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
+            );
+            blocks.push_str(
+                "        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
+            );
             blocks.push_str("    };\n");
             blocks.push_str("    ipv6 {\n");
             blocks.push_str("        next hop self yes;\n");
@@ -464,15 +479,9 @@ pub fn generate_ibgp_blocks(
                     "    local as {};\n",
                     settings.confederation_local_asn
                 ));
-                blocks.push_str(&format!(
-                    "    confederation {};\n",
-                    settings.local_asn
-                ));
+                blocks.push_str(&format!("    confederation {};\n", settings.local_asn));
                 blocks.push_str("    confederation member yes;\n");
-                blocks.push_str(&format!(
-                    "    neighbor {} external;\n",
-                    node.tunnel_ipv6
-                ));
+                blocks.push_str(&format!("    neighbor {} external;\n", node.tunnel_ipv6));
                 blocks.push_str("    direct;\n");
                 blocks.push_str("    ipv6 {\n");
                 blocks.push_str("        next hop self yes;\n");
@@ -495,8 +504,12 @@ pub fn generate_ibgp_blocks(
             blocks.push_str("    direct;\n");
             blocks.push_str("    ipv4 {\n");
             blocks.push_str("        next hop self yes;\n");
-            blocks.push_str("        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
-            blocks.push_str("        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n");
+            blocks.push_str(
+                "        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
+            );
+            blocks.push_str(
+                "        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
+            );
             blocks.push_str("    };\n");
             blocks.push_str("    ipv6 {\n");
             blocks.push_str("        next hop self yes;\n");
@@ -653,7 +666,8 @@ mod tests {
 
     #[test]
     fn test_generate_full_config_has_filter_functions() {
-        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
+        let config =
+            generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("function is_valid_network()"));
         assert!(config.contains("function is_valid_network_v6()"));
         assert!(config.contains("function is_self_net()"));
@@ -661,13 +675,15 @@ mod tests {
 
     #[test]
     fn test_generate_full_config_has_import_limit() {
-        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
+        let config =
+            generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("import limit 9000 action block"));
     }
 
     #[test]
     fn test_generate_full_config_has_roa_check() {
-        let config = generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
+        let config =
+            generate_full_config(&[], &test_settings(), "", &std::collections::HashMap::new());
         assert!(config.contains("roa_check(dn42_roa, net, bgp_path.last)"));
     }
 
@@ -683,21 +699,31 @@ mod tests {
     fn test_generate_ibgp_blocks_creates_protocol_blocks() {
         let nodes = vec![
             crate::models::node::Node {
-                id: "n1".into(), name: "node-a".into(),
-                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
-                description: None, online: true,
-                last_seen_at: String::new(), created_at: String::new(),
+                id: "n1".into(),
+                name: "node-a".into(),
+                listen_addr: "1.2.3.4:3000".into(),
+                local_asn: 4242420000,
+                description: None,
+                online: true,
+                last_seen_at: String::new(),
+                created_at: String::new(),
                 updated_at: String::new(),
-                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+                wg_pubkey: "pk-a".into(),
+                tunnel_ip: "10.255.0.1".into(),
                 tunnel_ipv6: String::new(),
             },
             crate::models::node::Node {
-                id: "n2".into(), name: "node-b".into(),
-                listen_addr: "5.6.7.8:3000".into(), local_asn: 4242420000,
-                description: None, online: true,
-                last_seen_at: String::new(), created_at: String::new(),
+                id: "n2".into(),
+                name: "node-b".into(),
+                listen_addr: "5.6.7.8:3000".into(),
+                local_asn: 4242420000,
+                description: None,
+                online: true,
+                last_seen_at: String::new(),
+                created_at: String::new(),
                 updated_at: String::new(),
-                wg_pubkey: "pk-b".into(), tunnel_ip: "10.255.0.2".into(),
+                wg_pubkey: "pk-b".into(),
+                tunnel_ip: "10.255.0.2".into(),
                 tunnel_ipv6: String::new(),
             },
         ];
@@ -712,21 +738,31 @@ mod tests {
     fn test_generate_ibgp_blocks_skips_self_and_no_tunnel_ip() {
         let nodes = vec![
             crate::models::node::Node {
-                id: "n1".into(), name: "self-node".into(),
-                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
-                description: None, online: true,
-                last_seen_at: String::new(), created_at: String::new(),
+                id: "n1".into(),
+                name: "self-node".into(),
+                listen_addr: "1.2.3.4:3000".into(),
+                local_asn: 4242420000,
+                description: None,
+                online: true,
+                last_seen_at: String::new(),
+                created_at: String::new(),
                 updated_at: String::new(),
-                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
+                wg_pubkey: "pk-a".into(),
+                tunnel_ip: "10.255.0.1".into(),
                 tunnel_ipv6: String::new(),
             },
             crate::models::node::Node {
-                id: "n2".into(), name: "no-tunnel".into(),
-                listen_addr: "5.6.7.8:3000".into(), local_asn: 4242420000,
-                description: None, online: false,
-                last_seen_at: String::new(), created_at: String::new(),
+                id: "n2".into(),
+                name: "no-tunnel".into(),
+                listen_addr: "5.6.7.8:3000".into(),
+                local_asn: 4242420000,
+                description: None,
+                online: false,
+                last_seen_at: String::new(),
+                created_at: String::new(),
                 updated_at: String::new(),
-                wg_pubkey: String::new(), tunnel_ip: String::new(),
+                wg_pubkey: String::new(),
+                tunnel_ip: String::new(),
                 tunnel_ipv6: String::new(),
             },
         ];
@@ -810,17 +846,20 @@ mod tests {
         s.enable_confederation = true;
         s.confederation_local_asn = 65000;
         s.local_asn = 4242420000;
-        let nodes = vec![
-            crate::models::node::Node {
-                id: "n1".into(), name: "node-a".into(),
-                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
-                description: None, online: true,
-                last_seen_at: String::new(), created_at: String::new(),
-                updated_at: String::new(),
-                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
-                tunnel_ipv6: String::new(),
-            },
-        ];
+        let nodes = vec![crate::models::node::Node {
+            id: "n1".into(),
+            name: "node-a".into(),
+            listen_addr: "1.2.3.4:3000".into(),
+            local_asn: 4242420000,
+            description: None,
+            online: true,
+            last_seen_at: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            wg_pubkey: "pk-a".into(),
+            tunnel_ip: "10.255.0.1".into(),
+            tunnel_ipv6: String::new(),
+        }];
         let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
         assert!(blocks.contains("confederation 4242420000"));
         assert!(blocks.contains("confederation member yes"));
@@ -832,17 +871,20 @@ mod tests {
     fn test_generate_ibgp_blocks_no_confederation_when_disabled() {
         let mut s = test_settings();
         s.enable_confederation = false;
-        let nodes = vec![
-            crate::models::node::Node {
-                id: "n1".into(), name: "node-a".into(),
-                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
-                description: None, online: true,
-                last_seen_at: String::new(), created_at: String::new(),
-                updated_at: String::new(),
-                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
-                tunnel_ipv6: String::new(),
-            },
-        ];
+        let nodes = vec![crate::models::node::Node {
+            id: "n1".into(),
+            name: "node-a".into(),
+            listen_addr: "1.2.3.4:3000".into(),
+            local_asn: 4242420000,
+            description: None,
+            online: true,
+            last_seen_at: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            wg_pubkey: "pk-a".into(),
+            tunnel_ip: "10.255.0.1".into(),
+            tunnel_ipv6: String::new(),
+        }];
         let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
         assert!(!blocks.contains("confederation"));
         assert!(blocks.contains("neighbor 10.255.0.1 as 4242420000"));
@@ -854,17 +896,20 @@ mod tests {
         s.enable_confederation = true;
         s.confederation_local_asn = 65000;
         s.local_asn = 4242420000;
-        let nodes = vec![
-            crate::models::node::Node {
-                id: "n1".into(), name: "node-a".into(),
-                listen_addr: "1.2.3.4:3000".into(), local_asn: 4242420000,
-                description: None, online: true,
-                last_seen_at: String::new(), created_at: String::new(),
-                updated_at: String::new(),
-                wg_pubkey: "pk-a".into(), tunnel_ip: "10.255.0.1".into(),
-                tunnel_ipv6: "fd00:255::1".into(),
-            },
-        ];
+        let nodes = vec![crate::models::node::Node {
+            id: "n1".into(),
+            name: "node-a".into(),
+            listen_addr: "1.2.3.4:3000".into(),
+            local_asn: 4242420000,
+            description: None,
+            online: true,
+            last_seen_at: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            wg_pubkey: "pk-a".into(),
+            tunnel_ip: "10.255.0.1".into(),
+            tunnel_ipv6: "fd00:255::1".into(),
+        }];
         let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
         // IPv4 block should have confederation directives
         assert!(blocks.contains("confederation 4242420000"));

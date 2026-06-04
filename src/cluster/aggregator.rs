@@ -8,25 +8,28 @@ use crate::cluster::cache::ClusterCache;
 use crate::models::node::Node;
 
 use crate::grpc::generated::{
-    cluster_service_client::ClusterServiceClient,
-    CommunityRule, ExchangeNodesRequest, HealthCheckRequest, HealthCheckResponse,
-    ListCommunityRulesRequest, ListProbeResultsRequest, NodeInfo, Peer,
+    cluster_service_client::ClusterServiceClient, CommunityRule, ExchangeNodesRequest,
+    HealthCheckRequest, ListCommunityRulesRequest, ListProbeResultsRequest, NodeInfo, Peer,
     ProbeResult, PullPeersRequest,
 };
 
 const FANOUT_TIMEOUT: Duration = Duration::from_secs(2);
 
+#[allow(dead_code)]
 pub struct ClusterAggregator {
     pub cache: ClusterCache,
     pub cluster_key: String,
 }
 
+#[allow(dead_code)]
 impl ClusterAggregator {
     pub fn new(cache: ClusterCache, cluster_key: String) -> Self {
         Self { cache, cluster_key }
     }
 
-    async fn connect(addr: &str) -> Result<ClusterServiceClient<tonic::transport::Channel>, String> {
+    async fn connect(
+        addr: &str,
+    ) -> Result<ClusterServiceClient<tonic::transport::Channel>, String> {
         let uri = format!("http://{}", addr);
         let channel = Endpoint::from_shared(uri)
             .map_err(|e| format!("invalid uri: {e}"))?
@@ -149,7 +152,9 @@ impl ClusterAggregator {
             match timeout(FANOUT_TIMEOUT, client.list_probe_results(req)).await {
                 Ok(Ok(response)) => {
                     let results: Vec<ProbeResult> = response.into_inner().results;
-                    self.cache.update_probe_results(&node_addr, results.clone()).await;
+                    self.cache
+                        .update_probe_results(&node_addr, results.clone())
+                        .await;
                     all.extend(results);
                     statuses.push(NodeStatus::online(&node_name, &node_addr));
                 }
@@ -211,7 +216,9 @@ impl ClusterAggregator {
             match timeout(FANOUT_TIMEOUT, client.list_community_rules(req)).await {
                 Ok(Ok(response)) => {
                     let rules: Vec<CommunityRule> = response.into_inner().rules;
-                    self.cache.update_community_rules(&node_addr, rules.clone()).await;
+                    self.cache
+                        .update_community_rules(&node_addr, rules.clone())
+                        .await;
                     all.extend(rules);
                     statuses.push(NodeStatus::online(&node_name, &node_addr));
                 }
@@ -302,8 +309,9 @@ impl ClusterAggregator {
         cluster_key: &str,
         my_nodes: Vec<NodeInfo>,
     ) -> Result<Vec<NodeInfo>, String> {
-        let mut client =
-            Self::connect(node_addr).await.map_err(|e| format!("connect: {e}"))?;
+        let mut client = Self::connect(node_addr)
+            .await
+            .map_err(|e| format!("connect: {e}"))?;
         let mut req = Request::new(ExchangeNodesRequest { nodes: my_nodes });
         if !cluster_key.is_empty() {
             if let Ok(val) = cluster_key.parse() {
@@ -319,6 +327,7 @@ impl ClusterAggregator {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct NodeStatus {
     pub node_name: String,
     pub node_addr: String,
@@ -327,6 +336,7 @@ pub struct NodeStatus {
     pub error: Option<String>,
 }
 
+#[allow(dead_code)]
 impl NodeStatus {
     pub fn online(name: &str, addr: &str) -> Self {
         Self {
@@ -358,6 +368,7 @@ impl NodeStatus {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct AggregatedResult<T> {
     pub items: Vec<T>,
     pub node_statuses: Vec<NodeStatus>,

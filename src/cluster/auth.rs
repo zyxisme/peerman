@@ -3,6 +3,7 @@ use tonic::{Request, Status};
 /// Validate x-cluster-key metadata against the shared secret.
 /// Returns Ok if valid, Err(PermissionDenied) if missing or mismatched.
 /// If cluster_key is empty on this node (not configured), allows all.
+#[allow(clippy::result_large_err)]
 pub fn check_cluster_key<T>(req: &Request<T>, secret: &str) -> Result<(), Status> {
     if secret.is_empty() {
         return Ok(());
