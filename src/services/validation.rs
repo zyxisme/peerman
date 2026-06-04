@@ -77,8 +77,9 @@ pub fn validate_router_id(id: &str) -> Result<(), AppError> {
     if id.is_empty() {
         return Ok(());
     }
-    id.parse::<std::net::Ipv4Addr>()
-        .map_err(|_| AppError::Validation(format!("Invalid router ID: '{id}'. Must be IPv4 address")))?;
+    id.parse::<std::net::Ipv4Addr>().map_err(|_| {
+        AppError::Validation(format!("Invalid router ID: '{id}'. Must be IPv4 address"))
+    })?;
     Ok(())
 }
 
@@ -100,8 +101,7 @@ pub fn validate_host(target: &str) -> Result<(), AppError> {
     if target.is_empty() {
         return Err(AppError::Validation("Host cannot be empty".into()));
     }
-    if target.parse::<std::net::Ipv4Addr>().is_ok()
-        || target.parse::<std::net::Ipv6Addr>().is_ok()
+    if target.parse::<std::net::Ipv4Addr>().is_ok() || target.parse::<std::net::Ipv6Addr>().is_ok()
     {
         return Ok(());
     }
@@ -119,7 +119,9 @@ pub fn validate_host(target: &str) -> Result<(), AppError> {
 /// Validate a WireGuard interface name (alphanumeric + hyphens + underscores, max 15 chars)
 pub fn validate_wg_interface_name(name: &str) -> Result<(), AppError> {
     if name.is_empty() {
-        return Err(AppError::Validation("Interface name cannot be empty".into()));
+        return Err(AppError::Validation(
+            "Interface name cannot be empty".into(),
+        ));
     }
     if !name
         .chars()
