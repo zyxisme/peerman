@@ -1,5 +1,7 @@
+use std::sync::LazyLock;
 use std::time::Duration;
 
+use dashmap::DashMap;
 use tokio::time::timeout;
 use tonic::transport::Endpoint;
 use tonic::Request;
@@ -14,6 +16,10 @@ use crate::grpc::generated::{
 };
 
 const FANOUT_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Connection pool: cached gRPC clients keyed by address.
+static CHANNEL_POOL: LazyLock<DashMap<String, ClusterServiceClient<tonic::transport::Channel>>> =
+    LazyLock::new(DashMap::new);
 
 #[allow(dead_code)]
 pub struct ClusterAggregator {
@@ -30,13 +36,18 @@ impl ClusterAggregator {
     async fn connect(
         addr: &str,
     ) -> Result<ClusterServiceClient<tonic::transport::Channel>, String> {
+        if let Some(client) = CHANNEL_POOL.get(addr) {
+            return Ok(client.clone());
+        }
         let uri = format!("http://{}", addr);
         let channel = Endpoint::from_shared(uri)
             .map_err(|e| format!("invalid uri: {e}"))?
             .connect()
             .await
             .map_err(|e| format!("connect failed: {e}"))?;
-        Ok(ClusterServiceClient::new(channel))
+        let client = ClusterServiceClient::new(channel);
+        CHANNEL_POOL.insert(addr.to_string(), client.clone());
+        Ok(client)
     }
 
     fn set_cluster_key<T>(&self, req: &mut Request<T>) {
@@ -47,63 +58,71 @@ impl ClusterAggregator {
         }
     }
 
-    /// Fan-out PullPeers to all online nodes, return merged peers + per-node status.
+    /// Fan-out PullPeers to all online nodes in parallel, return merged peers + per-node status.
     /// Updates cache for successful responses; falls back to cache for failed nodes.
     pub async fn fanout_peers(
         &self,
         local_addr: &str,
         online_nodes: &[Node],
     ) -> AggregatedResult<Peer> {
-        let mut all: Vec<Peer> = Vec::new();
-        let mut statuses: Vec<NodeStatus> = Vec::new();
+        let futures: Vec<_> = online_nodes
+            .iter()
+            .filter(|n| n.listen_addr != local_addr)
+            .map(|node| {
+                let node_addr = node.listen_addr.clone();
+                let node_name = node.name.clone();
+                let cache = self.cache.clone();
+                let cluster_key = self.cluster_key.clone();
+                async move {
+                    let mut client = match Self::connect(&node_addr).await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let cached = cache.get(&node_addr).await;
+                            cache.mark_stale(&node_addr).await;
+                            return (
+                                cached.map(|c| c.peers).unwrap_or_default(),
+                                vec![NodeStatus::unknown(&node_name, &node_addr, &e)],
+                            );
+                        }
+                    };
 
-        for node in online_nodes {
-            if node.listen_addr == local_addr {
-                continue;
-            }
-            let node_addr = node.listen_addr.clone();
-            let node_name = node.name.clone();
-
-            let mut client = match Self::connect(&node_addr).await {
-                Ok(c) => c,
-                Err(e) => {
-                    if let Some(entry) = self.cache.get(&node_addr).await {
-                        all.extend(entry.peers);
-                        statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
-                    } else {
-                        statuses.push(NodeStatus::unknown(&node_name, &node_addr, &e));
+                    let mut req = Request::new(PullPeersRequest {
+                        since: String::new(),
+                    });
+                    if !cluster_key.is_empty() {
+                        if let Ok(val) = cluster_key.parse() {
+                            req.metadata_mut().insert("x-cluster-key", val);
+                        }
                     }
-                    self.cache.mark_stale(&node_addr).await;
-                    continue;
-                }
-            };
 
-            let mut req = Request::new(PullPeersRequest {
-                since: String::new(),
-            });
-            self.set_cluster_key(&mut req);
-
-            match timeout(FANOUT_TIMEOUT, client.pull_peers(req)).await {
-                Ok(Ok(response)) => {
-                    let peers: Vec<Peer> = response.into_inner().peers;
-                    self.cache.update_peers(&node_addr, peers.clone()).await;
-                    all.extend(peers);
-                    statuses.push(NodeStatus::online(&node_name, &node_addr));
-                }
-                _ => {
-                    if let Some(entry) = self.cache.get(&node_addr).await {
-                        all.extend(entry.peers);
-                        statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
-                    } else {
-                        statuses.push(NodeStatus::unknown(
-                            &node_name,
-                            &node_addr,
-                            "fanout timeout",
-                        ));
+                    match timeout(FANOUT_TIMEOUT, client.pull_peers(req)).await {
+                        Ok(Ok(response)) => {
+                            let peers = response.into_inner().peers;
+                            cache.update_peers(&node_addr, peers.clone()).await;
+                            (peers, vec![NodeStatus::online(&node_name, &node_addr)])
+                        }
+                        _ => {
+                            let cached = cache.get(&node_addr).await;
+                            cache.mark_stale(&node_addr).await;
+                            let items = cached.map(|c| c.peers).unwrap_or_default();
+                            let status = if items.is_empty() {
+                                NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
+                            } else {
+                                NodeStatus::offline(&node_name, &node_addr, "stale")
+                            };
+                            (items, vec![status])
+                        }
                     }
-                    self.cache.mark_stale(&node_addr).await;
                 }
-            }
+            })
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+        let mut all = Vec::new();
+        let mut statuses = Vec::new();
+        for (items, node_statuses) in results {
+            all.extend(items);
+            statuses.extend(node_statuses);
         }
 
         AggregatedResult {
@@ -112,66 +131,74 @@ impl ClusterAggregator {
         }
     }
 
-    /// Fan-out ListProbeResults to all online nodes.
+    /// Fan-out ListProbeResults to all online nodes in parallel.
     pub async fn fanout_probe_results(
         &self,
         local_addr: &str,
         online_nodes: &[Node],
     ) -> AggregatedResult<ProbeResult> {
-        let mut all: Vec<ProbeResult> = Vec::new();
-        let mut statuses: Vec<NodeStatus> = Vec::new();
+        let futures: Vec<_> = online_nodes
+            .iter()
+            .filter(|n| n.listen_addr != local_addr)
+            .map(|node| {
+                let node_addr = node.listen_addr.clone();
+                let node_name = node.name.clone();
+                let cache = self.cache.clone();
+                let cluster_key = self.cluster_key.clone();
+                async move {
+                    let mut client = match Self::connect(&node_addr).await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let cached = cache.get(&node_addr).await;
+                            cache.mark_stale(&node_addr).await;
+                            return (
+                                cached.map(|c| c.probe_results).unwrap_or_default(),
+                                vec![NodeStatus::unknown(&node_name, &node_addr, &e)],
+                            );
+                        }
+                    };
 
-        for node in online_nodes {
-            if node.listen_addr == local_addr {
-                continue;
-            }
-            let node_addr = node.listen_addr.clone();
-            let node_name = node.name.clone();
-
-            let mut client = match Self::connect(&node_addr).await {
-                Ok(c) => c,
-                Err(e) => {
-                    if let Some(entry) = self.cache.get(&node_addr).await {
-                        all.extend(entry.probe_results);
-                        statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
-                    } else {
-                        statuses.push(NodeStatus::unknown(&node_name, &node_addr, &e));
-                    }
-                    self.cache.mark_stale(&node_addr).await;
-                    continue;
-                }
-            };
-
-            let mut req = Request::new(ListProbeResultsRequest {
-                from_node_id: String::new(),
-                to_node_id: String::new(),
-                limit: 0,
-            });
-            self.set_cluster_key(&mut req);
-
-            match timeout(FANOUT_TIMEOUT, client.list_probe_results(req)).await {
-                Ok(Ok(response)) => {
-                    let results: Vec<ProbeResult> = response.into_inner().results;
-                    self.cache
-                        .update_probe_results(&node_addr, results.clone())
-                        .await;
-                    all.extend(results);
-                    statuses.push(NodeStatus::online(&node_name, &node_addr));
-                }
-                _ => {
-                    let mut served = false;
-                    if let Some(entry) = self.cache.get(&node_addr).await {
-                        all.extend(entry.probe_results);
-                        served = true;
-                    }
-                    statuses.push(if served {
-                        NodeStatus::offline(&node_name, &node_addr, "stale")
-                    } else {
-                        NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
+                    let mut req = Request::new(ListProbeResultsRequest {
+                        from_node_id: String::new(),
+                        to_node_id: String::new(),
+                        limit: 0,
                     });
-                    self.cache.mark_stale(&node_addr).await;
+                    if !cluster_key.is_empty() {
+                        if let Ok(val) = cluster_key.parse() {
+                            req.metadata_mut().insert("x-cluster-key", val);
+                        }
+                    }
+
+                    match timeout(FANOUT_TIMEOUT, client.list_probe_results(req)).await {
+                        Ok(Ok(response)) => {
+                            let results = response.into_inner().results;
+                            cache
+                                .update_probe_results(&node_addr, results.clone())
+                                .await;
+                            (results, vec![NodeStatus::online(&node_name, &node_addr)])
+                        }
+                        _ => {
+                            let cached = cache.get(&node_addr).await;
+                            cache.mark_stale(&node_addr).await;
+                            let items = cached.map(|c| c.probe_results).unwrap_or_default();
+                            let status = if items.is_empty() {
+                                NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
+                            } else {
+                                NodeStatus::offline(&node_name, &node_addr, "stale")
+                            };
+                            (items, vec![status])
+                        }
+                    }
                 }
-            }
+            })
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+        let mut all = Vec::new();
+        let mut statuses = Vec::new();
+        for (items, node_statuses) in results {
+            all.extend(items);
+            statuses.extend(node_statuses);
         }
 
         AggregatedResult {
@@ -180,62 +207,70 @@ impl ClusterAggregator {
         }
     }
 
-    /// Fan-out ListCommunityRules to all online nodes.
+    /// Fan-out ListCommunityRules to all online nodes in parallel.
     pub async fn fanout_community_rules(
         &self,
         local_addr: &str,
         online_nodes: &[Node],
     ) -> AggregatedResult<CommunityRule> {
-        let mut all: Vec<CommunityRule> = Vec::new();
-        let mut statuses: Vec<NodeStatus> = Vec::new();
+        let futures: Vec<_> = online_nodes
+            .iter()
+            .filter(|n| n.listen_addr != local_addr)
+            .map(|node| {
+                let node_addr = node.listen_addr.clone();
+                let node_name = node.name.clone();
+                let cache = self.cache.clone();
+                let cluster_key = self.cluster_key.clone();
+                async move {
+                    let mut client = match Self::connect(&node_addr).await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            let cached = cache.get(&node_addr).await;
+                            cache.mark_stale(&node_addr).await;
+                            return (
+                                cached.map(|c| c.community_rules).unwrap_or_default(),
+                                vec![NodeStatus::unknown(&node_name, &node_addr, &e)],
+                            );
+                        }
+                    };
 
-        for node in online_nodes {
-            if node.listen_addr == local_addr {
-                continue;
-            }
-            let node_addr = node.listen_addr.clone();
-            let node_name = node.name.clone();
-
-            let mut client = match Self::connect(&node_addr).await {
-                Ok(c) => c,
-                Err(e) => {
-                    if let Some(entry) = self.cache.get(&node_addr).await {
-                        all.extend(entry.community_rules);
-                        statuses.push(NodeStatus::offline(&node_name, &node_addr, "stale"));
-                    } else {
-                        statuses.push(NodeStatus::unknown(&node_name, &node_addr, &e));
+                    let mut req = Request::new(ListCommunityRulesRequest {});
+                    if !cluster_key.is_empty() {
+                        if let Ok(val) = cluster_key.parse() {
+                            req.metadata_mut().insert("x-cluster-key", val);
+                        }
                     }
-                    self.cache.mark_stale(&node_addr).await;
-                    continue;
-                }
-            };
 
-            let mut req = Request::new(ListCommunityRulesRequest {});
-            self.set_cluster_key(&mut req);
-
-            match timeout(FANOUT_TIMEOUT, client.list_community_rules(req)).await {
-                Ok(Ok(response)) => {
-                    let rules: Vec<CommunityRule> = response.into_inner().rules;
-                    self.cache
-                        .update_community_rules(&node_addr, rules.clone())
-                        .await;
-                    all.extend(rules);
-                    statuses.push(NodeStatus::online(&node_name, &node_addr));
-                }
-                _ => {
-                    let mut served = false;
-                    if let Some(entry) = self.cache.get(&node_addr).await {
-                        all.extend(entry.community_rules);
-                        served = true;
+                    match timeout(FANOUT_TIMEOUT, client.list_community_rules(req)).await {
+                        Ok(Ok(response)) => {
+                            let rules = response.into_inner().rules;
+                            cache
+                                .update_community_rules(&node_addr, rules.clone())
+                                .await;
+                            (rules, vec![NodeStatus::online(&node_name, &node_addr)])
+                        }
+                        _ => {
+                            let cached = cache.get(&node_addr).await;
+                            cache.mark_stale(&node_addr).await;
+                            let items = cached.map(|c| c.community_rules).unwrap_or_default();
+                            let status = if items.is_empty() {
+                                NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
+                            } else {
+                                NodeStatus::offline(&node_name, &node_addr, "stale")
+                            };
+                            (items, vec![status])
+                        }
                     }
-                    statuses.push(if served {
-                        NodeStatus::offline(&node_name, &node_addr, "stale")
-                    } else {
-                        NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
-                    });
-                    self.cache.mark_stale(&node_addr).await;
                 }
-            }
+            })
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+        let mut all = Vec::new();
+        let mut statuses = Vec::new();
+        for (items, node_statuses) in results {
+            all.extend(items);
+            statuses.extend(node_statuses);
         }
 
         AggregatedResult {
