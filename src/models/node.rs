@@ -197,17 +197,21 @@ impl NodeRepository {
         listen_addr: &str,
         local_asn: i64,
     ) -> Result<Node, AppError> {
-        let existing = self.find_by_listen_addr(listen_addr).await?;
-        match existing {
-            Some(node) => {
-                let mut updated = node;
-                updated.name = name.to_string();
-                updated.listen_addr = listen_addr.to_string();
-                updated.local_asn = local_asn;
-                self.update(&updated).await
-            }
-            None => self.create(name, listen_addr, local_asn, "").await,
-        }
+        let now = Utc::now().to_rfc3339();
+        let node = sqlx::query_as::<_, Node>(
+            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, created_at, updated_at)
+             VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, '', '', '', '', ?4, ?4)
+             ON CONFLICT(listen_addr) DO UPDATE SET name = ?1, local_asn = ?3, updated_at = ?4
+             RETURNING id, name, listen_addr, local_asn, description, online,
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6",
+        )
+        .bind(name)
+        .bind(listen_addr)
+        .bind(local_asn)
+        .bind(&now)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(node)
     }
 
     pub async fn find_by_name(&self, name: &str) -> Result<Option<Node>, AppError> {
@@ -229,20 +233,21 @@ impl NodeRepository {
         local_asn: i64,
         description: &str,
     ) -> Result<Node, AppError> {
-        match self.find_by_name(name).await? {
-            Some(node) => {
-                let mut updated = node;
-                updated.listen_addr = listen_addr.to_string();
-                updated.local_asn = local_asn;
-                updated.description = if description.is_empty() {
-                    None
-                } else {
-                    Some(description.to_string())
-                };
-                updated.last_seen_at = Utc::now().to_rfc3339();
-                self.update(&updated).await
-            }
-            None => self.create(name, listen_addr, local_asn, description).await,
-        }
+        let now = Utc::now().to_rfc3339();
+        let node = sqlx::query_as::<_, Node>(
+            "INSERT INTO nodes (id, name, listen_addr, local_asn, description, wg_pubkey, tunnel_ip, tunnel_ipv6, created_at, updated_at)
+             VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4, '', '', '', ?5, ?5)
+             ON CONFLICT(name) DO UPDATE SET listen_addr = ?2, local_asn = ?3, description = ?4, updated_at = ?5
+             RETURNING id, name, listen_addr, local_asn, description, online,
+             last_seen_at, created_at, updated_at, wg_pubkey, tunnel_ip, tunnel_ipv6",
+        )
+        .bind(name)
+        .bind(listen_addr)
+        .bind(local_asn)
+        .bind(description)
+        .bind(&now)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(node)
     }
 }
