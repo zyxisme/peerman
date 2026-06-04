@@ -149,7 +149,6 @@ impl PeerServiceImpl {
         // PushPeerResponse has no peer field — return the peer we sent
         Ok(peer)
     }
-
 }
 
 pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
@@ -236,7 +235,8 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.config_dirty
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(peer_to_proto(&peer)))
     }
@@ -289,7 +289,8 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.config_dirty
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(peer_to_proto(&peer)))
     }
@@ -305,7 +306,8 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
 
-        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.config_dirty
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(DeletePeerResponse {}))
     }
@@ -322,7 +324,8 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
 
-        self.config_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.config_dirty
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         Ok(Response::new(peer_to_proto(&peer)))
     }
