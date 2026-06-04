@@ -9,3 +9,4 @@ data/
 .idea/
 *.swp
 .DS_Store
+.claude/
