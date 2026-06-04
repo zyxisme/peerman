@@ -9,6 +9,7 @@ mod http;
 mod models;
 mod services;
 mod static_files;
+mod tasks;
 
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
@@ -159,7 +160,10 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(crate::http::handlers::handle_health))
         .route("/api/auth/login", post(crate::http::handlers::handle_login))
-        .route("/api/auth/logout", post(crate::http::handlers::handle_logout))
+        .route(
+            "/api/auth/logout",
+            post(crate::http::handlers::handle_logout),
+        )
         .route("/api/auth/me", get(crate::http::handlers::handle_me))
         .nest("/api", grpc_router)
         .fallback(static_files::serve_static)
@@ -348,354 +352,32 @@ async fn main() -> anyhow::Result<()> {
             String::new()
         };
 
-        // Spawn periodic stale-node cleanup task
-        let stale_state = state.clone();
-        let stale_interval = sync_interval;
-        let stale_token = shutdown.clone();
-
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = stale_token.cancelled() => {
-                        tracing::info!("Stale-node cleanup task shutting down");
-                        return;
-                    }
-                    _ = tokio::time::sleep(Duration::from_secs(stale_interval)) => {}
-                }
-                if let Err(e) = stale_state.node_repo.mark_stale(120).await {
-                    tracing::warn!("Failed to mark stale nodes: {}", e);
-                }
-            }
-        });
-
-        // Spawn flap-suppressed health check + ICMP probe task
-        if probe_interval > 0 {
-            let probe_ct = shutdown.clone();
-            let probe_interval_dur = Duration::from_secs(probe_interval);
-            let node_repo_probe = state.node_repo.clone();
-            let probe_repo_probe = state.probe_repo.clone();
-            let node_name_probe = node_name.clone();
-            let cluster_key_probe = cluster_key.clone();
-            let cluster_cache = state.cluster_cache.clone();
-
-            tokio::spawn(async move {
-                let mut fail_streaks: std::collections::HashMap<String, u32> =
-                    std::collections::HashMap::new();
-                let mut interval = tokio::time::interval(probe_interval_dur);
-                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-                loop {
-                    tokio::select! {
-                        _ = probe_ct.cancelled() => break,
-                        _ = interval.tick() => {}
-                    }
-
-                    let nodes = match node_repo_probe.list_all().await {
-                        Ok(n) => n,
-                        Err(e) => {
-                            tracing::warn!("Failed to list nodes for health check: {e}");
-                            continue;
-                        }
-                    };
-
-                    let local = nodes.iter().find(|n| n.name == node_name_probe);
-
-                    for node in &nodes {
-                        if node.name == node_name_probe {
-                            continue;
-                        }
-
-                        let healthy = crate::cluster::aggregator::ClusterAggregator::health_check(
-                            &node.listen_addr,
-                            &cluster_key_probe,
-                        )
-                        .await;
-
-                        let prev_fails = fail_streaks.get(&node.listen_addr).copied().unwrap_or(0);
-
-                        if healthy {
-                            if prev_fails >= 2 {
-                                let _ = node_repo_probe.mark_online(&node.id).await;
-                                cluster_cache.invalidate(&node.listen_addr).await;
-                                tracing::info!(
-                                    "Node {} ({}) is back online",
-                                    node.name,
-                                    node.listen_addr
-                                );
-                            }
-                            fail_streaks.insert(node.listen_addr.clone(), 0);
-
-                            // Also run ICMP probe for latency data
-                            if let Some(local_node) = local {
-                                let _ = crate::services::probe::probe_between(
-                                    local_node,
-                                    node,
-                                    &probe_repo_probe,
-                                )
-                                .await;
-                            }
-                        } else {
-                            let new_fails = prev_fails + 1;
-                            fail_streaks.insert(node.listen_addr.clone(), new_fails);
-
-                            if new_fails >= 2 && prev_fails < 2 {
-                                let _ = node_repo_probe.mark_stale_node(&node.id).await;
-                                cluster_cache.mark_stale(&node.listen_addr).await;
-                                tracing::warn!(
-                                    "Node {} ({}) went offline after {} consecutive failures",
-                                    node.name,
-                                    node.listen_addr,
-                                    new_fails
-                                );
-                            }
-                        }
-                    }
-                }
-            });
+        // Spawn cluster background tasks
+        tasks::cluster::ClusterTasks {
+            node_name: node_name.clone(),
+            node_id: node.id.clone(),
+            listen_addr: listen_addr.clone(),
+            cluster_key: cluster_key.clone(),
+            sync_interval,
+            probe_interval,
+            tunnel_ip_range: tunnel_ip_range.clone(),
+            state: state.clone(),
+            shutdown: shutdown.clone(),
         }
-
-        // Spawn periodic anti-entropy node exchange task
-        let sync_ct = shutdown.clone();
-        let sync_interval_dur = Duration::from_secs(sync_interval);
-        let node_repo_sync = state.node_repo.clone();
-        let cluster_key_sync = cluster_key.clone();
-        let listen_addr_sync = listen_addr.clone();
-        let tunnel_ip_range_sync = tunnel_ip_range.clone();
-        let settings_repo_sync = state.settings_repo.clone();
-        let peer_repo_sync = state.peer_repo.clone();
-
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(sync_interval_dur);
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-            loop {
-                tokio::select! {
-                    _ = sync_ct.cancelled() => break,
-                    _ = interval.tick() => {}
-                }
-
-                let nodes = match node_repo_sync.list_all().await {
-                    Ok(n) => n,
-                    Err(_) => continue,
-                };
-
-                let online_peers: Vec<_> = nodes
-                    .iter()
-                    .filter(|n| n.online && n.listen_addr != listen_addr_sync)
-                    .collect();
-
-                if online_peers.is_empty() {
-                    continue;
-                }
-
-                // Pick a random peer
-                let idx = {
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default();
-                    (now.subsec_nanos() as usize) % online_peers.len()
-                };
-                let peer = online_peers[idx];
-
-                let my_info: Vec<crate::grpc::generated::NodeInfo> = nodes
-                    .iter()
-                    .map(|n| crate::grpc::generated::NodeInfo {
-                        name: n.name.clone(),
-                        listen_addr: n.listen_addr.clone(),
-                        local_asn: n.local_asn,
-                        description: n.description.clone().unwrap_or_default(),
-                        last_seen_at: n.last_seen_at.clone(),
-                        wg_public_key: String::new(),
-                        tunnel_ip: String::new(),
-                        tunnel_ipv6: String::new(),
-                    })
-                    .collect();
-
-                match crate::cluster::aggregator::ClusterAggregator::exchange_with(
-                    &peer.listen_addr,
-                    &cluster_key_sync,
-                    my_info,
-                )
-                .await
-                {
-                    Ok(remote_nodes) => {
-                        for info in &remote_nodes {
-                            if info.listen_addr == listen_addr_sync {
-                                continue;
-                            }
-                            if let Ok(Some(_)) =
-                                node_repo_sync.find_by_listen_addr(&info.listen_addr).await
-                            {
-                                continue;
-                            }
-                            let _ = node_repo_sync
-                                .create(
-                                    &info.name,
-                                    &info.listen_addr,
-                                    info.local_asn,
-                                    &info.description,
-                                )
-                                .await;
-                        }
-
-                        // After discovering new nodes, sync cluster configs
-                        if !tunnel_ip_range_sync.is_empty() {
-                            let nodes = match node_repo_sync.list_all().await {
-                                Ok(n) => n,
-                                Err(_) => continue,
-                            };
-                            let my_tunnel_ip = nodes
-                                .iter()
-                                .find(|n| n.listen_addr == listen_addr_sync)
-                                .and_then(|n| {
-                                    if n.tunnel_ip.is_empty() {
-                                        None
-                                    } else {
-                                        Some(n.tunnel_ip.clone())
-                                    }
-                                })
-                                .unwrap_or_default();
-                            if !my_tunnel_ip.is_empty() {
-                                if let Ok(settings) = settings_repo_sync.load().await {
-                                    let _ = crate::cluster::tunnel::sync_cluster_bird(
-                                        &peer_repo_sync,
-                                        &settings,
-                                        &node_repo_sync,
-                                        &my_tunnel_ip,
-                                    )
-                                    .await;
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        tracing::debug!(
-                            "Periodic ExchangeNodes with {} failed: {}",
-                            peer.listen_addr,
-                            e
-                        );
-                    }
-                }
-            }
-        });
-
-        // Spawn BGP flap detector
-        let node_id = node.id.clone();
-        let flap_node_name = node_name.clone();
-        let flap_repo = state.flap_event_repo.clone();
-        let flap_token = shutdown.clone();
-
-        tokio::spawn(async move {
-            tracing::info!("Starting BGP flap detector for node '{flap_node_name}' ({node_id})");
-
-            let (tx, rx) =
-                tokio::sync::mpsc::channel::<crate::services::bgp_listener::PathChange>(1024);
-
-            match crate::services::bgp_listener::BgpListener::bind(node_id.clone()).await {
-                Ok(listener) => {
-                    tracing::info!("iBGP listener active on [::1]:1790");
-                    let bgp_tx = tx.clone();
-                    let bgp_token = flap_token.clone();
-                    tokio::spawn(async move {
-                        tokio::select! {
-                            _ = bgp_token.cancelled() => {
-                                tracing::info!("iBGP listener shutting down");
-                            }
-                            _ = listener.run(bgp_tx) => {}
-                        }
-                    });
-
-                    let mut detector = crate::services::flap_detector::FlapDetector::new(
-                        node_id.clone(),
-                        flap_repo,
-                    );
-                    detector.run(rx, flap_token).await;
-                }
-                Err(e) => {
-                    tracing::warn!("iBGP listener unavailable ({e}), flap detection will use socket polling fallback");
-                    let _keep_tx = tx; // Keep channel alive so rx doesn't close
-                    let mut detector =
-                        crate::services::flap_detector::FlapDetector::new(node_id, flap_repo);
-                    detector.run(rx, flap_token).await;
-                }
-            }
-        });
+        .spawn_all();
 
         // Spawn data retention cleanup task
-        let retention_token = shutdown.clone();
-        let retention_pool = pool.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(3600));
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            loop {
-                tokio::select! {
-                    _ = retention_token.cancelled() => return,
-                    _ = interval.tick() => {}
-                }
-                // Clean probe results older than 7 days
-                match sqlx::query(
-                    "DELETE FROM probe_results WHERE probed_at < datetime('now', '-7 days')",
-                )
-                .execute(&retention_pool)
-                .await
-                {
-                    Ok(r) if r.rows_affected() > 0 => {
-                        tracing::info!(
-                            "Retention cleanup: deleted {} old probe results",
-                            r.rows_affected()
-                        );
-                    }
-                    Err(e) => tracing::warn!("Probe retention cleanup failed: {e}"),
-                    _ => {}
-                }
-                // Clean resolved flap events older than 30 days
-                match sqlx::query("DELETE FROM flap_events WHERE active = 0 AND resolved_at IS NOT NULL AND resolved_at < datetime('now', '-30 days')")
-                    .execute(&retention_pool).await
-                {
-                    Ok(r) if r.rows_affected() > 0 => {
-                        tracing::info!("Retention cleanup: deleted {} old flap events", r.rows_affected());
-                    }
-                    Err(e) => tracing::warn!("Flap retention cleanup failed: {e}"),
-                    _ => {}
-                }
-            }
-        });
+        tasks::retention::spawn_retention_cleanup(pool.clone(), shutdown.clone());
     }
 
     // Spawn debounced WG+BIRD apply task (dirty-flag + 5s periodic check)
-    {
-        let apply_dirty = config_dirty.clone();
-        let apply_pool = pool.clone();
-        let apply_peer_state = state.peer_state();
-        let apply_listen_addr = listen_addr.clone();
-        let apply_token = shutdown.clone();
-
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(5));
-            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            loop {
-                tokio::select! {
-                    _ = apply_token.cancelled() => {
-                        tracing::info!("Config apply task shutting down");
-                        return;
-                    }
-                    _ = interval.tick() => {}
-                }
-                if apply_dirty.swap(false, std::sync::atomic::Ordering::Relaxed) {
-                    tracing::info!("Config dirty flag set, applying WG+BIRD configs...");
-                    if let Err(e) = crate::grpc::peer_service::apply_wg_bird(
-                        &apply_peer_state,
-                        &apply_listen_addr,
-                        &apply_pool,
-                    )
-                    .await
-                    {
-                        tracing::warn!("Auto-apply WG+BIRD failed: {e}");
-                    }
-                }
-            }
-        });
-    }
+    tasks::apply::spawn_config_apply(
+        config_dirty.clone(),
+        state.peer_state(),
+        listen_addr.clone(),
+        pool.clone(),
+        shutdown.clone(),
+    );
 
     // Wire SIGINT to graceful shutdown
     let shutdown_signal = shutdown.clone();
