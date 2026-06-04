@@ -58,6 +58,32 @@ impl ClusterAggregator {
         }
     }
 
+    /// Execute an RPC on a single node with timeout and cache fallback.
+    /// Handles the "established connection → timeout → cache fallback" pattern.
+    /// Returns (items, node_status) tuple.
+    async fn call_node<T: Clone>(
+        node_name: &str,
+        node_addr: &str,
+        cache: &ClusterCache,
+        rpc_call: impl std::future::Future<Output = Result<Vec<T>, String>>,
+        cache_fallback: impl std::future::Future<Output = Option<Vec<T>>>,
+    ) -> (Vec<T>, Vec<NodeStatus>) {
+        match timeout(FANOUT_TIMEOUT, rpc_call).await {
+            Ok(Ok(items)) => (items, vec![NodeStatus::online(node_name, node_addr)]),
+            _ => {
+                let cached = cache_fallback.await;
+                cache.mark_stale(node_addr).await;
+                let items = cached.unwrap_or_default();
+                let status = if items.is_empty() {
+                    NodeStatus::unknown(node_name, node_addr, "fanout timeout")
+                } else {
+                    NodeStatus::offline(node_name, node_addr, "stale")
+                };
+                (items, vec![status])
+            }
+        }
+    }
+
     /// Fan-out PullPeers to all online nodes in parallel, return merged peers + per-node status.
     /// Updates cache for successful responses; falls back to cache for failed nodes.
     pub async fn fanout_peers(
@@ -95,24 +121,24 @@ impl ClusterAggregator {
                         }
                     }
 
-                    match timeout(FANOUT_TIMEOUT, client.pull_peers(req)).await {
-                        Ok(Ok(response)) => {
-                            let peers = response.into_inner().peers;
-                            cache.update_peers(&node_addr, peers.clone()).await;
-                            (peers, vec![NodeStatus::online(&node_name, &node_addr)])
-                        }
-                        _ => {
-                            let cached = cache.get(&node_addr).await;
-                            cache.mark_stale(&node_addr).await;
-                            let items = cached.map(|c| c.peers).unwrap_or_default();
-                            let status = if items.is_empty() {
-                                NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
-                            } else {
-                                NodeStatus::offline(&node_name, &node_addr, "stale")
-                            };
-                            (items, vec![status])
-                        }
+                    let (items, statuses) = Self::call_node(
+                        &node_name,
+                        &node_addr,
+                        &cache,
+                        async {
+                            let resp = client
+                                .pull_peers(req)
+                                .await
+                                .map_err(|e| format!("rpc: {e}"))?;
+                            Ok(resp.into_inner().peers)
+                        },
+                        async { cache.get(&node_addr).await.map(|c| c.peers) },
+                    )
+                    .await;
+                    if !items.is_empty() {
+                        cache.update_peers(&node_addr, items.clone()).await;
                     }
+                    (items, statuses)
                 }
             })
             .collect();
@@ -169,26 +195,24 @@ impl ClusterAggregator {
                         }
                     }
 
-                    match timeout(FANOUT_TIMEOUT, client.list_probe_results(req)).await {
-                        Ok(Ok(response)) => {
-                            let results = response.into_inner().results;
-                            cache
-                                .update_probe_results(&node_addr, results.clone())
-                                .await;
-                            (results, vec![NodeStatus::online(&node_name, &node_addr)])
-                        }
-                        _ => {
-                            let cached = cache.get(&node_addr).await;
-                            cache.mark_stale(&node_addr).await;
-                            let items = cached.map(|c| c.probe_results).unwrap_or_default();
-                            let status = if items.is_empty() {
-                                NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
-                            } else {
-                                NodeStatus::offline(&node_name, &node_addr, "stale")
-                            };
-                            (items, vec![status])
-                        }
+                    let (items, statuses) = Self::call_node(
+                        &node_name,
+                        &node_addr,
+                        &cache,
+                        async {
+                            let resp = client
+                                .list_probe_results(req)
+                                .await
+                                .map_err(|e| format!("rpc: {e}"))?;
+                            Ok(resp.into_inner().results)
+                        },
+                        async { cache.get(&node_addr).await.map(|c| c.probe_results) },
+                    )
+                    .await;
+                    if !items.is_empty() {
+                        cache.update_probe_results(&node_addr, items.clone()).await;
                     }
+                    (items, statuses)
                 }
             })
             .collect();
@@ -241,26 +265,26 @@ impl ClusterAggregator {
                         }
                     }
 
-                    match timeout(FANOUT_TIMEOUT, client.list_community_rules(req)).await {
-                        Ok(Ok(response)) => {
-                            let rules = response.into_inner().rules;
-                            cache
-                                .update_community_rules(&node_addr, rules.clone())
-                                .await;
-                            (rules, vec![NodeStatus::online(&node_name, &node_addr)])
-                        }
-                        _ => {
-                            let cached = cache.get(&node_addr).await;
-                            cache.mark_stale(&node_addr).await;
-                            let items = cached.map(|c| c.community_rules).unwrap_or_default();
-                            let status = if items.is_empty() {
-                                NodeStatus::unknown(&node_name, &node_addr, "fanout timeout")
-                            } else {
-                                NodeStatus::offline(&node_name, &node_addr, "stale")
-                            };
-                            (items, vec![status])
-                        }
+                    let (items, statuses) = Self::call_node(
+                        &node_name,
+                        &node_addr,
+                        &cache,
+                        async {
+                            let resp = client
+                                .list_community_rules(req)
+                                .await
+                                .map_err(|e| format!("rpc: {e}"))?;
+                            Ok(resp.into_inner().rules)
+                        },
+                        async { cache.get(&node_addr).await.map(|c| c.community_rules) },
+                    )
+                    .await;
+                    if !items.is_empty() {
+                        cache
+                            .update_community_rules(&node_addr, items.clone())
+                            .await;
                     }
+                    (items, statuses)
                 }
             })
             .collect();
