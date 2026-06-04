@@ -193,7 +193,9 @@ async fn main() -> anyhow::Result<()> {
         );
     }
     if cfg.auth.password.is_empty() {
-        tracing::warn!("No auth password configured — login will always fail");
+        anyhow::bail!(
+            "auth.password must be set in config.toml. Empty password is not allowed for security reasons."
+        );
     }
 
     tracing_subscriber::fmt()
@@ -240,6 +242,7 @@ async fn main() -> anyhow::Result<()> {
         node_repo: state.node_repo.clone(),
         cluster_key: Arc::new(cluster_key.clone()),
         listen_addr: listen_addr.clone(),
+        pool: pool.clone(),
     };
     let settings_svc = SettingsServiceImpl {
         settings_repo: state.settings_repo.clone(),
