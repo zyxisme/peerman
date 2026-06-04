@@ -10,3 +10,6 @@ data/
 *.swp
 .DS_Store
 .claude/
+
+# Codegraph index
+.codegraph/
