@@ -409,6 +409,7 @@ mod tests {
                 wg_pubkey: "pubkey-a".into(),
                 tunnel_ip: "10.255.0.1".into(),
                 tunnel_ipv6: String::new(),
+                wg_private_key: String::new(),
             },
             crate::models::node::Node {
                 id: "n2".into(),
@@ -423,6 +424,7 @@ mod tests {
                 wg_pubkey: "pubkey-b".into(),
                 tunnel_ip: "10.255.0.2".into(),
                 tunnel_ipv6: String::new(),
+                wg_private_key: String::new(),
             },
         ];
         let config = generate_cluster_wg_config(&nodes, "key-a", 51821);

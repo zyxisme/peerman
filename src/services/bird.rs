@@ -711,6 +711,7 @@ mod tests {
                 wg_pubkey: "pk-a".into(),
                 tunnel_ip: "10.255.0.1".into(),
                 tunnel_ipv6: String::new(),
+                wg_private_key: String::new(),
             },
             crate::models::node::Node {
                 id: "n2".into(),
@@ -725,6 +726,7 @@ mod tests {
                 wg_pubkey: "pk-b".into(),
                 tunnel_ip: "10.255.0.2".into(),
                 tunnel_ipv6: String::new(),
+                wg_private_key: String::new(),
             },
         ];
         let settings = test_settings();
@@ -750,6 +752,7 @@ mod tests {
                 wg_pubkey: "pk-a".into(),
                 tunnel_ip: "10.255.0.1".into(),
                 tunnel_ipv6: String::new(),
+                wg_private_key: String::new(),
             },
             crate::models::node::Node {
                 id: "n2".into(),
@@ -764,6 +767,7 @@ mod tests {
                 wg_pubkey: String::new(),
                 tunnel_ip: String::new(),
                 tunnel_ipv6: String::new(),
+                wg_private_key: String::new(),
             },
         ];
         let settings = test_settings();
@@ -859,6 +863,7 @@ mod tests {
             wg_pubkey: "pk-a".into(),
             tunnel_ip: "10.255.0.1".into(),
             tunnel_ipv6: String::new(),
+            wg_private_key: String::new(),
         }];
         let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
         assert!(blocks.contains("confederation 4242420000"));
@@ -884,6 +889,7 @@ mod tests {
             wg_pubkey: "pk-a".into(),
             tunnel_ip: "10.255.0.1".into(),
             tunnel_ipv6: String::new(),
+            wg_private_key: String::new(),
         }];
         let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
         assert!(!blocks.contains("confederation"));
@@ -909,6 +915,7 @@ mod tests {
             wg_pubkey: "pk-a".into(),
             tunnel_ip: "10.255.0.1".into(),
             tunnel_ipv6: "fd00:255::1".into(),
+            wg_private_key: String::new(),
         }];
         let blocks = generate_ibgp_blocks(&nodes, &s, "10.255.0.2");
         // IPv4 block should have confederation directives
