@@ -123,6 +123,8 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 ## Community & probe
 
 - `CommunityRuleRepository::seed_defaults()` auto-populates 5 latency-tier rules on first run (empty table).
+- `CommunityMapper::compute_communities()` matches probe results against rules to determine which DN42 communities apply to a peer. Called during `auto_apply_wg_bird()` when `enable_community_filters` is true.
+- `CommunityMapper::latency_to_tier()` / `parse_community_tier()` / `best_latency_tier()` — tier extraction helpers (currently unused in production, available for future integration).
 - `services::probe::ping()` is async (tokio `Command`) — calls `ping -c 5 -i 0.2 <target>`, parses rtt/packet-loss with regex cached in `OnceLock`.
 - Probe results stored locally only; cross-node push via `PushProbeResult` RPC is defined but client-side not yet wired.
 
