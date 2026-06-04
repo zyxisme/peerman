@@ -14,9 +14,11 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 
 ## Testing
 
-- `cargo test` — run all 36 unit tests (validation, wireguard, bird, probe, cluster)
+- `cargo test` — run all 53 unit tests (validation, wireguard, bird, probe, cluster, community, confederation)
 - `cargo clippy` — lint check
+- `cargo fmt` — format all Rust code (separate from clippy, run both after changes)
 - `cd frontend && pnpm exec tsc --noEmit` — TypeScript type-check
+- **Disk space:** Machine has ~30GB disk. If `cargo test` fails with disk errors, clean other projects' target dirs: `rm -rf <other-project>/target`
 
 ## Key crate/version constraints
 
@@ -49,6 +51,7 @@ sqlx macros (`query_as!`, `query!`) need DATABASE_URL at compile time. Use runti
 
 - `tonic::include_proto!("peerman")` puts generated types directly in the calling module (no `peerman` submodule wrapper). Note: prost normalizes consecutive capitals — `WG` becomes `Wg` in Rust type names (`WgInterface`, `GetWgStatusRequest`), but frontend TS keeps original casing (`WGInterface`).
 - `build.rs` runs `tonic_build::compile_protos("proto/peerman.proto")` → `$OUT_DIR/peerman.rs`
+- **Proto field numbering:** Settings fields go up to 26 (`confederation_local_asn`). Always check existing field numbers before adding new ones to avoid conflicts.
 - Frontend proto: `protoc -I proto --es_out frontend/src/lib --es_opt target=ts peerman.proto` with `protoc-gen-es` in PATH (`frontend/node_modules/.bin`)
 - `@connectrpc/connect v2`: use `createClient()` (not `createPromiseClient`), messages via `create(Schema, {...})`
 
@@ -96,6 +99,9 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - **iBGP full mesh:** `generate_ibgp_blocks()` creates `protocol bgp node_<name>` blocks for all nodes with assigned tunnel IPs, using `direct` + `next hop self yes`.
 - **Atomic writes:** Config files written to `.tmp` then `rename` to avoid partial reads.
 - **Config key:** `[cluster] tunnel_ip_range = "10.255.0.0/24"` — internal tunnel IP pool for inter-node iBGP.
+- **IPv6 tunnels:** `[cluster] tunnel_ipv6_range = "fd42:cluster::/48"` — optional IPv6 tunnel pool. Nodes get both IPv4 + IPv6 tunnel IPs; iBGP generates dual-stack blocks.
+- **BGP Confederation:** `enable_confederation = true` + `confederation_local_asn = 65000` in `[cluster]` — uses DN42 ASN as confederation ID, private ASN per node. Alternative to iBGP full mesh.
+- **Dead code in cluster module:** `ClusterAggregator`, `ClusterCache`, `NodeStatus` impl blocks use `#[allow(dead_code)]` — pre-defined public API for cluster infrastructure not yet called from all code paths.
 
 ## ManagementService gRPC
 
@@ -126,7 +132,10 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - `BgpListener` passive iBGP on `[::1]:1790` — BIRD connects as client. Parses BGP UPDATE messages to count per-prefix path changes. AddPath capability (code 69) negotiated in OPEN.
 - BGP stream handling: `handle_session` must take `impl AsyncReadExt + AsyncWriteExt + Unpin + Send + 'static` (owned, not `&mut`). tokio::spawn requires `'static`.
 - Flap detection is dual-channel: iBGP listener (primary, real-time) → channel → FlapDetector; falls back to BIRD socket polling `show route all` every 30s comparing route snapshots.
-- Looking Glass queries all cluster nodes: local via socket, remote via gRPC `ExecuteCommand` RPC (placeholder for now).
+- Looking Glass queries all cluster nodes: local via socket, remote via gRPC `ExecuteCommand` RPC (implemented via `ClusterAggregator::execute_bird_command`).
+- **BFD support:** `enable_bfd = true` in settings generates `protocol bfd { interface "wg*"; interval 300ms; multiplier 3; }` in bird.conf.
+- **DN42 community filters:** `enable_community_filters = true` generates `update_latency`/`update_bandwidth`/`update_crypto` + `dn42_import_filter`/`dn42_export_filter` functions using AS 64511 standard.
+- **WireGuard lifecycle:** `RestartWireGuard` RPC runs `wg-quick down <iface> && wg-quick up <iface>`.
 - Traceroute runs as subprocess: `traceroute -q 1 -w 1 -m 15 <target>`.
 - `flap_events` table (migration 003) stores detected flaps — sources: `ibgp`/`socket`/`probe`.
 
