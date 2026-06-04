@@ -2,12 +2,11 @@ use tonic::transport::Endpoint;
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    cluster_service_client::ClusterServiceClient,
-    peer_service_server::PeerService, ConfigResponse, CreatePeerRequest, DeletePeerRequest,
-    DeletePeerResponse, ExportAllRequest, GenerateKeypairRequest, GenerateKeypairResponse,
-    GetConfigRequest, GetPeerRequest, ListPeersRequest, ListPeersResponse, Peer,
-    PushPeerRequest, RestartWireGuardRequest, RestartWireGuardResponse, TogglePeerRequest,
-    UpdatePeerRequest,
+    cluster_service_client::ClusterServiceClient, peer_service_server::PeerService, ConfigResponse,
+    CreatePeerRequest, DeletePeerRequest, DeletePeerResponse, ExportAllRequest,
+    GenerateKeypairRequest, GenerateKeypairResponse, GetConfigRequest, GetPeerRequest,
+    ListPeersRequest, ListPeersResponse, Peer, PushPeerRequest, RestartWireGuardRequest,
+    RestartWireGuardResponse, TogglePeerRequest, UpdatePeerRequest,
 };
 
 use crate::models::community::CommunityRuleRepository;
@@ -29,11 +28,7 @@ pub struct PeerServiceImpl {
 }
 
 impl PeerServiceImpl {
-    async fn proxy_push_peer(
-        &self,
-        target_addr: &str,
-        peer: Peer,
-    ) -> Result<Peer, Status> {
+    async fn proxy_push_peer(&self, target_addr: &str, peer: Peer) -> Result<Peer, Status> {
         let uri = format!("http://{}", target_addr);
         let channel = Endpoint::from_shared(uri)
             .map_err(|e| Status::internal(format!("invalid uri: {e}")))?
@@ -63,10 +58,14 @@ impl PeerServiceImpl {
     }
 
     async fn auto_apply_wg_bird(&self) -> Result<(), Status> {
-        let peers = self.peer_repo.list_all()
+        let peers = self
+            .peer_repo
+            .list_all()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
-        let settings = self.settings_repo.load()
+        let settings = self
+            .settings_repo
+            .load()
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
@@ -117,18 +116,22 @@ impl PeerServiceImpl {
             std::collections::HashMap::new()
         };
 
-        let mut bird_config = crate::services::bird::generate_full_config(&peers, &settings, "", &peer_communities);
+        let mut bird_config =
+            crate::services::bird::generate_full_config(&peers, &settings, "", &peer_communities);
 
         // Append cluster iBGP blocks if any nodes exist (cluster mode)
         if let Ok(nodes) = self.node_repo.list_all().await {
-            let my_tunnel_ip = nodes.iter()
+            let my_tunnel_ip = nodes
+                .iter()
                 .find(|n| n.listen_addr == self.listen_addr)
                 .map(|n| n.tunnel_ip.clone())
                 .unwrap_or_default();
             if !my_tunnel_ip.is_empty() {
-                bird_config.push_str(
-                    &crate::services::bird::generate_ibgp_blocks(&nodes, &settings, &my_tunnel_ip)
-                );
+                bird_config.push_str(&crate::services::bird::generate_ibgp_blocks(
+                    &nodes,
+                    &settings,
+                    &my_tunnel_ip,
+                ));
             }
         }
 
@@ -160,10 +163,7 @@ impl PeerService for PeerServiceImpl {
         }))
     }
 
-    async fn get_peer(
-        &self,
-        request: Request<GetPeerRequest>,
-    ) -> Result<Response<Peer>, Status> {
+    async fn get_peer(&self, request: Request<GetPeerRequest>) -> Result<Response<Peer>, Status> {
         let req = request.into_inner();
         let peer = self
             .peer_repo
@@ -191,14 +191,22 @@ impl PeerService for PeerServiceImpl {
                 .map_err(|_| Status::not_found("target node not found"))?;
 
             let proto = create_request_to_proto(&req);
-            let proxied = self.proxy_push_peer(&target_node.listen_addr, proto).await?;
+            let proxied = self
+                .proxy_push_peer(&target_node.listen_addr, proto)
+                .await?;
             return Ok(Response::new(proxied));
         }
 
-        validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
-            &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
-            &req.ipv6_tunnel_local, &req.ipv6_tunnel_remote)
-            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+        validate_peer_fields(
+            &req.name,
+            req.asn,
+            &req.wg_public_key,
+            &req.ipv4_tunnel_local,
+            &req.ipv4_tunnel_remote,
+            &req.ipv6_tunnel_local,
+            &req.ipv6_tunnel_remote,
+        )
+        .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let mut peer = self
             .peer_repo
@@ -236,14 +244,22 @@ impl PeerService for PeerServiceImpl {
                 .map_err(|_| Status::not_found("target node not found"))?;
 
             let proto = update_request_to_proto(&req);
-            let proxied = self.proxy_push_peer(&target_node.listen_addr, proto).await?;
+            let proxied = self
+                .proxy_push_peer(&target_node.listen_addr, proto)
+                .await?;
             return Ok(Response::new(proxied));
         }
 
-        validate_peer_fields(&req.name, req.asn, &req.wg_public_key,
-            &req.ipv4_tunnel_local, &req.ipv4_tunnel_remote,
-            &req.ipv6_tunnel_local, &req.ipv6_tunnel_remote)
-            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+        validate_peer_fields(
+            &req.name,
+            req.asn,
+            &req.wg_public_key,
+            &req.ipv4_tunnel_local,
+            &req.ipv4_tunnel_remote,
+            &req.ipv6_tunnel_local,
+            &req.ipv6_tunnel_remote,
+        )
+        .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         let mut peer = self
             .peer_repo
@@ -392,7 +408,12 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        let content = services::bird::generate_full_config(&peers, &settings, "", &std::collections::HashMap::new());
+        let content = services::bird::generate_full_config(
+            &peers,
+            &settings,
+            "",
+            &std::collections::HashMap::new(),
+        );
         Ok(Response::new(ConfigResponse { content }))
     }
 
@@ -402,7 +423,11 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<RestartWireGuardResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
-        let iface = if req.interface_name.is_empty() { "wg0" } else { &req.interface_name };
+        let iface = if req.interface_name.is_empty() {
+            "wg0"
+        } else {
+            &req.interface_name
+        };
         crate::services::wireguard::restart_interface(iface)
             .map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(RestartWireGuardResponse {}))

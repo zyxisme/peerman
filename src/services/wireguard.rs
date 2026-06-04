@@ -48,15 +48,17 @@ pub fn restart_interface(iface: &str) -> Result<(), AppError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::Internal(
-            format!("wg-quick up {iface} failed: {stderr}")
-        ));
+        return Err(AppError::Internal(format!(
+            "wg-quick up {iface} failed: {stderr}"
+        )));
     }
     Ok(())
 }
 
 /// Parse `wg show <interface> dump` output into structured status.
-pub fn get_wg_status(interface: &str) -> Result<Vec<crate::grpc::generated::WgInterface>, AppError> {
+pub fn get_wg_status(
+    interface: &str,
+) -> Result<Vec<crate::grpc::generated::WgInterface>, AppError> {
     let output = std::process::Command::new("wg")
         .args(["show", interface, "dump"])
         .output()
@@ -85,7 +87,7 @@ pub fn get_wg_status(interface: &str) -> Result<Vec<crate::grpc::generated::WgIn
                 });
             }
             // Peer line: public_key, preshared_key, endpoint, allowed_ips, latest_handshake, transfer_rx, transfer_tx, keepalive
-            peer_key if fields.len() >= 8 => {
+            _peer_key if fields.len() >= 8 => {
                 if let Some(ref mut iface) = current_iface {
                     iface.peers.push(crate::grpc::generated::WgPeerStatus {
                         public_key: fields[0].to_string(),
@@ -126,7 +128,9 @@ pub fn generate_cluster_wg_config(
         config.push_str("[Peer]\n");
         config.push_str(&format!("PublicKey = {}\n", node.wg_pubkey));
         // Extract host from listen_addr (strip port, keep host)
-        let host = node.listen_addr.rsplit_once(':')
+        let host = node
+            .listen_addr
+            .rsplit_once(':')
             .map(|(h, _)| h)
             .unwrap_or(&node.listen_addr);
         config.push_str(&format!("Endpoint = {host}:{listen_port}\n"));
@@ -177,9 +181,8 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
     }
 
     // PostUp — auto-generate + user custom
-    let mut post_up = String::from(
-        "PostUp = ip link set %i up; sysctl -w net.ipv6.conf.%i.autoconf=0"
-    );
+    let mut post_up =
+        String::from("PostUp = ip link set %i up; sysctl -w net.ipv6.conf.%i.autoconf=0");
     if let Some(ref ipv4) = peer.ipv4_tunnel_local {
         post_up.push_str(&format!("; ip addr add {ipv4}/32 dev %i"));
     }
@@ -295,8 +298,12 @@ mod tests {
         assert_eq!(pub_key.len(), 44);
         // Should be valid base64
         use base64::Engine;
-        assert!(base64::engine::general_purpose::STANDARD.decode(&priv_key).is_ok());
-        assert!(base64::engine::general_purpose::STANDARD.decode(&pub_key).is_ok());
+        assert!(base64::engine::general_purpose::STANDARD
+            .decode(&priv_key)
+            .is_ok());
+        assert!(base64::engine::general_purpose::STANDARD
+            .decode(&pub_key)
+            .is_ok());
     }
 
     #[test]

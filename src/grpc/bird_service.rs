@@ -42,16 +42,22 @@ impl BirdService for BirdServiceImpl {
             );
 
             // Look up target node address
-            let nodes = self.node_repo.list_all().await
+            let nodes = self
+                .node_repo
+                .list_all()
+                .await
                 .map_err(|e| Status::internal(e.to_string()))?;
-            let target_node = nodes.iter()
+            let target_node = nodes
+                .iter()
                 .find(|n| n.name == req.target_node_id || n.id == req.target_node_id)
-                .ok_or_else(|| Status::not_found(format!("node {} not found", req.target_node_id)))?;
+                .ok_or_else(|| {
+                    Status::not_found(format!("node {} not found", req.target_node_id))
+                })?;
 
-            match aggregator.execute_bird_command(
-                &target_node.listen_addr,
-                &req.command,
-            ).await {
+            match aggregator
+                .execute_bird_command(&target_node.listen_addr, &req.command)
+                .await
+            {
                 Ok(output) => vec![NodeBirdResult {
                     node_id: req.target_node_id.clone(),
                     node_name: target_node.name.clone(),
@@ -112,9 +118,9 @@ impl BirdService for BirdServiceImpl {
 }
 
 async fn execute_local(command: &str) -> Result<String, Status> {
-    let mut socket = BirdSocket::connect().await.map_err(|e| {
-        Status::unavailable(format!("Cannot connect to BIRD socket: {e}"))
-    })?;
+    let mut socket = BirdSocket::connect()
+        .await
+        .map_err(|e| Status::unavailable(format!("Cannot connect to BIRD socket: {e}")))?;
 
     let response = socket
         .execute(command)
