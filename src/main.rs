@@ -11,6 +11,7 @@ mod static_files;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 use std::time::Duration;
 
@@ -311,6 +312,7 @@ async fn main() -> anyhow::Result<()> {
     let shutdown = CancellationToken::new();
 
     // Build gRPC services
+    let config_dirty = Arc::new(AtomicBool::new(false));
     let peer_svc = PeerServiceImpl {
         peer_repo: state.peer_repo.clone(),
         settings_repo: state.settings_repo.clone(),
@@ -318,7 +320,7 @@ async fn main() -> anyhow::Result<()> {
         node_repo: state.node_repo.clone(),
         cluster_key: Arc::new(cluster_key.clone()),
         listen_addr: listen_addr.clone(),
-        pool: pool.clone(),
+        config_dirty: config_dirty.clone(),
     };
     let settings_svc = SettingsServiceImpl {
         settings_repo: state.settings_repo.clone(),
@@ -862,6 +864,45 @@ async fn main() -> anyhow::Result<()> {
                     }
                     Err(e) => tracing::warn!("Flap retention cleanup failed: {e}"),
                     _ => {}
+                }
+            }
+        });
+    }
+
+    // Spawn debounced WG+BIRD apply task (dirty-flag + 5s periodic check)
+    {
+        let apply_dirty = config_dirty.clone();
+        let apply_pool = pool.clone();
+        let apply_settings_repo = state.settings_repo.clone();
+        let apply_peer_repo = state.peer_repo.clone();
+        let apply_node_repo = state.node_repo.clone();
+        let apply_listen_addr = listen_addr.clone();
+        let apply_token = shutdown.clone();
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(5));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    _ = apply_token.cancelled() => {
+                        tracing::info!("Config apply task shutting down");
+                        return;
+                    }
+                    _ = interval.tick() => {}
+                }
+                if apply_dirty.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                    tracing::info!("Config dirty flag set, applying WG+BIRD configs...");
+                    if let Err(e) = crate::grpc::peer_service::apply_wg_bird(
+                        &apply_peer_repo,
+                        &apply_settings_repo,
+                        &apply_node_repo,
+                        &apply_listen_addr,
+                        &apply_pool,
+                    )
+                    .await
+                    {
+                        tracing::warn!("Auto-apply WG+BIRD failed: {e}");
+                    }
                 }
             }
         });
