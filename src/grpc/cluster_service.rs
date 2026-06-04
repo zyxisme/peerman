@@ -178,14 +178,9 @@ impl ClusterService for ClusterServiceImpl {
                     .map_err(|e| Status::internal(e.to_string()))?;
             }
             None => {
-                let mut peer = self
-                    .peer_repo
-                    .create(&proto_peer.name)
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
-                peer.apply_proto(&proto_peer);
+                let peer: crate::models::peer::Peer = proto_peer.into();
                 self.peer_repo
-                    .update(&peer)
+                    .create_full(&peer)
                     .await
                     .map_err(|e| Status::internal(e.to_string()))?;
             }

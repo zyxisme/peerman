@@ -180,31 +180,6 @@ impl PeerRepository {
         Ok(peer)
     }
 
-    pub async fn create(&self, name: &str) -> Result<Peer, AppError> {
-        let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
-
-        let settings = crate::models::settings::SettingsRepository::new(self.pool.clone())
-            .load()
-            .await?;
-
-        let peer = sqlx::query_as::<_, Peer>(&format!(
-            "INSERT INTO peers (id, name, asn, local_asn, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name, created_at, updated_at)
-             VALUES (?, ?, 0, ?, '', 0, ?, '', ?, ?)
-             RETURNING {PEER_COLUMNS}"
-        ))
-        .bind(&id)
-        .bind(name)
-        .bind(settings.local_asn)
-        .bind(settings.wg_default_listen_port)
-        .bind(&now)
-        .bind(&now)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(peer)
-    }
-
     /// Create a peer with all fields in a single INSERT ... RETURNING.
     pub async fn create_full(&self, peer: &Peer) -> Result<Peer, AppError> {
         let id = Uuid::new_v4().to_string();
