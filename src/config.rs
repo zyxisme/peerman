@@ -63,6 +63,8 @@ pub struct ClusterConfig {
     pub sync_interval_secs: u64,
     #[serde(default)]
     pub tunnel_ip_range: String,
+    #[serde(default)]
+    pub tunnel_ipv6_range: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -141,6 +143,7 @@ impl Default for ClusterConfig {
             probe_interval_secs: default_probe_interval(),
             sync_interval_secs: default_sync_interval(),
             tunnel_ip_range: String::new(),
+            tunnel_ipv6_range: String::new(),
         }
     }
 }

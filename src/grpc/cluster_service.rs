@@ -424,6 +424,8 @@ impl ClusterService for ClusterServiceImpl {
                 && ni.wg_public_key != node.wg_pubkey;
             let tunnel_changed =
                 !ni.tunnel_ip.is_empty() && ni.tunnel_ip != node.tunnel_ip;
+            let tunnel_ipv6_changed =
+                !ni.tunnel_ipv6.is_empty() && ni.tunnel_ipv6 != node.tunnel_ipv6;
             if wg_changed || tunnel_changed {
                 let _ = self
                     .node_repo
@@ -432,6 +434,12 @@ impl ClusterService for ClusterServiceImpl {
                         if wg_changed { &ni.wg_public_key } else { &node.wg_pubkey },
                         if tunnel_changed { &ni.tunnel_ip } else { &node.tunnel_ip },
                     )
+                    .await;
+            }
+            if tunnel_ipv6_changed {
+                let _ = self
+                    .node_repo
+                    .update_tunnel_ipv6(&node.id, &ni.tunnel_ipv6)
                     .await;
             }
         }
@@ -477,6 +485,7 @@ impl ClusterService for ClusterServiceImpl {
                 last_seen_at: n.last_seen_at.clone(),
                 wg_public_key: n.wg_pubkey.clone(),
                 tunnel_ip: n.tunnel_ip.clone(),
+                tunnel_ipv6: n.tunnel_ipv6.clone(),
             })
             .collect();
 

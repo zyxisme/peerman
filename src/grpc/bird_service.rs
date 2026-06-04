@@ -10,6 +10,9 @@ use crate::services::bird_socket::BirdSocket;
 pub struct BirdServiceImpl {
     pub node_name: String,
     pub jwt_secret: std::sync::Arc<String>,
+    pub cluster_key: std::sync::Arc<String>,
+    pub node_repo: crate::models::node::NodeRepository,
+    pub cache: crate::cluster::cache::ClusterCache,
 }
 
 #[tonic::async_trait]
@@ -32,14 +35,38 @@ impl BirdService for BirdServiceImpl {
                 error: String::new(),
             }]
         } else {
-            // Remote node — not yet wired, return placeholder
-            vec![NodeBirdResult {
-                node_id: req.target_node_id.clone(),
-                node_name: req.target_node_id.clone(),
-                output: String::new(),
-                status_code: 1,
-                error: "Cross-node BIRD execution not yet implemented".to_string(),
-            }]
+            // Remote node — forward via cluster
+            let aggregator = crate::cluster::aggregator::ClusterAggregator::new(
+                self.cache.clone(),
+                self.cluster_key.as_ref().clone(),
+            );
+
+            // Look up target node address
+            let nodes = self.node_repo.list_all().await
+                .map_err(|e| Status::internal(e.to_string()))?;
+            let target_node = nodes.iter()
+                .find(|n| n.name == req.target_node_id || n.id == req.target_node_id)
+                .ok_or_else(|| Status::not_found(format!("node {} not found", req.target_node_id)))?;
+
+            match aggregator.execute_bird_command(
+                &target_node.listen_addr,
+                &req.command,
+            ).await {
+                Ok(output) => vec![NodeBirdResult {
+                    node_id: req.target_node_id.clone(),
+                    node_name: target_node.name.clone(),
+                    output,
+                    status_code: 0,
+                    error: String::new(),
+                }],
+                Err(e) => vec![NodeBirdResult {
+                    node_id: req.target_node_id.clone(),
+                    node_name: target_node.name.clone(),
+                    output: String::new(),
+                    status_code: 1,
+                    error: e,
+                }],
+            }
         };
 
         Ok(Response::new(ExecuteCommandResponse { results }))

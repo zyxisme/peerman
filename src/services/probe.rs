@@ -137,6 +137,7 @@ mod tests {
             updated_at: String::new(),
             wg_pubkey: String::new(),
             tunnel_ip: String::new(),
+            tunnel_ipv6: String::new(),
         };
         assert_eq!(resolve_target_ip(&node), "192.168.1.1");
     }
@@ -155,6 +156,7 @@ mod tests {
             updated_at: String::new(),
             wg_pubkey: String::new(),
             tunnel_ip: String::new(),
+            tunnel_ipv6: String::new(),
         };
         assert_eq!(resolve_target_ip(&node), "10.0.0.1");
     }
