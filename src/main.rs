@@ -326,6 +326,10 @@ async fn main() -> anyhow::Result<()> {
         cluster_key: Arc::new(cluster_key.clone()),
         listen_addr: listen_addr.clone(),
         config_dirty: config_dirty.clone(),
+        aggregator: crate::cluster::aggregator::ClusterAggregator::new(
+            state.cluster_cache.clone(),
+            cluster_key.clone(),
+        ),
     };
     let settings_svc = SettingsServiceImpl {
         settings_repo: state.settings_repo.clone(),
