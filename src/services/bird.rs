@@ -441,106 +441,120 @@ pub fn generate_ibgp_blocks(
 
         if use_confederation {
             // BGP Confederation mode
-            blocks.push_str(&format!(
-                "protocol bgp node_{name} from {tpl} {{\n",
-                tpl = settings.bird_template_name
+            blocks.push_str(&generate_ibgp_node_block(
+                &name,
+                &settings.bird_template_name,
+                Some(settings.confederation_local_asn),
+                Some(settings.local_asn),
+                &node.tunnel_ip,
+                "external",
+                true,
             ));
-            blocks.push_str(&format!(
-                "    local as {};\n",
-                settings.confederation_local_asn
-            ));
-            blocks.push_str(&format!("    confederation {};\n", settings.local_asn));
-            blocks.push_str("    confederation member yes;\n");
-            blocks.push_str(&format!("    neighbor {} external;\n", node.tunnel_ip));
-            blocks.push_str("    direct;\n");
-            blocks.push_str("    ipv4 {\n");
-            blocks.push_str("        next hop self yes;\n");
-            blocks.push_str(
-                "        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
-            );
-            blocks.push_str(
-                "        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
-            );
-            blocks.push_str("    };\n");
-            blocks.push_str("    ipv6 {\n");
-            blocks.push_str("        next hop self yes;\n");
-            blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-            blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-            blocks.push_str("    };\n");
-            blocks.push_str("}\n\n");
 
             // Add separate IPv6 confederation neighbor if tunnel_ipv6 is assigned
             if !node.tunnel_ipv6.is_empty() {
-                blocks.push_str(&format!(
-                    "protocol bgp node_{name}_v6 from {tpl} {{\n",
-                    tpl = settings.bird_template_name
+                blocks.push_str(&generate_ibgp_node_block(
+                    &format!("{name}_v6"),
+                    &settings.bird_template_name,
+                    Some(settings.confederation_local_asn),
+                    Some(settings.local_asn),
+                    &node.tunnel_ipv6,
+                    "external",
+                    false,
                 ));
-                blocks.push_str(&format!(
-                    "    local as {};\n",
-                    settings.confederation_local_asn
-                ));
-                blocks.push_str(&format!("    confederation {};\n", settings.local_asn));
-                blocks.push_str("    confederation member yes;\n");
-                blocks.push_str(&format!("    neighbor {} external;\n", node.tunnel_ipv6));
-                blocks.push_str("    direct;\n");
-                blocks.push_str("    ipv6 {\n");
-                blocks.push_str("        next hop self yes;\n");
-                blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-                blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-                blocks.push_str("    };\n");
-                blocks.push_str("}\n\n");
             }
         } else {
             // Standard iBGP full mesh
-            blocks.push_str(&format!(
-                "protocol bgp node_{name} from {tpl} {{\n",
-                tpl = settings.bird_template_name
+            let neighbor_as_str = format!("as {}", settings.local_asn);
+            blocks.push_str(&generate_ibgp_node_block(
+                &name,
+                &settings.bird_template_name,
+                None,
+                None,
+                &node.tunnel_ip,
+                &neighbor_as_str,
+                true,
             ));
-            blocks.push_str(&format!(
-                "    neighbor {tunnel_ip} as {local_asn};\n",
-                tunnel_ip = node.tunnel_ip,
-                local_asn = settings.local_asn
-            ));
-            blocks.push_str("    direct;\n");
-            blocks.push_str("    ipv4 {\n");
-            blocks.push_str("        next hop self yes;\n");
-            blocks.push_str(
-                "        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
-            );
-            blocks.push_str(
-                "        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
-            );
-            blocks.push_str("    };\n");
-            blocks.push_str("    ipv6 {\n");
-            blocks.push_str("        next hop self yes;\n");
-            blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-            blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-            blocks.push_str("    };\n");
-            blocks.push_str("}\n\n");
 
             // Add separate IPv6 iBGP neighbor if tunnel_ipv6 is assigned
             if !node.tunnel_ipv6.is_empty() {
-                blocks.push_str(&format!(
-                    "protocol bgp node_{name}_v6 from {tpl} {{\n",
-                    tpl = settings.bird_template_name
+                blocks.push_str(&generate_ibgp_node_block(
+                    &format!("{name}_v6"),
+                    &settings.bird_template_name,
+                    None,
+                    None,
+                    &node.tunnel_ipv6,
+                    &neighbor_as_str,
+                    false,
                 ));
-                blocks.push_str(&format!(
-                    "    neighbor {tunnel_ipv6} as {local_asn};\n",
-                    tunnel_ipv6 = node.tunnel_ipv6,
-                    local_asn = settings.local_asn
-                ));
-                blocks.push_str("    direct;\n");
-                blocks.push_str("    ipv6 {\n");
-                blocks.push_str("        next hop self yes;\n");
-                blocks.push_str("        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-                blocks.push_str("        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n");
-                blocks.push_str("    };\n");
-                blocks.push_str("}\n\n");
             }
         }
     }
 
     blocks
+}
+
+/// Generate a single iBGP/Confederation protocol block for a node.
+///
+/// Parameters:
+/// - `name`: sanitized node name (e.g. "node-a" or "node-a_v6")
+/// - `template`: BIRD template name (e.g. "dnpeers")
+/// - `local_asn`: if Some, adds `local as <asn>;` (confederation mode uses this)
+/// - `confederation_id`: if Some, adds `confederation <id>;` + `confederation member yes;`
+///   (uses confederation ASN as identifier, e.g. DN42 ASN)
+/// - `neighbor_ip`: tunnel IP for the neighbor line
+/// - `neighbor_as`: the AS clause value (e.g. "as 4242420000" for iBGP, "external" for confed)
+/// - `include_ipv4`: whether to include the ipv4 address family block
+fn generate_ibgp_node_block(
+    name: &str,
+    template: &str,
+    local_asn: Option<i64>,
+    confederation_id: Option<i64>,
+    neighbor_ip: &str,
+    neighbor_as: &str,
+    include_ipv4: bool,
+) -> String {
+    let mut block = String::new();
+
+    block.push_str(&format!("protocol bgp node_{name} from {template} {{\n"));
+
+    if let Some(asn) = local_asn {
+        block.push_str(&format!("    local as {asn};\n"));
+    }
+    if let Some(confed_id) = confederation_id {
+        block.push_str(&format!("    confederation {confed_id};\n"));
+        block.push_str("    confederation member yes;\n");
+    }
+
+    block.push_str(&format!(
+        "    neighbor {neighbor_ip} {neighbor_as};\n"
+    ));
+    block.push_str("    direct;\n");
+
+    if include_ipv4 {
+        block.push_str("    ipv4 {\n");
+        block.push_str("        next hop self yes;\n");
+        block.push_str(
+            "        import where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
+        );
+        block.push_str(
+            "        export where source = RTS_BGP && is_valid_network() && !is_self_net();\n",
+        );
+        block.push_str("    };\n");
+    }
+
+    block.push_str("    ipv6 {\n");
+    block.push_str("        next hop self yes;\n");
+    block.push_str(
+        "        import where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n",
+    );
+    block.push_str(
+        "        export where source = RTS_BGP && is_valid_network_v6() && !is_self_net();\n",
+    );
+    block.push_str("    };\n");
+    block.push_str("}\n\n");
+
+    block
 }
 
 fn sanitize_name(name: &str) -> String {
