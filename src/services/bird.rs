@@ -1,3 +1,5 @@
+use std::os::unix::fs::PermissionsExt;
+
 use crate::models::peer::Peer;
 use crate::models::settings::Settings;
 
@@ -368,6 +370,10 @@ pub fn apply_config(config: &str) -> Result<(), crate::error::AppError> {
             crate::error::AppError::Internal(format!("Cannot write bird.conf.tmp: {e}"))
         })?;
     }
+    #[cfg(unix)]
+    std::fs::set_permissions(tmp_path, std::fs::Permissions::from_mode(0o600)).map_err(|e| {
+        crate::error::AppError::Internal(format!("Cannot set permissions on bird.conf: {e}"))
+    })?;
     std::fs::rename(tmp_path, config_path)
         .map_err(|e| crate::error::AppError::Internal(format!("Cannot rename bird.conf: {e}")))?;
 
@@ -526,9 +532,7 @@ fn generate_ibgp_node_block(
         block.push_str("    confederation member yes;\n");
     }
 
-    block.push_str(&format!(
-        "    neighbor {neighbor_ip} {neighbor_as};\n"
-    ));
+    block.push_str(&format!("    neighbor {neighbor_ip} {neighbor_as};\n"));
     block.push_str("    direct;\n");
 
     if include_ipv4 {

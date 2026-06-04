@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::os::unix::fs::PermissionsExt;
 use std::str::FromStr;
 
 use crate::error::AppError;
@@ -154,6 +155,11 @@ pub async fn sync_cluster_wg(
 
     std::fs::write(&tmp_path, config)
         .map_err(|e| AppError::Internal(format!("Cannot write wg-cluster config: {e}")))?;
+    std::fs::set_permissions(
+        &tmp_path,
+        std::fs::Permissions::from_mode(0o600),
+    )
+    .map_err(|e| AppError::Internal(format!("Cannot set permissions on wg-cluster config: {e}")))?;
     std::fs::rename(&tmp_path, &config_path)
         .map_err(|e| AppError::Internal(format!("Cannot rename wg-cluster config: {e}")))?;
 
