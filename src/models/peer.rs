@@ -194,7 +194,7 @@ impl PeerRepository {
              wg_private_key = ?, wg_public_key = ?, wg_remote_address = ?, wg_remote_port = ?, wg_listen_port = ?, wg_interface_name = ?,
              ipv4_tunnel_local = ?, ipv4_tunnel_remote = ?, ipv6_tunnel_local = ?, ipv6_tunnel_remote = ?,
              multiprotocol = ?, extended_nexthop = ?, sessions = ?, passive = ?,
-             import_max_prefix = ?, export_max_prefix = ?,
+             import_max_prefix = ?, export_max_prefix = ?, enabled = ?,
              origin_node_id = ?, updated_at = ?
              WHERE id = ?
              RETURNING id, name, description, asn, local_asn,
@@ -224,6 +224,7 @@ impl PeerRepository {
         .bind(peer.passive)
         .bind(peer.import_max_prefix)
         .bind(peer.export_max_prefix)
+        .bind(peer.enabled)
         .bind(&peer.origin_node_id)
         .bind(&now)
         .bind(&peer.id)
@@ -246,12 +247,10 @@ impl PeerRepository {
     }
 
     pub async fn toggle_enabled(&self, id: &str) -> Result<Peer, AppError> {
-        let peer = self.find_by_id(id).await?;
-        let new_enabled = !peer.enabled;
         let now = Utc::now().to_rfc3339();
-
         let updated = sqlx::query_as::<_, Peer>(
-            "UPDATE peers SET enabled = ?, updated_at = ? WHERE id = ?
+            "UPDATE peers SET enabled = NOT enabled, updated_at = ?1
+             WHERE id = ?2
              RETURNING id, name, description, asn, local_asn,
              wg_private_key, wg_public_key, wg_remote_address, wg_remote_port, wg_listen_port, wg_interface_name,
              ipv4_tunnel_local, ipv4_tunnel_remote, ipv6_tunnel_local, ipv6_tunnel_remote,
@@ -259,11 +258,11 @@ impl PeerRepository {
              import_max_prefix, export_max_prefix,
              enabled, created_at, updated_at, origin_node_id",
         )
-        .bind(new_enabled)
         .bind(&now)
         .bind(id)
-        .fetch_one(&self.pool)
-        .await?;
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("Peer {id} not found")))?;
 
         Ok(updated)
     }
