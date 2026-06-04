@@ -9,6 +9,7 @@ use crate::models::flap_event::FlapEventRepository;
 
 pub struct FlapServiceImpl {
     pub flap_repo: FlapEventRepository,
+    pub jwt_secret: std::sync::Arc<String>,
 }
 
 fn flap_event_to_proto(e: &crate::models::flap_event::FlapEvent) -> FlapEvent {
@@ -33,6 +34,7 @@ impl FlapService for FlapServiceImpl {
         &self,
         request: Request<ListFlapEventsRequest>,
     ) -> Result<Response<ListFlapEventsResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let events = if req.active_only {
             self.flap_repo
@@ -53,8 +55,9 @@ impl FlapService for FlapServiceImpl {
 
     async fn get_flap_stats(
         &self,
-        _request: Request<GetFlapStatsRequest>,
+        request: Request<GetFlapStatsRequest>,
     ) -> Result<Response<GetFlapStatsResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let stats = self
             .flap_repo
             .stats()

@@ -150,8 +150,9 @@ pub fn peer_to_proto(p: &crate::models::peer::Peer) -> Peer {
 impl PeerService for PeerServiceImpl {
     async fn list_peers(
         &self,
-        _request: Request<ListPeersRequest>,
+        request: Request<ListPeersRequest>,
     ) -> Result<Response<ListPeersResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let peers = self
             .peer_repo
             .list_all()
@@ -164,6 +165,7 @@ impl PeerService for PeerServiceImpl {
     }
 
     async fn get_peer(&self, request: Request<GetPeerRequest>) -> Result<Response<Peer>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let peer = self
             .peer_repo

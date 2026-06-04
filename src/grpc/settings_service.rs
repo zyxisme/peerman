@@ -122,8 +122,9 @@ fn apply_settings(s: &mut crate::models::settings::Settings, proto: &Settings) {
 impl SettingsService for SettingsServiceImpl {
     async fn get_settings(
         &self,
-        _request: Request<GetSettingsRequest>,
+        request: Request<GetSettingsRequest>,
     ) -> Result<Response<Settings>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let settings = self
             .settings_repo
             .load()

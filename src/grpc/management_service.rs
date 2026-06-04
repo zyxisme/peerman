@@ -5,7 +5,9 @@ use super::generated::{
     GetWgStatusRequest, WgStatusResponse,
 };
 
-pub struct ManagementServiceImpl;
+pub struct ManagementServiceImpl {
+    pub jwt_secret: std::sync::Arc<String>,
+}
 
 #[tonic::async_trait]
 impl ManagementService for ManagementServiceImpl {
@@ -13,6 +15,7 @@ impl ManagementService for ManagementServiceImpl {
         &self,
         request: Request<GetWgStatusRequest>,
     ) -> Result<Response<WgStatusResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let iface = if req.interface.is_empty() {
             "all"
@@ -28,8 +31,9 @@ impl ManagementService for ManagementServiceImpl {
 
     async fn get_bird_status(
         &self,
-        _request: Request<GetBirdStatusRequest>,
+        request: Request<GetBirdStatusRequest>,
     ) -> Result<Response<BirdStatusResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let protocols = crate::services::bird::get_bird_status()
             .map_err(|e| Status::internal(e.to_string()))?;
 
