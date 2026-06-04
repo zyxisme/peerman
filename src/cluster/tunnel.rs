@@ -19,12 +19,16 @@ pub async fn init_local_node(
 
     // Generate fresh WG keypair on every startup
     let (priv_key, pub_key) = services::wireguard::generate_keypair();
-    node_repo.update_cluster_fields(node_id, &pub_key, &node.tunnel_ip).await?;
+    node_repo
+        .update_cluster_fields(node_id, &pub_key, &node.tunnel_ip)
+        .await?;
 
     // Assign tunnel IP if missing
     let tunnel_ip = if node.tunnel_ip.is_empty() {
         let ip = assign_tunnel_ip(node_repo, tunnel_ip_range).await?;
-        node_repo.update_cluster_fields(node_id, &pub_key, &ip).await?;
+        node_repo
+            .update_cluster_fields(node_id, &pub_key, &ip)
+            .await?;
         ip
     } else {
         node.tunnel_ip.clone()
@@ -63,7 +67,11 @@ async fn assign_tunnel_ip(node_repo: &NodeRepository, range: &str) -> Result<Str
     let used_ips: std::collections::HashSet<String> = all_nodes
         .iter()
         .filter_map(|n| {
-            if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) }
+            if n.tunnel_ip.is_empty() {
+                None
+            } else {
+                Some(n.tunnel_ip.clone())
+            }
         })
         .collect();
 
@@ -75,7 +83,9 @@ async fn assign_tunnel_ip(node_repo: &NodeRepository, range: &str) -> Result<Str
         }
     }
 
-    Err(AppError::Internal("no available IP in tunnel_ip_range".into()))
+    Err(AppError::Internal(
+        "no available IP in tunnel_ip_range".into(),
+    ))
 }
 
 /// Assign the first unused IPv6 address from the given range (e.g. "fd00:cluster::/64").
@@ -99,7 +109,11 @@ async fn assign_tunnel_ipv6(node_repo: &NodeRepository, range: &str) -> Result<S
     let used_ips: std::collections::HashSet<String> = all_nodes
         .iter()
         .filter_map(|n| {
-            if n.tunnel_ipv6.is_empty() { None } else { Some(n.tunnel_ipv6.clone()) }
+            if n.tunnel_ipv6.is_empty() {
+                None
+            } else {
+                Some(n.tunnel_ipv6.clone())
+            }
         })
         .collect();
 
@@ -114,7 +128,9 @@ async fn assign_tunnel_ipv6(node_repo: &NodeRepository, range: &str) -> Result<S
         }
     }
 
-    Err(AppError::Internal("no available IPv6 in tunnel_ipv6_range".into()))
+    Err(AppError::Internal(
+        "no available IPv6 in tunnel_ipv6_range".into(),
+    ))
 }
 
 /// Rebuild wg-cluster config and write it to /etc/wireguard/.
@@ -124,11 +140,8 @@ pub async fn sync_cluster_wg(
 ) -> Result<(), AppError> {
     let nodes = node_repo.list_all().await?;
 
-    let config = services::wireguard::generate_cluster_wg_config(
-        &nodes,
-        my_wg_private_key,
-        CLUSTER_WG_PORT,
-    );
+    let config =
+        services::wireguard::generate_cluster_wg_config(&nodes, my_wg_private_key, CLUSTER_WG_PORT);
 
     let config_path = format!("/etc/wireguard/{CLUSTER_WG_INTERFACE}.conf");
     let tmp_path = format!("{config_path}.tmp");
@@ -152,7 +165,12 @@ pub async fn sync_cluster_bird(
     let peers = peer_repo.list_all().await?;
     let nodes = node_repo.list_all().await?;
 
-    let mut config = services::bird::generate_full_config(&peers, settings, "", &std::collections::HashMap::new());
+    let mut config = services::bird::generate_full_config(
+        &peers,
+        settings,
+        "",
+        &std::collections::HashMap::new(),
+    );
 
     let ibgp = services::bird::generate_ibgp_blocks(&nodes, settings, my_tunnel_ip);
     config.push_str(&ibgp);

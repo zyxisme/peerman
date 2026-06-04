@@ -26,18 +26,21 @@ use tracing_subscriber::EnvFilter;
 /// Global config (set once at startup, read by HTTP handlers).
 static APP_CONFIG: OnceLock<Arc<config::Config>> = OnceLock::new();
 fn app_config() -> Arc<config::Config> {
-    APP_CONFIG.get().expect("APP_CONFIG not initialized").clone()
+    APP_CONFIG
+        .get()
+        .expect("APP_CONFIG not initialized")
+        .clone()
 }
 
+use crate::grpc::bird_service::BirdServiceImpl;
+use crate::grpc::cluster_service::ClusterServiceImpl;
+use crate::grpc::flap_service::FlapServiceImpl;
 use crate::grpc::generated::bird_service_server::BirdServiceServer;
 use crate::grpc::generated::cluster_service_server::ClusterServiceServer;
 use crate::grpc::generated::flap_service_server::FlapServiceServer;
 use crate::grpc::generated::management_service_server::ManagementServiceServer;
 use crate::grpc::generated::peer_service_server::PeerServiceServer;
 use crate::grpc::generated::settings_service_server::SettingsServiceServer;
-use crate::grpc::bird_service::BirdServiceImpl;
-use crate::grpc::cluster_service::ClusterServiceImpl;
-use crate::grpc::flap_service::FlapServiceImpl;
 use crate::grpc::management_service::ManagementServiceImpl;
 use crate::grpc::peer_service::PeerServiceImpl;
 use crate::grpc::settings_service::SettingsServiceImpl;
@@ -73,9 +76,7 @@ struct MeResponse {
     username: Option<String>,
 }
 
-async fn handle_login(
-    Json(req): Json<LoginRequest>,
-) -> axum::response::Response {
+async fn handle_login(Json(req): Json<LoginRequest>) -> axum::response::Response {
     let cfg = app_config();
     if req.username != cfg.auth.username || req.password != cfg.auth.password {
         return json_response(
@@ -133,9 +134,7 @@ async fn handle_logout() -> axum::response::Response {
     )
 }
 
-async fn handle_me(
-    headers: axum::http::HeaderMap,
-) -> Json<MeResponse> {
+async fn handle_me(headers: axum::http::HeaderMap) -> Json<MeResponse> {
     let cfg = app_config();
     let cookie_header = headers
         .get("cookie")
@@ -188,9 +187,7 @@ async fn main() -> anyhow::Result<()> {
     // Generate JWT secret if not configured
     if cfg.auth.jwt_secret.is_empty() {
         cfg.auth.jwt_secret = auth::generate_jwt_secret();
-        tracing::info!(
-            "Auto-generated JWT secret (tokens will expire on restart)"
-        );
+        tracing::info!("Auto-generated JWT secret (tokens will expire on restart)");
     }
     if cfg.auth.password.is_empty() {
         anyhow::bail!(
@@ -217,7 +214,8 @@ async fn main() -> anyhow::Result<()> {
     let tunnel_ip_range = cfg.cluster.tunnel_ip_range.clone();
     let tunnel_ipv6_range = cfg.cluster.tunnel_ipv6_range.clone();
     let cfg_arc = Arc::new(cfg);
-    APP_CONFIG.set(cfg_arc.clone())
+    APP_CONFIG
+        .set(cfg_arc.clone())
         .map_err(|_| anyhow::anyhow!("APP_CONFIG already set"))?;
 
     // Database
@@ -360,27 +358,43 @@ async fn main() -> anyhow::Result<()> {
                             {
                                 continue;
                             }
-                            let _ = state.node_repo.create(
-                                &info.name,
-                                &info.listen_addr,
-                                info.local_asn,
-                                &info.description,
-                            ).await;
+                            let _ = state
+                                .node_repo
+                                .create(
+                                    &info.name,
+                                    &info.listen_addr,
+                                    info.local_asn,
+                                    &info.description,
+                                )
+                                .await;
                         }
 
                         // Sync cluster configs after discovering new nodes
                         if !tunnel_ip_range.is_empty() {
                             let nodes = state.node_repo.list_all().await?;
-                            let my_tunnel_ip = nodes.iter()
+                            let my_tunnel_ip = nodes
+                                .iter()
                                 .find(|n| n.listen_addr == listen_addr)
-                                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                                .and_then(|n| {
+                                    if n.tunnel_ip.is_empty() {
+                                        None
+                                    } else {
+                                        Some(n.tunnel_ip.clone())
+                                    }
+                                })
                                 .unwrap_or_default();
                             if !my_tunnel_ip.is_empty() {
-                                let _ = crate::cluster::tunnel::sync_cluster_wg(&state.node_repo, "").await;
+                                let _ =
+                                    crate::cluster::tunnel::sync_cluster_wg(&state.node_repo, "")
+                                        .await;
                                 let settings = state.settings_repo.load().await?;
                                 let _ = crate::cluster::tunnel::sync_cluster_bird(
-                                    &state.peer_repo, &settings, &state.node_repo, &my_tunnel_ip,
-                                ).await;
+                                    &state.peer_repo,
+                                    &settings,
+                                    &state.node_repo,
+                                    &my_tunnel_ip,
+                                )
+                                .await;
                             }
                         }
 
@@ -408,7 +422,9 @@ async fn main() -> anyhow::Result<()> {
                 &node.id,
                 &tunnel_ip_range,
                 &tunnel_ipv6_range,
-            ).await {
+            )
+            .await
+            {
                 Ok((priv_key, pub_key, tunnel_ip, tunnel_ipv6)) => {
                     if !tunnel_ipv6.is_empty() {
                         tracing::info!(
@@ -426,10 +442,9 @@ async fn main() -> anyhow::Result<()> {
                     }
 
                     // Apply initial wg-cluster config
-                    if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(
-                        &state.node_repo,
-                        &priv_key,
-                    ).await {
+                    if let Err(e) =
+                        crate::cluster::tunnel::sync_cluster_wg(&state.node_repo, &priv_key).await
+                    {
                         tracing::warn!("Failed to apply initial wg-cluster config: {e}");
                     }
 
@@ -440,7 +455,9 @@ async fn main() -> anyhow::Result<()> {
                         &settings,
                         &state.node_repo,
                         &tunnel_ip,
-                    ).await {
+                    )
+                    .await
+                    {
                         tracing::warn!("Failed to apply initial cluster bird config: {e}");
                     }
 
@@ -519,8 +536,7 @@ async fn main() -> anyhow::Result<()> {
                         )
                         .await;
 
-                        let prev_fails =
-                            fail_streaks.get(&node.listen_addr).copied().unwrap_or(0);
+                        let prev_fails = fail_streaks.get(&node.listen_addr).copied().unwrap_or(0);
 
                         if healthy {
                             if prev_fails >= 2 {
@@ -632,9 +648,8 @@ async fn main() -> anyhow::Result<()> {
                             if info.listen_addr == listen_addr_sync {
                                 continue;
                             }
-                            if let Ok(Some(_)) = node_repo_sync
-                                .find_by_listen_addr(&info.listen_addr)
-                                .await
+                            if let Ok(Some(_)) =
+                                node_repo_sync.find_by_listen_addr(&info.listen_addr).await
                             {
                                 continue;
                             }
@@ -654,15 +669,26 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(n) => n,
                                 Err(_) => continue,
                             };
-                            let my_tunnel_ip = nodes.iter()
+                            let my_tunnel_ip = nodes
+                                .iter()
                                 .find(|n| n.listen_addr == listen_addr_sync)
-                                .and_then(|n| if n.tunnel_ip.is_empty() { None } else { Some(n.tunnel_ip.clone()) })
+                                .and_then(|n| {
+                                    if n.tunnel_ip.is_empty() {
+                                        None
+                                    } else {
+                                        Some(n.tunnel_ip.clone())
+                                    }
+                                })
                                 .unwrap_or_default();
                             if !my_tunnel_ip.is_empty() {
                                 if let Ok(settings) = settings_repo_sync.load().await {
                                     let _ = crate::cluster::tunnel::sync_cluster_bird(
-                                        &peer_repo_sync, &settings, &node_repo_sync, &my_tunnel_ip,
-                                    ).await;
+                                        &peer_repo_sync,
+                                        &settings,
+                                        &node_repo_sync,
+                                        &my_tunnel_ip,
+                                    )
+                                    .await;
                                 }
                             }
                         }
@@ -687,9 +713,8 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             tracing::info!("Starting BGP flap detector for node '{flap_node_name}' ({node_id})");
 
-            let (tx, rx) = tokio::sync::mpsc::channel::<
-                crate::services::bgp_listener::PathChange,
-            >(1024);
+            let (tx, rx) =
+                tokio::sync::mpsc::channel::<crate::services::bgp_listener::PathChange>(1024);
 
             match crate::services::bgp_listener::BgpListener::bind(node_id.clone()).await {
                 Ok(listener) => {
@@ -705,8 +730,10 @@ async fn main() -> anyhow::Result<()> {
                         }
                     });
 
-                    let mut detector =
-                        crate::services::flap_detector::FlapDetector::new(node_id.clone(), flap_repo);
+                    let mut detector = crate::services::flap_detector::FlapDetector::new(
+                        node_id.clone(),
+                        flap_repo,
+                    );
                     detector.run(rx, flap_token).await;
                 }
                 Err(e) => {

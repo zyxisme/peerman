@@ -50,14 +50,14 @@ export default function App() {
           <Route path="/peers/new" element={<ProtectedRoute><PeerForm /></ProtectedRoute>} />
           <Route path="/peers/:id" element={<PeerDetail />} />
           <Route path="/peers/:id/edit" element={<ProtectedRoute><PeerForm /></ProtectedRoute>} />
-          <Route path="/export" element={<ExportPage />} />
+          <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/nodes" element={<NodesTable />} />
           <Route path="/nodes/new" element={<ProtectedRoute><NodeForm /></ProtectedRoute>} />
           <Route path="/nodes/:id" element={<NodeDetail />} />
           <Route path="/nodes/:id/edit" element={<ProtectedRoute><NodeForm /></ProtectedRoute>} />
           <Route path="/probes" element={<ProbeDashboard />} />
-          <Route path="/communities" element={<CommunityRules />} />
+          <Route path="/communities" element={<ProtectedRoute><CommunityRules /></ProtectedRoute>} />
           <Route path="/looking-glass" element={<LookingGlass />} />
           <Route path="/flaps" element={<FlapDashboard />} />
           <Route path="/login" element={<LoginPage />} />

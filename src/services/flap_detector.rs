@@ -42,7 +42,11 @@ impl FlapDetector {
         }
     }
 
-    pub async fn run(&mut self, mut rx: mpsc::Receiver<super::bgp_listener::PathChange>, token: CancellationToken) {
+    pub async fn run(
+        &mut self,
+        mut rx: mpsc::Receiver<super::bgp_listener::PathChange>,
+        token: CancellationToken,
+    ) {
         loop {
             let tick = tokio::time::sleep(std::time::Duration::from_secs(CHECK_INTERVAL_SECS));
             tokio::select! {
@@ -75,7 +79,8 @@ impl FlapDetector {
 
     fn evict_trackers(&mut self) {
         let now = chrono::Utc::now().timestamp();
-        self.trackers.retain(|_, t| now - t.last_change_ts <= TRACKER_TTL_SECS);
+        self.trackers
+            .retain(|_, t| now - t.last_change_ts <= TRACKER_TTL_SECS);
     }
 
     async fn process_change(

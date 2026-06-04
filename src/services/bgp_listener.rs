@@ -185,9 +185,7 @@ struct BgpHeader {
     length: u16,
 }
 
-async fn read_bgp_header(
-    stream: &mut (impl AsyncReadExt + Unpin),
-) -> Result<BgpHeader, String> {
+async fn read_bgp_header(stream: &mut (impl AsyncReadExt + Unpin)) -> Result<BgpHeader, String> {
     let mut buf = [0u8; BGP_HEADER_LEN];
     stream
         .read_exact(&mut buf)
@@ -302,10 +300,7 @@ fn parse_update(payload: &[u8]) -> Vec<PathChangeInternal> {
     if pos < payload.len() {
         let nlri_data = &payload[pos..];
         for prefix in parse_nlri(nlri_data) {
-            results.push(PathChangeInternal {
-                prefix,
-                path_hash,
-            });
+            results.push(PathChangeInternal { prefix, path_hash });
         }
     }
 

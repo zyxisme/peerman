@@ -1,9 +1,8 @@
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    management_service_server::ManagementService,
+    management_service_server::ManagementService, BirdStatusResponse, GetBirdStatusRequest,
     GetWgStatusRequest, WgStatusResponse,
-    GetBirdStatusRequest, BirdStatusResponse,
 };
 
 pub struct ManagementServiceImpl;
@@ -15,7 +14,11 @@ impl ManagementService for ManagementServiceImpl {
         request: Request<GetWgStatusRequest>,
     ) -> Result<Response<WgStatusResponse>, Status> {
         let req = request.into_inner();
-        let iface = if req.interface.is_empty() { "all" } else { &req.interface };
+        let iface = if req.interface.is_empty() {
+            "all"
+        } else {
+            &req.interface
+        };
 
         let interfaces = crate::services::wireguard::get_wg_status(iface)
             .map_err(|e| Status::internal(e.to_string()))?;

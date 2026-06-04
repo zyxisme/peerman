@@ -64,11 +64,19 @@ impl Peer {
 }
 
 fn opt_string(s: &str) -> Option<String> {
-    if s.is_empty() { None } else { Some(s.to_string()) }
+    if s.is_empty() {
+        None
+    } else {
+        Some(s.to_string())
+    }
 }
 
 fn opt_i64(v: i32) -> Option<i64> {
-    if v == 0 { None } else { Some(v as i64) }
+    if v == 0 {
+        None
+    } else {
+        Some(v as i64)
+    }
 }
 
 impl From<&Peer> for crate::grpc::generated::Peer {
