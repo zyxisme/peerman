@@ -838,11 +838,17 @@ async fn main() -> anyhow::Result<()> {
                     _ = interval.tick() => {}
                 }
                 // Clean probe results older than 7 days
-                match sqlx::query("DELETE FROM probe_results WHERE probed_at < datetime('now', '-7 days')")
-                    .execute(&retention_pool).await
+                match sqlx::query(
+                    "DELETE FROM probe_results WHERE probed_at < datetime('now', '-7 days')",
+                )
+                .execute(&retention_pool)
+                .await
                 {
                     Ok(r) if r.rows_affected() > 0 => {
-                        tracing::info!("Retention cleanup: deleted {} old probe results", r.rows_affected());
+                        tracing::info!(
+                            "Retention cleanup: deleted {} old probe results",
+                            r.rows_affected()
+                        );
                     }
                     Err(e) => tracing::warn!("Probe retention cleanup failed: {e}"),
                     _ => {}
