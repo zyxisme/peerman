@@ -92,8 +92,9 @@ jobs:
               cp "$binary" "stage/peerman-${triple}"
             fi
           done
+          rm -rf peerman-*/
           mv stage/* .
-          rm -rf peerman-*/ stage
+          rmdir stage
           sha256sum peerman-* > SHA256SUMS
           ls -lh
 
