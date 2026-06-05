@@ -5,6 +5,7 @@ mod config;
 mod db;
 mod error;
 mod grpc;
+mod grpc_web;
 mod http;
 mod models;
 mod services;
@@ -146,17 +147,19 @@ async fn main() -> anyhow::Result<()> {
         jwt_secret: jwt_secret.clone(),
     };
 
-    // Build tonic gRPC router with tonic-web wrapper
+    // Build tonic gRPC router with gRPC-Web support.
+    // NOTE: into_router() discards the Server's layer stack, so we apply
+    // our axum-compatible GrpcWebLayer to the returned axum Router instead.
     let grpc_router = tonic::transport::Server::builder()
         .accept_http1(true)
-        .layer(tonic_web::GrpcWebLayer::new())
         .add_service(PeerServiceServer::new(peer_svc))
         .add_service(SettingsServiceServer::new(settings_svc))
         .add_service(ClusterServiceServer::new(cluster_svc))
         .add_service(BirdServiceServer::new(bird_svc))
         .add_service(FlapServiceServer::new(flap_svc))
         .add_service(ManagementServiceServer::new(mgmt_svc))
-        .into_router();
+        .into_router()
+        .layer(grpc_web::GrpcWebLayer::new());
 
     // Build axum router: auth endpoints + gRPC + static files
     let app = Router::new()
