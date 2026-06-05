@@ -15,50 +15,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .compile_protos(&["proto/peerman.proto"], &["proto"])?;
 
-    // 2. Build frontend (skip if no package.json or if SKIP_FRONTEND_BUILD is set)
+    // 2. Build frontend if dist/ doesn't exist
     let frontend_dir = Path::new("frontend");
     let dist_dir = frontend_dir.join("dist");
 
     if std::env::var("SKIP_FRONTEND_BUILD").is_ok() {
         println!("cargo:warning=SKIP_FRONTEND_BUILD set, skipping frontend build");
-        // Ensure dist/ exists for rust-embed even when skipping
-        if !dist_dir.exists() {
-            std::fs::create_dir_all(&dist_dir)?;
-            std::fs::write(dist_dir.join("index.html"), "<!-- placeholder -->")?;
-        }
         return Ok(());
     }
 
-    if frontend_dir.join("package.json").exists() {
-        println!("cargo:warning=Building frontend with pnpm...");
-        // Install dependencies
-        let install = Command::new("pnpm")
-            .args(["install", "--frozen-lockfile"])
-            .current_dir(frontend_dir)
-            .status();
-        if install.is_err() {
-            println!(
-                "cargo:warning=pnpm not available, skipping frontend build (use pre-built dist/)"
-            );
-            // Ensure dist/ exists for rust-embed
-            if !dist_dir.exists() {
-                std::fs::create_dir_all(&dist_dir)?;
-                std::fs::write(dist_dir.join("index.html"), "<!-- placeholder -->")?;
-            }
-            return Ok(());
-        }
+    if dist_dir.exists() {
+        println!("cargo:warning=frontend/dist/ already exists, skipping frontend build");
+        return Ok(());
+    }
 
-        // Build
-        let status = Command::new("pnpm")
-            .args(["run", "build"])
-            .current_dir(frontend_dir)
-            .status();
+    if !frontend_dir.join("package.json").exists() {
+        println!("cargo:warning=No frontend/package.json found, skipping frontend build");
+        return Ok(());
+    }
 
-        match status {
-            Ok(s) if s.success() => println!("cargo:warning=Frontend build succeeded"),
-            Ok(s) => panic!("Frontend build failed with exit code: {:?}", s.code()),
-            Err(_) => panic!("pnpm build command failed"),
-        }
+    println!("cargo:warning=frontend/dist/ missing, building frontend...");
+
+    // Install dependencies
+    let install = Command::new("pnpm")
+        .args(["install", "--frozen-lockfile"])
+        .current_dir(frontend_dir)
+        .status();
+    if install.is_err() {
+        panic!("pnpm not available and frontend/dist/ does not exist. Install pnpm or run: cd frontend && pnpm install && pnpm run build");
+    }
+
+    // Build
+    let status = Command::new("pnpm")
+        .args(["run", "build"])
+        .current_dir(frontend_dir)
+        .status();
+
+    match status {
+        Ok(s) if s.success() => println!("cargo:warning=Frontend build succeeded"),
+        Ok(s) => panic!("Frontend build failed with exit code: {:?}", s.code()),
+        Err(_) => panic!("pnpm build command failed"),
     }
 
     Ok(())
