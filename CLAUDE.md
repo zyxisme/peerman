@@ -126,6 +126,7 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - Proto `int64` fields become TypeScript `bigint` — cannot render directly in React. Use `String(v)` or `.toString()`.
 - After proto changes, regenerate TS stubs: `PATH="frontend/node_modules/.bin:$PATH" protoc -I proto --es_out frontend/src/lib --es_opt target=ts proto/peerman.proto`
 - `pnpm exec tsc --noEmit` for fast type-check without full build.
+- **NavBar auth-aware links:** `NavBar.tsx` splits links into `publicLinks` (always visible) and `authLinks` (visible only when `isAuthenticated`). Write-operation routes (New Peer, Communities, Export, Settings) are in `authLinks`.
 
 ## Timestamps in SQLite
 
@@ -156,7 +157,9 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 ## Auth (JWT + httpOnly cookie)
 
 - Single admin user — credentials in `[auth]` config section. `jwt_secret` empty = auto-generate on startup.
-- JWT issued via `POST /api/auth/login` (axum handler, not gRPC), stored as httpOnly cookie (1 hour expiry, Secure flag).
+- JWT issued via `POST /api/auth/login` (axum handler, not gRPC), stored as httpOnly cookie (1 hour expiry).
+- **Cookie `Secure` flag:** Do NOT set `Secure` — the server has no TLS support. Setting `Secure` on HTTP causes browsers to silently drop the cookie, breaking login persistence across page refreshes.
+- **Frontend `credentials`:** `login()`/`logout()` in `auth.tsx` use plain `fetch()`, not `fetchWithAuth()`. Must set `credentials: 'same-origin'` explicitly or the cookie won't be sent/received.
 - **ALL** gRPC methods (read + write) call `crate::auth::check_auth(&request, &secret)?` for per-method auth.
 - **Password hashing:** argon2id via `src/auth/password.rs`. Config supports `password_hash` (preferred) or `password` (auto-hashed on startup).
 - **Rate limiting:** Login endpoint limited to 5 attempts/min per IP via `LoginRateLimiter` in `src/http/rate_limit.rs`.
@@ -208,7 +211,7 @@ Check existing tags: `git tag -l 'v*' --sort=-v:refname`. Bump from the latest t
 
 1. Update version in `Cargo.toml` and `frontend/package.json` (must match)
 2. Run `source "$HOME/.cargo/env" && cargo generate-lockfile` to update `Cargo.lock`
-3. Commit all three files: `git add Cargo.toml Cargo.lock frontend/package.json && git commit -m "chore: bump version to X.Y.Z"`
+3. Commit version files + any changed source: `git add Cargo.toml Cargo.lock frontend/package.json <changed-src-files> && git commit -m "..."`
 4. Push to master: `git push origin master`
 5. Publish to crates.io: `source "$HOME/.cargo/env" && cargo publish`
 6. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z` — this triggers the Release workflow (`.github/workflows/release.yml`)
