@@ -20,13 +20,20 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 success() { echo -e "${GREEN}[OK]${NC}    $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
+# Detect pipe mode: when stdin is not a terminal (curl|bash), read from /dev/tty
+if [[ -t 0 ]]; then
+    INPUT_FD="/dev/stdin"
+else
+    INPUT_FD="/dev/tty"
+fi
+
 prompt() {
     local var_name="$1" prompt_text="$2" default="$3"
     local input
     if [[ -n "$default" ]]; then
-        read -r -p "$prompt_text [$default]: " input
+        read -r -p "$prompt_text [$default]: " input < "$INPUT_FD"
     else
-        read -r -p "$prompt_text: " input
+        read -r -p "$prompt_text: " input < "$INPUT_FD"
     fi
     eval "$var_name=\${input:-\$default}"
 }
@@ -35,12 +42,12 @@ prompt_password() {
     local var_name="$1" prompt_text="$2"
     local pw1 pw2
     while true; do
-        read -r -s -p "$prompt_text: " pw1; echo
+        read -r -s -p "$prompt_text: " pw1 < "$INPUT_FD"; echo
         if [[ -z "$pw1" ]]; then
             warn "Password cannot be empty"
             continue
         fi
-        read -r -s -p "Confirm password: " pw2; echo
+        read -r -s -p "Confirm password: " pw2 < "$INPUT_FD"; echo
         if [[ "$pw1" != "$pw2" ]]; then
             warn "Passwords do not match, try again"
             continue
@@ -53,7 +60,7 @@ prompt_password() {
 prompt_yn() {
     local var_name="$1" prompt_text="$2" default="$3"
     local yn
-    read -r -p "$prompt_text [$default]: " yn
+    read -r -p "$prompt_text [$default]: " yn < "$INPUT_FD"
     yn="${yn:-$default}"
     yn="${yn,,}"
     eval "$var_name=\$yn"
