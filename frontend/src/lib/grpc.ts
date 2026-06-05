@@ -1,8 +1,8 @@
 import { createClient } from '@connectrpc/connect';
-import { createConnectTransport } from '@connectrpc/connect-web';
+import { createGrpcWebTransport } from '@connectrpc/connect-web';
 import { PeerService, SettingsService, ClusterService, BirdService, FlapService, ManagementService } from './peerman_pb';
 
-export const transport = createConnectTransport({
+export const transport = createGrpcWebTransport({
   baseUrl: '/api',
 });
 
