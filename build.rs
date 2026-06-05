@@ -16,12 +16,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile_protos(&["proto/peerman.proto"], &["proto"])?;
 
     // 2. Build frontend (skip if no package.json or if SKIP_FRONTEND_BUILD is set)
+    let frontend_dir = Path::new("frontend");
+    let dist_dir = frontend_dir.join("dist");
+
     if std::env::var("SKIP_FRONTEND_BUILD").is_ok() {
         println!("cargo:warning=SKIP_FRONTEND_BUILD set, skipping frontend build");
+        // Ensure dist/ exists for rust-embed even when skipping
+        if !dist_dir.exists() {
+            std::fs::create_dir_all(&dist_dir)?;
+            std::fs::write(dist_dir.join("index.html"), "<!-- placeholder -->")?;
+        }
         return Ok(());
     }
 
-    let frontend_dir = Path::new("frontend");
     if frontend_dir.join("package.json").exists() {
         println!("cargo:warning=Building frontend with pnpm...");
         // Install dependencies
@@ -33,6 +40,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "cargo:warning=pnpm not available, skipping frontend build (use pre-built dist/)"
             );
+            // Ensure dist/ exists for rust-embed
+            if !dist_dir.exists() {
+                std::fs::create_dir_all(&dist_dir)?;
+                std::fs::write(dist_dir.join("index.html"), "<!-- placeholder -->")?;
+            }
             return Ok(());
         }
 
