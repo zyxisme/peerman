@@ -1,6 +1,6 @@
 [package]
 name = "peerman"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 description = "DN42 peer manager with WireGuard, BIRD, and cluster support"
 license = "MIT"
