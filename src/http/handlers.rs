@@ -96,7 +96,7 @@ pub async fn handle_login(
     match auth::create_token(&req.username, secret) {
         Ok(token) => {
             let cookie = format!(
-                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600; Secure",
+                "jwt={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600",
                 token
             );
             json_response(
@@ -127,7 +127,7 @@ pub async fn handle_logout() -> axum::response::Response {
     json_response(
         axum::http::StatusCode::OK,
         &serde_json::json!({"success": true}),
-        Some("jwt=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0; Secure"),
+        Some("jwt=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"),
     )
 }
 

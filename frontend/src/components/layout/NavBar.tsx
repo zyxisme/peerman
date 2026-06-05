@@ -4,15 +4,18 @@ import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
 import { useClusterHealth } from '../../hooks/useNodes';
 
-const links = [
+const publicLinks = [
   { to: '/', label: 'Home', icon: Home },
-  { to: '/peers/new', label: 'New Peer', icon: Plus },
   { to: '/nodes', label: 'Nodes', icon: Server },
   { to: '/probes', label: 'Probes', icon: Activity },
-  { to: '/communities', label: 'Communities', icon: Tag },
   { to: '/looking-glass', label: 'LG', icon: Search },
   { to: '/flaps', label: 'Flaps', icon: AlertCircle },
   { to: '/status', label: 'Status', icon: Activity },
+];
+
+const authLinks = [
+  { to: '/peers/new', label: 'New Peer', icon: Plus },
+  { to: '/communities', label: 'Communities', icon: Tag },
   { to: '/export', label: 'Export', icon: Download },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -45,7 +48,26 @@ export default function NavBar() {
 
         {/* Nav links */}
         <div className="flex items-center gap-1">
-          {links.map((link) => {
+          {publicLinks.map((link) => {
+            const isActive = location.pathname === link.to;
+            const Icon = link.icon;
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full px-sm h-8 text-body-sm transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-body hover:bg-canvas-soft'
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {link.label}
+              </Link>
+            );
+          })}
+          {isAuthenticated && authLinks.map((link) => {
             const isActive = location.pathname === link.to;
             const Icon = link.icon;
             return (
