@@ -72,11 +72,7 @@ fn opt_string(s: &str) -> Option<String> {
 }
 
 fn opt_i64(v: i32) -> Option<i64> {
-    if v == 0 {
-        None
-    } else {
-        Some(v as i64)
-    }
+    if v == 0 { None } else { Some(v as i64) }
 }
 
 impl From<crate::grpc::generated::Peer> for Peer {

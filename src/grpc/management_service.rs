@@ -1,8 +1,8 @@
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    management_service_server::ManagementService, BirdStatusResponse, GetBirdStatusRequest,
-    GetWgStatusRequest, WgStatusResponse,
+    BirdStatusResponse, GetBirdStatusRequest, GetWgStatusRequest, WgStatusResponse,
+    management_service_server::ManagementService,
 };
 
 pub struct ManagementServiceImpl {

@@ -2,10 +2,11 @@ use std::os::unix::fs::PermissionsExt;
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    peer_service_server::PeerService, ConfigResponse, CreatePeerRequest, DeletePeerRequest,
-    DeletePeerResponse, ExportAllRequest, GenerateKeypairRequest, GenerateKeypairResponse,
-    GetConfigRequest, GetPeerRequest, ListPeersRequest, ListPeersResponse, Peer, PushPeerRequest,
-    RestartWireGuardRequest, RestartWireGuardResponse, TogglePeerRequest, UpdatePeerRequest,
+    ConfigResponse, CreatePeerRequest, DeletePeerRequest, DeletePeerResponse, ExportAllRequest,
+    GenerateKeypairRequest, GenerateKeypairResponse, GetConfigRequest, GetPeerRequest,
+    ListPeersRequest, ListPeersResponse, Peer, PushPeerRequest, RestartWireGuardRequest,
+    RestartWireGuardResponse, TogglePeerRequest, UpdatePeerRequest,
+    peer_service_server::PeerService,
 };
 
 use crate::app_state::PeerState;
@@ -131,10 +132,10 @@ impl PeerServiceImpl {
             origin_node_id: peer.origin_node_id.clone(),
         });
 
-        if !self.cluster_key.is_empty() {
-            if let Ok(v) = self.cluster_key.parse() {
-                req.metadata_mut().insert("x-cluster-key", v);
-            }
+        if !self.cluster_key.is_empty()
+            && let Ok(v) = self.cluster_key.parse()
+        {
+            req.metadata_mut().insert("x-cluster-key", v);
         }
 
         client

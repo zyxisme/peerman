@@ -3,16 +3,16 @@ use std::time::Duration;
 
 use dashmap::DashMap;
 use tokio::time::timeout;
-use tonic::transport::Endpoint;
 use tonic::Request;
+use tonic::transport::Endpoint;
 
 use crate::cluster::cache::ClusterCache;
 use crate::models::node::Node;
 
 use crate::grpc::generated::{
-    cluster_service_client::ClusterServiceClient, CommunityRule, ExchangeNodesRequest,
-    HealthCheckRequest, ListCommunityRulesRequest, ListProbeResultsRequest, NodeInfo, Peer,
-    ProbeResult, PullPeersRequest,
+    CommunityRule, ExchangeNodesRequest, HealthCheckRequest, ListCommunityRulesRequest,
+    ListProbeResultsRequest, NodeInfo, Peer, ProbeResult, PullPeersRequest,
+    cluster_service_client::ClusterServiceClient,
 };
 
 const FANOUT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -51,10 +51,10 @@ impl ClusterAggregator {
     }
 
     fn set_cluster_key<T>(&self, req: &mut Request<T>) {
-        if !self.cluster_key.is_empty() {
-            if let Ok(val) = self.cluster_key.parse() {
-                req.metadata_mut().insert("x-cluster-key", val);
-            }
+        if !self.cluster_key.is_empty()
+            && let Ok(val) = self.cluster_key.parse()
+        {
+            req.metadata_mut().insert("x-cluster-key", val);
         }
     }
 
@@ -115,10 +115,10 @@ impl ClusterAggregator {
                     let mut req = Request::new(PullPeersRequest {
                         since: String::new(),
                     });
-                    if !cluster_key.is_empty() {
-                        if let Ok(val) = cluster_key.parse() {
-                            req.metadata_mut().insert("x-cluster-key", val);
-                        }
+                    if !cluster_key.is_empty()
+                        && let Ok(val) = cluster_key.parse()
+                    {
+                        req.metadata_mut().insert("x-cluster-key", val);
                     }
 
                     let (items, statuses) = Self::call_node(
@@ -189,10 +189,10 @@ impl ClusterAggregator {
                         to_node_id: String::new(),
                         limit: 0,
                     });
-                    if !cluster_key.is_empty() {
-                        if let Ok(val) = cluster_key.parse() {
-                            req.metadata_mut().insert("x-cluster-key", val);
-                        }
+                    if !cluster_key.is_empty()
+                        && let Ok(val) = cluster_key.parse()
+                    {
+                        req.metadata_mut().insert("x-cluster-key", val);
                     }
 
                     let (items, statuses) = Self::call_node(
@@ -259,10 +259,10 @@ impl ClusterAggregator {
                     };
 
                     let mut req = Request::new(ListCommunityRulesRequest {});
-                    if !cluster_key.is_empty() {
-                        if let Ok(val) = cluster_key.parse() {
-                            req.metadata_mut().insert("x-cluster-key", val);
-                        }
+                    if !cluster_key.is_empty()
+                        && let Ok(val) = cluster_key.parse()
+                    {
+                        req.metadata_mut().insert("x-cluster-key", val);
                     }
 
                     let (items, statuses) = Self::call_node(
@@ -310,10 +310,10 @@ impl ClusterAggregator {
             Err(_) => return false,
         };
         let mut req = Request::new(HealthCheckRequest {});
-        if !cluster_key.is_empty() {
-            if let Ok(val) = cluster_key.parse() {
-                req.metadata_mut().insert("x-cluster-key", val);
-            }
+        if !cluster_key.is_empty()
+            && let Ok(val) = cluster_key.parse()
+        {
+            req.metadata_mut().insert("x-cluster-key", val);
         }
         timeout(FANOUT_TIMEOUT, client.health_check(req))
             .await
@@ -327,8 +327,8 @@ impl ClusterAggregator {
         node_addr: &str,
         command: &str,
     ) -> Result<String, String> {
-        use crate::grpc::generated::bird_service_client::BirdServiceClient;
         use crate::grpc::generated::ExecuteCommandRequest;
+        use crate::grpc::generated::bird_service_client::BirdServiceClient;
 
         let uri = format!("http://{}", node_addr);
         let channel = Endpoint::from_shared(uri)
@@ -372,10 +372,10 @@ impl ClusterAggregator {
             .await
             .map_err(|e| format!("connect: {e}"))?;
         let mut req = Request::new(ExchangeNodesRequest { nodes: my_nodes });
-        if !cluster_key.is_empty() {
-            if let Ok(val) = cluster_key.parse() {
-                req.metadata_mut().insert("x-cluster-key", val);
-            }
+        if !cluster_key.is_empty()
+            && let Ok(val) = cluster_key.parse()
+        {
+            req.metadata_mut().insert("x-cluster-key", val);
         }
         let response = timeout(FANOUT_TIMEOUT, client.exchange_nodes(req))
             .await

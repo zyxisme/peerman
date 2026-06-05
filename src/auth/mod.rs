@@ -1,10 +1,10 @@
 pub mod password;
 
 use chrono::Utc;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use tonic::{metadata::MetadataMap, Request, Status};
+use tonic::{Request, Status, metadata::MetadataMap};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -50,11 +50,7 @@ pub fn verify_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::e
 pub fn parse_cookie<'a>(cookie_header: &'a str, name: &str) -> Option<&'a str> {
     cookie_header.split(';').find_map(|pair| {
         let (k, v) = pair.trim().split_once('=')?;
-        if k == name {
-            Some(v)
-        } else {
-            None
-        }
+        if k == name { Some(v) } else { None }
     })
 }
 

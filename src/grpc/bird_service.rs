@@ -1,8 +1,8 @@
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    bird_service_server::BirdService, ExecuteCommandRequest, ExecuteCommandResponse,
-    NodeBirdResult, NodeTracerouteResult, RunTracerouteRequest, RunTracerouteResponse,
+    ExecuteCommandRequest, ExecuteCommandResponse, NodeBirdResult, NodeTracerouteResult,
+    RunTracerouteRequest, RunTracerouteResponse, bird_service_server::BirdService,
 };
 
 use crate::services::bird_socket::BirdSocket;

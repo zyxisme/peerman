@@ -240,16 +240,16 @@ impl ClusterTasks {
                                     }
                                 })
                                 .unwrap_or_default();
-                            if !my_tunnel_ip.is_empty() {
-                                if let Ok(settings) = settings_repo.load().await {
-                                    let _ = crate::cluster::tunnel::sync_cluster_bird(
-                                        &peer_repo,
-                                        &settings,
-                                        &node_repo,
-                                        &my_tunnel_ip,
-                                    )
-                                    .await;
-                                }
+                            if !my_tunnel_ip.is_empty()
+                                && let Ok(settings) = settings_repo.load().await
+                            {
+                                let _ = crate::cluster::tunnel::sync_cluster_bird(
+                                    &peer_repo,
+                                    &settings,
+                                    &node_repo,
+                                    &my_tunnel_ip,
+                                )
+                                .await;
                             }
                         }
                     }
@@ -299,7 +299,9 @@ impl ClusterTasks {
                     detector.run(rx, token).await;
                 }
                 Err(e) => {
-                    tracing::warn!("iBGP listener unavailable ({e}), flap detection will use socket polling fallback");
+                    tracing::warn!(
+                        "iBGP listener unavailable ({e}), flap detection will use socket polling fallback"
+                    );
                     let _keep_tx = tx; // Keep channel alive so rx doesn't close
                     let mut detector =
                         crate::services::flap_detector::FlapDetector::new(node_id, flap_repo);

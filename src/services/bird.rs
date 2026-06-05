@@ -66,51 +66,47 @@ pub fn generate_peer_block_with_communities(
         let use_ipv4_session = peer.sessions == 0 || peer.sessions == 2;
         let use_ipv6_session = peer.sessions == 1 || peer.sessions == 2;
 
-        if use_ipv4_session {
-            if let Some(ref v4) = peer.ipv4_tunnel_remote {
-                block.push_str(&format!(
-                    "protocol bgp peer_{name}_v4 from {tpl} {{\n",
-                    tpl = settings.bird_template_name
-                ));
-                block.push_str(&format!("    neighbor {v4} as {};\n", peer.asn));
-                if peer.passive {
-                    block.push_str("    passive on;\n");
-                }
-                if !communities_v4.is_empty() {
-                    let v4_filter =
-                        crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
-                            communities_v4,
-                            &[],
-                        );
-                    block.push_str(&v4_filter);
-                }
-                block.push_str("}\n\n");
+        if use_ipv4_session && let Some(ref v4) = peer.ipv4_tunnel_remote {
+            block.push_str(&format!(
+                "protocol bgp peer_{name}_v4 from {tpl} {{\n",
+                tpl = settings.bird_template_name
+            ));
+            block.push_str(&format!("    neighbor {v4} as {};\n", peer.asn));
+            if peer.passive {
+                block.push_str("    passive on;\n");
             }
+            if !communities_v4.is_empty() {
+                let v4_filter =
+                    crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                        communities_v4,
+                        &[],
+                    );
+                block.push_str(&v4_filter);
+            }
+            block.push_str("}\n\n");
         }
 
-        if use_ipv6_session {
-            if let Some(ref v6) = peer.ipv6_tunnel_remote {
-                block.push_str(&format!(
-                    "protocol bgp peer_{name}_v6 from {tpl} {{\n",
-                    tpl = settings.bird_template_name
-                ));
-                block.push_str(&format!(
-                    "    neighbor {v6}%{} as {};\n",
-                    peer.wg_interface_name, peer.asn
-                ));
-                if peer.passive {
-                    block.push_str("    passive on;\n");
-                }
-                if !communities_v6.is_empty() {
-                    let v6_filter =
-                        crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
-                            &[],
-                            communities_v6,
-                        );
-                    block.push_str(&v6_filter);
-                }
-                block.push_str("}\n\n");
+        if use_ipv6_session && let Some(ref v6) = peer.ipv6_tunnel_remote {
+            block.push_str(&format!(
+                "protocol bgp peer_{name}_v6 from {tpl} {{\n",
+                tpl = settings.bird_template_name
+            ));
+            block.push_str(&format!(
+                "    neighbor {v6}%{} as {};\n",
+                peer.wg_interface_name, peer.asn
+            ));
+            if peer.passive {
+                block.push_str("    passive on;\n");
             }
+            if !communities_v6.is_empty() {
+                let v6_filter =
+                    crate::services::community_mapper::CommunityMapper::to_bird_filter_lines(
+                        &[],
+                        communities_v6,
+                    );
+                block.push_str(&v6_filter);
+            }
+            block.push_str("}\n\n");
         }
     }
 

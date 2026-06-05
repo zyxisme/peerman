@@ -1,8 +1,8 @@
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    flap_service_server::FlapService, FlapEvent, GetFlapStatsRequest, GetFlapStatsResponse,
-    ListFlapEventsRequest, ListFlapEventsResponse,
+    FlapEvent, GetFlapStatsRequest, GetFlapStatsResponse, ListFlapEventsRequest,
+    ListFlapEventsResponse, flap_service_server::FlapService,
 };
 
 use crate::models::flap_event::FlapEventRepository;
