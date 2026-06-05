@@ -88,10 +88,11 @@ jobs:
             triple="${triple#peerman-}"
             src="${dir}peerman"
             if [ -f "$src" ]; then
-              mv "$src" "peerman-${triple}"
+              mv "$src" "peerman-${triple}.tmp"
+              rm -rf "$dir"
+              mv "peerman-${triple}.tmp" "peerman-${triple}"
             fi
           done
-          rm -rf peerman-*/
           sha256sum peerman-* > SHA256SUMS
           cat SHA256SUMS
 
