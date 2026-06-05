@@ -86,9 +86,9 @@ jobs:
           for dir in peerman-*/; do
             triple="${dir%/}"
             triple="${triple#peerman-}"
-            binary=$(find "$dir" -name "peerman" -o -name "peerman.exe" | head -1)
+            binary=$(find "$dir" \( -name "peerman" -o -name "peerman.exe" \) -type f | head -1)
             if [ -n "$binary" ]; then
-              mv "$binary" "peerman-${triple}"
+              cp "$binary" "peerman-${triple}"
             fi
           done
           rm -rf peerman-*/
