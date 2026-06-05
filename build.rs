@@ -42,7 +42,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .current_dir(frontend_dir)
         .status();
     if install.is_err() {
-        panic!("pnpm not available and frontend/dist/ does not exist. Install pnpm or run: cd frontend && pnpm install && pnpm run build");
+        panic!(
+            "pnpm not available and frontend/dist/ does not exist. Install pnpm or run: cd frontend && pnpm install && pnpm run build"
+        );
     }
 
     // Build

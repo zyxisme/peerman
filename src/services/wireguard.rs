@@ -212,24 +212,28 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
         post_up.push_str(&format!("; ip addr add {ipv6}/128 dev %i"));
     }
     if !settings.wg_post_up.is_empty() {
-        match crate::services::input_sanitizer::validate_post_script(&settings.wg_post_up)
-        { Err(e) => {
-            tracing::warn!("Skipping invalid wg_post_up: {e}");
-        } _ => {
-            post_up.push_str(&format!("; {}", settings.wg_post_up));
-        }}
+        match crate::services::input_sanitizer::validate_post_script(&settings.wg_post_up) {
+            Err(e) => {
+                tracing::warn!("Skipping invalid wg_post_up: {e}");
+            }
+            _ => {
+                post_up.push_str(&format!("; {}", settings.wg_post_up));
+            }
+        }
     }
     config.push_str(&format!("{post_up}\n"));
 
     // PostDown — mirror
     let mut post_down = String::from("PostDown = ip link set %i down");
     if !settings.wg_post_down.is_empty() {
-        match crate::services::input_sanitizer::validate_post_script(&settings.wg_post_down)
-        { Err(e) => {
-            tracing::warn!("Skipping invalid wg_post_down: {e}");
-        } _ => {
-            post_down.push_str(&format!("; {}", settings.wg_post_down));
-        }}
+        match crate::services::input_sanitizer::validate_post_script(&settings.wg_post_down) {
+            Err(e) => {
+                tracing::warn!("Skipping invalid wg_post_down: {e}");
+            }
+            _ => {
+                post_down.push_str(&format!("; {}", settings.wg_post_down));
+            }
+        }
     }
     config.push_str(&format!("{post_down}\n"));
 
@@ -330,12 +334,16 @@ mod tests {
         assert_eq!(pub_key.len(), 44);
         // Should be valid base64
         use base64::Engine;
-        assert!(base64::engine::general_purpose::STANDARD
-            .decode(&priv_key)
-            .is_ok());
-        assert!(base64::engine::general_purpose::STANDARD
-            .decode(&pub_key)
-            .is_ok());
+        assert!(
+            base64::engine::general_purpose::STANDARD
+                .decode(&priv_key)
+                .is_ok()
+        );
+        assert!(
+            base64::engine::general_purpose::STANDARD
+                .decode(&pub_key)
+                .is_ok()
+        );
     }
 
     #[test]

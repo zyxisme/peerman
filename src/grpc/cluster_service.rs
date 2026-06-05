@@ -1,14 +1,14 @@
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    cluster_service_server::ClusterService, CommunityRule, DeleteCommunityRuleRequest,
-    DeleteCommunityRuleResponse, DeleteNodeRequest, DeleteNodeResponse, ExchangeNodesRequest,
-    ExchangeNodesResponse, GetPeerCommunitiesRequest, GetPeerCommunitiesResponse,
-    HealthCheckRequest, HealthCheckResponse, ListCommunityRulesRequest, ListCommunityRulesResponse,
-    ListNodesRequest, ListNodesResponse, ListProbeResultsRequest, ListProbeResultsResponse, Node,
-    NodeInfo, ProbeResult, PullPeersRequest, PullPeersResponse, PushPeerRequest, PushPeerResponse,
-    PushProbeResultRequest, PushProbeResultResponse, RegisterNodeRequest, RunProbeRequest,
-    RunProbeResponse, SaveCommunityRuleRequest, UpdateNodeRequest,
+    CommunityRule, DeleteCommunityRuleRequest, DeleteCommunityRuleResponse, DeleteNodeRequest,
+    DeleteNodeResponse, ExchangeNodesRequest, ExchangeNodesResponse, GetPeerCommunitiesRequest,
+    GetPeerCommunitiesResponse, HealthCheckRequest, HealthCheckResponse, ListCommunityRulesRequest,
+    ListCommunityRulesResponse, ListNodesRequest, ListNodesResponse, ListProbeResultsRequest,
+    ListProbeResultsResponse, Node, NodeInfo, ProbeResult, PullPeersRequest, PullPeersResponse,
+    PushPeerRequest, PushPeerResponse, PushProbeResultRequest, PushProbeResultResponse,
+    RegisterNodeRequest, RunProbeRequest, RunProbeResponse, SaveCommunityRuleRequest,
+    UpdateNodeRequest, cluster_service_server::ClusterService,
 };
 
 use crate::cluster::auth::check_cluster_key;
@@ -470,17 +470,16 @@ impl ClusterService for ClusterServiceImpl {
                 if let Err(e) = crate::cluster::tunnel::sync_cluster_wg(&self.node_repo, "").await {
                     tracing::warn!("Failed to sync cluster WG after exchange: {e}");
                 }
-                if let Ok(settings) = self.settings_repo.load().await {
-                    if let Err(e) = crate::cluster::tunnel::sync_cluster_bird(
+                if let Ok(settings) = self.settings_repo.load().await
+                    && let Err(e) = crate::cluster::tunnel::sync_cluster_bird(
                         &self.peer_repo,
                         &settings,
                         &self.node_repo,
                         &my_tunnel_ip,
                     )
                     .await
-                    {
-                        tracing::warn!("Failed to sync cluster BIRD after exchange: {e}");
-                    }
+                {
+                    tracing::warn!("Failed to sync cluster BIRD after exchange: {e}");
                 }
             }
         }

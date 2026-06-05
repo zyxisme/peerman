@@ -1,7 +1,7 @@
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    settings_service_server::SettingsService, GetSettingsRequest, SaveSettingsRequest, Settings,
+    GetSettingsRequest, SaveSettingsRequest, Settings, settings_service_server::SettingsService,
 };
 
 use crate::models::settings::SettingsRepository;

@@ -1,12 +1,12 @@
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 pub async fn create_pool(db_path: &str) -> Result<SqlitePool, sqlx::Error> {
     // Ensure parent directory exists
-    if let Some(parent) = std::path::Path::new(db_path).parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).ok();
-        }
+    if let Some(parent) = std::path::Path::new(db_path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).ok();
     }
 
     let pool = SqlitePoolOptions::new()

@@ -16,8 +16,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::TraceLayer;
@@ -63,7 +63,9 @@ async fn main() -> anyhow::Result<()> {
     if cfg.auth.password_hash.is_empty() && !cfg.auth.password.is_empty() {
         cfg.auth.password_hash = auth::password::hash_password(&cfg.auth.password)
             .map_err(|e| anyhow::anyhow!("Failed to hash password: {e}"))?;
-        tracing::info!("Auto-hashed plaintext password. Consider replacing 'password' with 'password_hash' in config.toml");
+        tracing::info!(
+            "Auto-hashed plaintext password. Consider replacing 'password' with 'password_hash' in config.toml"
+        );
     } else if cfg.auth.password_hash.is_empty() && cfg.auth.password.is_empty() {
         anyhow::bail!("auth.password or auth.password_hash must be set in config.toml");
     }
