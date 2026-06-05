@@ -5,12 +5,9 @@
 //! `BoxBody`, which is incompatible with axum's `Router::layer()`.
 
 use axum::body::Body;
-use http::{Request, Response, StatusCode, header};
+use http::{header, Request, Response};
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
-
-// Re-export for use in this module
-use bytes::Bytes;
 
 const GRPC_WEB: &str = "application/grpc-web";
 const GRPC_WEB_PROTO: &str = "application/grpc-web+proto";
@@ -22,13 +19,6 @@ fn is_grpc_web(content_type: Option<&str>) -> bool {
     matches!(
         content_type,
         Some(GRPC_WEB) | Some(GRPC_WEB_PROTO) | Some(GRPC_WEB_TEXT) | Some(GRPC_WEB_TEXT_PROTO)
-    )
-}
-
-fn is_grpc_web_text(content_type: Option<&str>) -> bool {
-    matches!(
-        content_type,
-        Some(GRPC_WEB_TEXT) | Some(GRPC_WEB_TEXT_PROTO)
     )
 }
 
@@ -51,6 +41,13 @@ impl<S> Layer<S> for GrpcWebLayer {
 }
 
 /// A tower Service that converts between gRPC-Web and gRPC for axum.
+///
+/// For requests: rewrites Content-Type from gRPC-Web to gRPC and adds TE header.
+/// The message frame format is identical between gRPC and gRPC-Web, so the body
+/// passes through unchanged — tonic's decoder handles the framing.
+///
+/// For responses: extracts grpc-status/grpc-message from HTTP/1.1 headers (where
+/// tonic puts them) and encodes them as a gRPC-Web trailer frame in the body.
 #[derive(Clone)]
 pub struct GrpcWebService<S> {
     inner: S,
@@ -84,62 +81,28 @@ where
             return Box::pin(fut);
         }
 
-        let is_text = is_grpc_web_text(content_type);
         let mut inner = self.inner.clone();
 
         Box::pin(async move {
-            // Decode gRPC-Web request body
-            let (parts, body) = req.into_parts();
-            let body_bytes = match axum::body::to_bytes(body, usize::MAX).await {
-                Ok(b) => b,
-                Err(_) => {
-                    return Ok(Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .body(Body::empty())
-                        .unwrap());
-                }
-            };
-
-            let decoded = if is_text {
-                use base64::Engine;
-                match base64::engine::general_purpose::STANDARD.decode(&body_bytes) {
-                    Ok(d) => Bytes::from(d),
-                    Err(_) => {
-                        return Ok(Response::builder()
-                            .status(StatusCode::BAD_REQUEST)
-                            .body(Body::empty())
-                            .unwrap());
-                    }
-                }
-            } else {
-                body_bytes
-            };
-
-            // Strip gRPC-Web frame header (1 byte flag + 4 byte length)
-            let msg_body = if decoded.len() >= 5 {
-                decoded.slice(5..)
-            } else {
-                Bytes::new()
-            };
-
-            // Forward as standard gRPC request
-            let mut grpc_req = Request::from_parts(parts, Body::from(msg_body));
-            grpc_req
-                .headers_mut()
-                .insert(header::CONTENT_TYPE, "application/grpc".parse().unwrap());
-            grpc_req
-                .headers_mut()
+            // Rewrite headers: gRPC-Web → gRPC (body format is the same)
+            let (mut parts, body) = req.into_parts();
+            parts.headers.insert(
+                header::CONTENT_TYPE,
+                "application/grpc".parse().unwrap(),
+            );
+            parts
+                .headers
                 .insert(header::TE, "trailers".parse().unwrap());
 
+            let grpc_req = Request::from_parts(parts, body);
             let resp = inner.call(grpc_req).await?;
 
-            // Convert gRPC response to gRPC-Web
+            // Convert gRPC response to gRPC-Web: encode trailers in body
             let (mut resp_parts, resp_body) = resp.into_parts();
             let resp_bytes = axum::body::to_bytes(resp_body, usize::MAX)
                 .await
                 .unwrap_or_default();
 
-            // Build gRPC-Web response: message frame + trailer frame
             let mut grpc_web_body = Vec::new();
 
             // Message frame: 0x00 + 4-byte length + message data
@@ -151,7 +114,7 @@ where
             }
 
             // Trailer frame: 0x80 + 4-byte length + trailer data
-            // Extract grpc-status from response headers (tonic puts them there for HTTP/1.1)
+            // Tonic sends grpc-status/grpc-message as HTTP/1.1 headers
             let mut trailer_data = Vec::new();
             let status = resp_parts
                 .headers
@@ -180,7 +143,6 @@ where
             resp_parts
                 .headers
                 .insert(header::CONTENT_TYPE, GRPC_WEB_PROTO.parse().unwrap());
-            // Remove content-length since we're modifying the body
             resp_parts.headers.remove(header::CONTENT_LENGTH);
 
             Ok(Response::from_parts(resp_parts, Body::from(grpc_web_body)))
