@@ -80,27 +80,23 @@ jobs:
         with:
           path: artifacts
 
-      - name: Package and checksum
+      - name: Generate checksums and upload
         run: |
           cd artifacts
-          mkdir stage
           for dir in peerman-*/; do
             triple="${dir%/}"
             triple="${triple#peerman-}"
             binary=$(find "$dir" \( -name "peerman" -o -name "peerman.exe" \) -type f | head -1)
             if [ -n "$binary" ]; then
-              cp "$binary" "stage/peerman-${triple}"
+              mv "$binary" "peerman-${triple}"
             fi
           done
           rm -rf peerman-*/
-          mv stage/* .
-          rmdir stage
           sha256sum peerman-* > SHA256SUMS
-          ls -lh
+          cat SHA256SUMS
 
-      - name: Create GitHub Release
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
           files: artifacts/*
           generate_release_notes: true

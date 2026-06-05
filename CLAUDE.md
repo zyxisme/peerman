@@ -187,10 +187,20 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 
 - Default version bump: `0.0.1` unless user specifies otherwise
 - Pre-publish: version bump → commit Cargo.toml + Cargo.lock + frontend/package.json → push to CI → wait for CI pass → `cargo publish` → push tag. Publish on a clean tree, don't use `--allow-dirty`.
-- Release CI triggers on `v*` tag push, builds 2 Linux musl static targets (x86_64 + aarch64), uploads to GitHub Releases
+- Release CI triggers on `v*` tag push, builds 2 Linux musl static targets (x86_64 + aarch64), uploads bare binaries directly to GitHub Releases (no tarball packaging)
+- **Release binary naming:** `peerman-x86_64-unknown-linux-musl`, `peerman-aarch64-unknown-linux-musl` — bare executables, not tarballs
 - **`frontend/dist/` must be committed** — `rust-embed` needs it at compile time. Removed from `.gitignore`; CI builds overwrite the placeholder.
 - **`cargo publish` disk space** — verification compiles from scratch (~2.3GB). If disk is near full, `rm -rf target` before publishing.
-- **Release workflow artifact packaging** — `upload-artifact@v4` preserves directory structure. Packaging script uses staging dir + `cp` to flatten, then removes artifact dirs before moving.
+
+## Install Script (`install.sh`)
+
+- Interactive bash script for one-click deployment: dep check → install method → binary → config → daemon → sudoers → start
+- **Multi-distro runtime dep auto-install:** detects package manager (apt/apk/dnf/yum/pacman/zypper/xbps) via `detect_distro()`, auto-installs `wg`, `birdc`, `ping`, `traceroute` with user confirmation
+- **Package name mapping:** `dep_to_pkg()` maps commands to distro-specific packages (e.g. `birdc` → `bird2` on Debian, `bird` on Alpine/RHEL/Arch)
+- **Architecture naming:** uses full musl triples (`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`) matching release asset names
+- **Download method:** fetches bare binaries from GitHub Releases (no tarball extraction)
+- **Config backup:** backs up existing `config.toml` to `config.toml.bak.<timestamp>` before overwrite
+- Supports systemd + OpenRC, standalone + cluster mode
 
 ### Version update checklist
 

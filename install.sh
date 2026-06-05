@@ -79,11 +79,100 @@ BINARY_PATH="/usr/local/bin/peerman"
 CONFIG_DIR="/etc/peerman"
 DATA_DIR="/var/lib/peerman"
 CONFIG_FILE="${CONFIG_DIR}/config.toml"
-GITHUB_REPO="${PEERMAN_GITHUB_REPO:-zyxisme/peerman}"
+GITHUB_REPO="${PEERMAN_GITHUB_REPO:-peerman/peerman}"
 GITHUB_RELEASES="https://github.com/${GITHUB_REPO}/releases"
-DEP_WARNINGS=0
 INIT="none"
-ARCH="amd64"
+ARCH="x86_64-unknown-linux-musl"
+
+# ── Cleanup ─────────────────────────────────────────────
+cleanup() {
+    rm -f "${CONFIG_DIR}"/*.tmp 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# ═══════════════════════════════════════════════════════════
+# Distro Detection & Package Manager
+# ═══════════════════════════════════════════════════════════
+detect_distro() {
+    PKG_MGR=""
+    DISTRO_ID=""
+
+    if [[ -f /etc/os-release ]]; then
+        # shellcheck source=/dev/null
+        . /etc/os-release
+        DISTRO_ID="${ID:-unknown}"
+    fi
+
+    if command -v apt-get &>/dev/null; then
+        PKG_MGR="apt"
+    elif command -v apk &>/dev/null; then
+        PKG_MGR="apk"
+    elif command -v dnf &>/dev/null; then
+        PKG_MGR="dnf"
+    elif command -v yum &>/dev/null; then
+        PKG_MGR="yum"
+    elif command -v pacman &>/dev/null; then
+        PKG_MGR="pacman"
+    elif command -v zypper &>/dev/null; then
+        PKG_MGR="zypper"
+    elif command -v xbps-install &>/dev/null; then
+        PKG_MGR="xbps"
+    fi
+
+    if [[ -n "$PKG_MGR" ]]; then
+        success "Detected package manager: $PKG_MGR (${DISTRO_ID:-unknown})"
+    else
+        warn "No supported package manager detected"
+    fi
+}
+
+# Map generic dep name → distro-specific package name
+# Args: $1=generic_name, returns via stdout
+dep_to_pkg() {
+    local name="$1"
+    case "$name" in
+        wg)
+            echo "wireguard-tools" ;;
+        birdc)
+            case "$PKG_MGR" in
+                apt)   echo "bird2" ;;
+                *)     echo "bird" ;;
+            esac ;;
+        ping)
+            case "$PKG_MGR" in
+                apt)        echo "iputils-ping" ;;
+                pacman)     echo "iputils" ;;
+                *)          echo "iputils-ping" ;;
+            esac ;;
+        traceroute)
+            echo "traceroute" ;;
+        *)
+            echo "$name" ;;
+    esac
+}
+
+install_pkg() {
+    local pkg="$1"
+    info "Installing $pkg..."
+    case "$PKG_MGR" in
+        apt)
+            DEBIAN_FRONTEND=noninteractive apt-get update -qq && apt-get install -y -qq "$pkg" ;;
+        apk)
+            apk add --no-cache "$pkg" ;;
+        dnf)
+            dnf install -y -q "$pkg" ;;
+        yum)
+            yum install -y -q "$pkg" ;;
+        pacman)
+            pacman -Sy --noconfirm --needed "$pkg" ;;
+        zypper)
+            zypper --non-interactive install -y "$pkg" ;;
+        xbps)
+            xbps-install -Sy "$pkg" ;;
+        *)
+            error "No package manager available — install '$pkg' manually" ;;
+    esac
+}
 
 # ═══════════════════════════════════════════════════════════
 # Dependency Checker
@@ -95,7 +184,6 @@ check_cmd() {
         return 0
     else
         warn "Missing: $name ${pkg_hint:+— try: $pkg_hint}"
-        DEP_WARNINGS=$((DEP_WARNINGS + 1))
         return 1
     fi
 }
@@ -118,11 +206,66 @@ check_arch() {
     local raw
     raw=$(uname -m)
     case "$raw" in
-        x86_64)  ARCH="amd64" ;;
-        aarch64) ARCH="arm64" ;;
+        x86_64)  ARCH="x86_64-unknown-linux-musl" ;;
+        aarch64) ARCH="aarch64-unknown-linux-musl" ;;
         *)       ARCH="$raw"
                  warn "Unsupported architecture: $raw (download method may not work)" ;;
     esac
+}
+
+install_runtime_deps() {
+    local missing=()
+    for dep in wg birdc ping traceroute; do
+        if ! command -v "$dep" &>/dev/null; then
+            missing+=("$dep")
+        fi
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        success "All runtime dependencies satisfied"
+        return 0
+    fi
+
+    warn "Missing runtime dependencies: ${missing[*]}"
+
+    if [[ -z "$PKG_MGR" ]]; then
+        warn "No package manager detected — install manually:"
+        for dep in "${missing[@]}"; do
+            echo "  $dep → $(dep_to_pkg "$dep")"
+        done
+        prompt_yn CONTINUE "Continue anyway?" "y"
+        [[ "$CONTINUE" != "y" ]] && exit 0
+        return 1
+    fi
+
+    prompt_yn AUTO_INSTALL "Auto-install missing packages via $PKG_MGR?" "y"
+    if [[ "$AUTO_INSTALL" != "y" ]]; then
+        warn "Skipping auto-install. Install manually before running peerman."
+        return 1
+    fi
+
+    local failed=0
+    for dep in "${missing[@]}"; do
+        local pkg
+        pkg=$(dep_to_pkg "$dep")
+        if install_pkg "$pkg"; then
+            if command -v "$dep" &>/dev/null; then
+                success "Installed: $dep (package: $pkg)"
+            else
+                warn "Package $pkg installed but $dep still not found in PATH"
+                failed=$((failed + 1))
+            fi
+        else
+            warn "Failed to install $pkg"
+            failed=$((failed + 1))
+        fi
+    done
+
+    if [[ $failed -gt 0 ]]; then
+        warn "$failed package(s) could not be installed"
+        prompt_yn CONTINUE "Continue anyway?" "y"
+        [[ "$CONTINUE" != "y" ]] && exit 0
+    fi
 }
 
 run_dependency_check() {
@@ -131,31 +274,19 @@ run_dependency_check() {
     echo ""
 
     detect_init_system
-
-    echo ""
-    info "Checking required runtime tools (warnings only — install manually if missing):"
-    check_cmd wg "apt install wireguard-tools / apk add wireguard-tools"
-    check_cmd birdc "apt install bird2 / apk add bird"
-    check_cmd ping ""
-    check_cmd traceroute "apt install traceroute / apk add traceroute"
-
-    echo ""
-    info "Checking install-option tools:"
-    check_cmd curl ""
-    check_cmd git ""
-    check_cmd cargo ""
-    check_cmd pnpm ""
-
+    detect_distro
     check_arch
 
-    if [[ $DEP_WARNINGS -gt 0 ]]; then
-        echo ""
-        warn "$DEP_WARNINGS tool(s) missing — install them before proceeding."
-        prompt_yn CONTINUE "Continue anyway?" "y"
-        if [[ "$CONTINUE" != "y" ]]; then
-            exit 0
-        fi
-    fi
+    echo ""
+    info "Runtime dependencies (wg, bird, ping, traceroute):"
+    install_runtime_deps
+
+    echo ""
+    info "Install-method tools (informational):"
+    check_cmd curl "apt install curl / apk add curl" || true
+    check_cmd git  "apt install git / apk add git"   || true
+    check_cmd cargo "" || true
+    check_cmd pnpm ""  || true
 }
 
 # ═══════════════════════════════════════════════════════════
@@ -217,29 +348,22 @@ install_from_release() {
     fi
     info "Latest version: $version"
 
-    # Expected tarball naming: peerman-<version>-<arch>-unknown-linux-gnu.tar.gz
-    # Binary inside tarball must be at the root, named 'peerman'
-    local tarball="peerman-${version}-${ARCH}-unknown-linux-gnu.tar.gz"
-    local url="${GITHUB_RELEASES}/download/${version}/${tarball}"
+    # Release assets are bare binaries named peerman-<triple>
+    local binary_name="peerman-${ARCH}"
+    local url="${GITHUB_RELEASES}/download/${version}/${binary_name}"
 
     info "Downloading: $url"
     local tmpdir
     tmpdir=$(mktemp -d)
-    trap "rm -rf $tmpdir" RETURN
+    trap "rm -rf '$tmpdir'" RETURN
 
-    curl -fSL --progress-bar -o "${tmpdir}/${tarball}" "$url" || {
+    curl -fSL --progress-bar -o "${tmpdir}/peerman" "$url" || {
         error "Download failed. Check:\n\
          - The release asset exists: $url\n\
-         - Tarball naming: peerman-<version>-<arch>-unknown-linux-gnu.tar.gz\n\
+         - Binary naming: peerman-<triple> (e.g. peerman-x86_64-unknown-linux-musl)\n\
          - Your network connectivity"
     }
 
-    info "Extracting..."
-    tar xzf "${tmpdir}/${tarball}" -C "$tmpdir"
-    if [[ ! -f "${tmpdir}/peerman" ]]; then
-        error "Tarball does not contain 'peerman' binary at root.\n\
-       Expected layout: peerman  (not peerman-<version>/peerman)"
-    fi
     install -o peerman -g peerman -m 0755 "${tmpdir}/peerman" "$BINARY_PATH"
     success "Installed peerman $version to $BINARY_PATH"
 }
@@ -317,6 +441,8 @@ generate_config() {
         fi
         prompt PEER_NODES "Bootstrap peer nodes (comma-separated host:port)" ""
         prompt TUNNEL_IP_RANGE "Inter-node tunnel IP range" "10.255.0.0/24"
+        prompt PROBE_INTERVAL "Probe interval (seconds)" "60"
+        prompt SYNC_INTERVAL "Sync interval (seconds)" "30"
     else
         CLUSTER_KEY=""
         PEER_NODES=""
@@ -339,6 +465,11 @@ format_peer_nodes() {
 
 write_config_file() {
     echo ""
+    if [[ -f "$CONFIG_FILE" ]]; then
+        local backup="${CONFIG_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+        cp "$CONFIG_FILE" "$backup"
+        warn "Existing config backed up to $backup"
+    fi
     info "Writing config to $CONFIG_FILE..."
 
     local config_content
@@ -482,10 +613,7 @@ install_sudoers() {
     sudoers_content=$(cat <<'SUDOERS'
 # Peerman — minimal privilege escalation for WireGuard & BIRD management
 # Managed by install.sh — do not edit by hand
-peerman ALL=(root) NOPASSWD: /usr/bin/wg
-peerman ALL=(root) NOPASSWD: /usr/sbin/birdc
-peerman ALL=(root) NOPASSWD: /usr/bin/ping
-peerman ALL=(root) NOPASSWD: /usr/sbin/traceroute
+peerman ALL=(root) NOPASSWD: /usr/bin/wg, /usr/sbin/birdc, /usr/bin/ping, /usr/sbin/traceroute
 SUDOERS
 )
 
@@ -537,7 +665,7 @@ start_service() {
     esac
 
     local listen_port
-    listen_port=$(echo "$LISTEN_ADDR" | grep -oP ':\K\d+$' || echo "3000")
+    listen_port=$(echo "$LISTEN_ADDR" | sed 's/.*://' || echo "3000")
     if ss -tlnp 2>/dev/null | grep -q ":$listen_port " || \
        netstat -tlnp 2>/dev/null | grep -q ":$listen_port "; then
         success "Port $listen_port is listening"
@@ -551,7 +679,7 @@ start_service() {
 # ═══════════════════════════════════════════════════════════
 print_success_banner() {
     local listen_port
-    listen_port=$(echo "$LISTEN_ADDR" | grep -oP ':\K\d+$' || echo "3000")
+    listen_port=$(echo "$LISTEN_ADDR" | sed 's/.*://' || echo "3000")
 
     echo ""
     echo "================================================"
