@@ -86,7 +86,10 @@ jobs:
           for dir in peerman-*/; do
             triple="${dir%/}"
             triple="${triple#peerman-}"
-            mv "$dir/peerman" "peerman-${triple}"
+            binary=$(find "$dir" -name "peerman" -o -name "peerman.exe" | head -1)
+            if [ -n "$binary" ]; then
+              mv "$binary" "peerman-${triple}"
+            fi
           done
           rm -rf peerman-*/
           sha256sum peerman-* > SHA256SUMS
