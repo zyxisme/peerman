@@ -212,25 +212,24 @@ pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings
         post_up.push_str(&format!("; ip addr add {ipv6}/128 dev %i"));
     }
     if !settings.wg_post_up.is_empty() {
-        if let Err(e) = crate::services::input_sanitizer::validate_post_script(&settings.wg_post_up)
-        {
+        match crate::services::input_sanitizer::validate_post_script(&settings.wg_post_up)
+        { Err(e) => {
             tracing::warn!("Skipping invalid wg_post_up: {e}");
-        } else {
+        } _ => {
             post_up.push_str(&format!("; {}", settings.wg_post_up));
-        }
+        }}
     }
     config.push_str(&format!("{post_up}\n"));
 
     // PostDown — mirror
     let mut post_down = String::from("PostDown = ip link set %i down");
     if !settings.wg_post_down.is_empty() {
-        if let Err(e) =
-            crate::services::input_sanitizer::validate_post_script(&settings.wg_post_down)
-        {
+        match crate::services::input_sanitizer::validate_post_script(&settings.wg_post_down)
+        { Err(e) => {
             tracing::warn!("Skipping invalid wg_post_down: {e}");
-        } else {
+        } _ => {
             post_down.push_str(&format!("; {}", settings.wg_post_down));
-        }
+        }}
     }
     config.push_str(&format!("{post_down}\n"));
 

@@ -17,7 +17,7 @@ pub struct Claims {
 pub fn generate_jwt_secret() -> String {
     let mut rng = rand::thread_rng();
     (0..32)
-        .map(|_| format!("{:02x}", rng.gen::<u8>()))
+        .map(|_| format!("{:02x}", rng.r#gen::<u8>()))
         .collect()
 }
 
