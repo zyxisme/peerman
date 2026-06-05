@@ -627,6 +627,19 @@ SUDOERS
     write_atomic "/etc/sudoers.d/peerman" "$sudoers_content"
     chmod 0440 /etc/sudoers.d/peerman
     success "sudoers installed: /etc/sudoers.d/peerman"
+
+    # Grant peerman write access to BIRD and WireGuard config directories
+    if getent group bird &>/dev/null; then
+        usermod -aG bird peerman 2>/dev/null || true
+    fi
+    if [ -d /etc/bird ]; then
+        chmod 775 /etc/bird
+        chmod 664 /etc/bird/bird.conf 2>/dev/null || true
+    fi
+    if [ -d /etc/wireguard ]; then
+        chgrp peerman /etc/wireguard
+        chmod 770 /etc/wireguard
+    fi
 }
 
 # ═══════════════════════════════════════════════════════════
