@@ -40,7 +40,7 @@ peerman -c config.toml
 ### 一键安装（推荐）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/peerman/peerman/master/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/zyxisme/peerman/master/install.sh | sudo bash
 ```
 
 交互式脚本，自动完成：依赖检查与安装（wg、bird、ping、traceroute，支持 Debian/Ubuntu/Alpine/Fedora/Arch/openSUSE/Void）→ 下载预编译二进制或源码编译 → 创建系统用户和目录 → 交互式生成配置文件 → 安装 systemd/OpenRC 服务 → 配置 sudoers → 启动并验证。
