@@ -3,7 +3,7 @@
 # Peerman
 
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
-[![Rust](https://img.shields.io/badge/Rust-2021_edition-%23dea584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-2024_edition-%23dea584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/zyxisme/peerman/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/peerman.svg?style=for-the-badge&logo=rust&logoColor=white)](https://crates.io/crates/peerman)
 
