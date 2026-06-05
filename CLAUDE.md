@@ -7,6 +7,7 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 - `source "$HOME/.cargo/env"` to put cargo/rustup on PATH (not in default env)
 - `cargo build` — full build (proto gen → frontend pnpm build → rust compile → embed dist/)
 - `SKIP_FRONTEND_BUILD=1 cargo build` — skip frontend, use pre-built dist/ (needed on low-RAM machines; debug build may OOM linking)
+- **build.rs dist/ logic:** if `frontend/dist/` exists → skip; if missing → build frontend via pnpm; if `SKIP_FRONTEND_BUILD` set → skip (dist must already exist)
 - `cargo build --release` — release build (smaller binary, less linking memory)
 - `cd frontend && pnpm dev` — Vite dev server (proxies /api to localhost:3000)
 - `cargo run -- -c config.toml` — start server (copy config.toml.example first)
@@ -187,6 +188,9 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - Default version bump: `0.0.1` unless user specifies otherwise
 - Pre-publish: version bump → commit Cargo.toml + Cargo.lock + frontend/package.json → push to CI → wait for CI pass → `cargo publish` → push tag. Publish on a clean tree, don't use `--allow-dirty`.
 - Release CI triggers on `v*` tag push, builds 2 Linux musl static targets (x86_64 + aarch64), uploads to GitHub Releases
+- **`frontend/dist/` must be committed** — `rust-embed` needs it at compile time. Removed from `.gitignore`; CI builds overwrite the placeholder.
+- **`cargo publish` disk space** — verification compiles from scratch (~2.3GB). If disk is near full, `rm -rf target` before publishing.
+- **Release workflow artifact packaging** — `upload-artifact@v4` preserves directory structure. Packaging script uses staging dir + `cp` to flatten, then removes artifact dirs before moving.
 
 ### Version update checklist
 
@@ -196,6 +200,7 @@ Check existing tags: `git tag -l 'v*' --sort=-v:refname`. Bump from the latest t
 2. Run `source "$HOME/.cargo/env" && cargo generate-lockfile` to update `Cargo.lock`
 3. Commit all three files: `git add Cargo.toml Cargo.lock frontend/package.json && git commit -m "chore: bump version to X.Y.Z"`
 4. Push to master: `git push origin master`
-5. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z` — this triggers the Release workflow (`.github/workflows/release.yml`)
-6. Monitor release: `gh run list --limit 3` then `gh run watch <id> --exit-status`
-7. Release produces 2 targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl (fully static binaries)
+5. Publish to crates.io: `source "$HOME/.cargo/env" && cargo publish`
+6. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z` — this triggers the Release workflow (`.github/workflows/release.yml`)
+7. Monitor release: `gh run list --limit 3` then `gh run watch <id> --exit-status`
+8. Release produces 2 targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl (fully static binaries)
