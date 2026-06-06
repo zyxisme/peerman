@@ -167,6 +167,72 @@ pub fn generate_cluster_wg_config(
     config
 }
 
+/// Check if a network interface exists by looking at /sys/class/net/<name>.
+pub async fn interface_exists(name: &str) -> bool {
+    std::path::Path::new(&format!("/sys/class/net/{name}")).exists()
+}
+
+/// Create a new WireGuard interface and apply its config.
+/// Equivalent to: `ip link add <iface> type wireguard && wg setconf <iface> <conf> && ip link set <iface> up`
+pub async fn create_wg_interface(iface: &str, conf_path: &str) -> Result<(), AppError> {
+    let output = tokio::process::Command::new("ip")
+        .args(["link", "add", iface, "type", "wireguard"])
+        .output()
+        .await
+        .map_err(|e| AppError::Internal(format!("ip link add failed: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Internal(format!(
+            "ip link add {iface} failed: {stderr}"
+        )));
+    }
+
+    let output = tokio::process::Command::new("wg")
+        .args(["setconf", iface, conf_path])
+        .output()
+        .await
+        .map_err(|e| AppError::Internal(format!("wg setconf failed: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Internal(format!(
+            "wg setconf {iface} failed: {stderr}"
+        )));
+    }
+
+    let output = tokio::process::Command::new("ip")
+        .args(["link", "set", iface, "up"])
+        .output()
+        .await
+        .map_err(|e| AppError::Internal(format!("ip link set up failed: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Internal(format!(
+            "ip link set {iface} up failed: {stderr}"
+        )));
+    }
+
+    Ok(())
+}
+
+/// Remove a WireGuard interface and its config file.
+/// Runs `wg-quick down <iface>` (ignoring errors if already down), then removes the conf file.
+pub async fn remove_wg_interface(iface: &str) -> Result<(), AppError> {
+    // Try wg-quick down (ignore errors — interface may already be down)
+    let _ = tokio::process::Command::new("wg-quick")
+        .args(["down", iface])
+        .output()
+        .await;
+
+    // Remove conf file if it exists
+    let conf_path = format!("/etc/wireguard/{iface}.conf");
+    if std::path::Path::new(&conf_path).exists() {
+        std::fs::remove_file(&conf_path)
+            .map_err(|e| AppError::Internal(format!("Cannot remove {conf_path}: {e}")))?;
+    }
+
+    Ok(())
+}
+
 /// Generate a complete WireGuard configuration for a single peer.
 /// Returns the INI-format config string.
 pub fn generate_config(peer: &Peer, settings: &crate::models::settings::Settings) -> String {
@@ -449,5 +515,27 @@ mod tests {
         let config = generate_cluster_wg_config(&nodes, "key-a", 51821);
         assert!(config.contains("[Interface]"));
         assert!(!config.contains("[Peer]"));
+    }
+
+    #[test]
+    fn test_interface_exists_returns_false_for_nonexistent() {
+        let exists = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(interface_exists("wg-nonexistent-999"));
+        assert!(!exists);
+    }
+
+    #[test]
+    fn test_create_wg_interface_is_async_and_compiles() {
+        fn _assert_sig<'a>(name: &'a str, conf: &'a str) -> impl std::future::Future<Output = Result<(), crate::error::AppError>> + 'a {
+            create_wg_interface(name, conf)
+        }
+    }
+
+    #[test]
+    fn test_remove_wg_interface_is_async_and_compiles() {
+        fn _assert_sig(name: &str) -> impl std::future::Future<Output = Result<(), crate::error::AppError>> + '_ {
+            remove_wg_interface(name)
+        }
     }
 }
