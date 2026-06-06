@@ -122,6 +122,10 @@ async fn main() -> anyhow::Result<()> {
     let settings_svc = SettingsServiceImpl {
         settings_repo: state.settings_repo.clone(),
         jwt_secret: jwt_secret.clone(),
+        peer_state: state.peer_state(),
+        listen_addr: listen_addr.clone(),
+        pool: pool.clone(),
+        apply_status: state.apply_status.clone(),
     };
     let cluster_svc = ClusterServiceImpl {
         node_repo: state.node_repo.clone(),
@@ -147,6 +151,10 @@ async fn main() -> anyhow::Result<()> {
     };
     let mgmt_svc = ManagementServiceImpl {
         jwt_secret: jwt_secret.clone(),
+        apply_status: state.apply_status.clone(),
+        peer_state: state.peer_state(),
+        listen_addr: listen_addr.clone(),
+        pool: pool.clone(),
     };
 
     // Build tonic gRPC router with gRPC-Web support.

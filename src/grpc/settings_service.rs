@@ -9,6 +9,10 @@ use crate::models::settings::SettingsRepository;
 pub struct SettingsServiceImpl {
     pub settings_repo: SettingsRepository,
     pub jwt_secret: std::sync::Arc<String>,
+    pub peer_state: crate::app_state::PeerState,
+    pub listen_addr: String,
+    pub pool: sqlx::SqlitePool,
+    pub apply_status: crate::app_state::ApplyStatus,
 }
 
 fn settings_to_proto(s: &crate::models::settings::Settings) -> Settings {
@@ -160,6 +164,18 @@ impl SettingsService for SettingsServiceImpl {
             .save(&settings)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Immediately apply WG+BIRD configs
+        if let Err(e) = crate::grpc::peer_service::apply_wg_bird(
+            &self.peer_state,
+            &self.listen_addr,
+            &self.pool,
+            &self.apply_status,
+        )
+        .await
+        {
+            tracing::warn!("Settings saved but WG+BIRD apply failed: {e}");
+        }
 
         Ok(Response::new(settings_to_proto(&settings)))
     }

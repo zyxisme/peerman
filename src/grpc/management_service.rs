@@ -8,6 +8,10 @@ use super::generated::{
 
 pub struct ManagementServiceImpl {
     pub jwt_secret: std::sync::Arc<String>,
+    pub apply_status: crate::app_state::ApplyStatus,
+    pub peer_state: crate::app_state::PeerState,
+    pub listen_addr: String,
+    pub pool: sqlx::SqlitePool,
 }
 
 #[tonic::async_trait]
@@ -47,8 +51,35 @@ impl ManagementService for ManagementServiceImpl {
         request: Request<GetApplyStatusRequest>,
     ) -> Result<Response<GetApplyStatusResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
-        // TODO: implement in Task 7
-        Err(Status::unimplemented("GetApplyStatus not yet implemented"))
+
+        let last_apply_at = self
+            .apply_status
+            .last_apply_at
+            .lock()
+            .await
+            .clone()
+            .unwrap_or_default();
+        let last_error = self
+            .apply_status
+            .last_apply_error
+            .lock()
+            .await
+            .clone()
+            .unwrap_or_default();
+        let pending = self
+            .apply_status
+            .pending
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let interfaces = self.apply_status.managed_interfaces.lock().await.clone();
+
+        Ok(Response::new(GetApplyStatusResponse {
+            status: Some(super::generated::ApplyStatus {
+                last_apply_at,
+                pending,
+                last_error,
+                managed_interfaces: interfaces,
+            }),
+        }))
     }
 
     async fn apply_config_now(
@@ -56,7 +87,15 @@ impl ManagementService for ManagementServiceImpl {
         request: Request<ApplyConfigNowRequest>,
     ) -> Result<Response<ApplyConfigNowResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
-        // TODO: implement in Task 7
-        Err(Status::unimplemented("ApplyConfigNow not yet implemented"))
+
+        crate::grpc::peer_service::apply_wg_bird(
+            &self.peer_state,
+            &self.listen_addr,
+            &self.pool,
+            &self.apply_status,
+        )
+        .await?;
+
+        Ok(Response::new(ApplyConfigNowResponse {}))
     }
 }
