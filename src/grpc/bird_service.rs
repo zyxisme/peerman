@@ -13,6 +13,7 @@ pub struct BirdServiceImpl {
     pub cluster_key: std::sync::Arc<String>,
     pub node_repo: crate::models::node::NodeRepository,
     pub cache: crate::cluster::cache::ClusterCache,
+    pub bird_socket_path: String,
 }
 
 #[tonic::async_trait]
@@ -26,7 +27,7 @@ impl BirdService for BirdServiceImpl {
 
         let results = if req.target_node_id.is_empty() || req.target_node_id == self.node_name {
             // Local execution
-            let output = execute_local(&req.command).await?;
+            let output = execute_local(&req.command, &self.bird_socket_path).await?;
             vec![NodeBirdResult {
                 node_id: self.node_name.clone(),
                 node_name: self.node_name.clone(),
@@ -120,11 +121,11 @@ impl BirdService for BirdServiceImpl {
     }
 }
 
-async fn execute_local(command: &str) -> Result<String, Status> {
+async fn execute_local(command: &str, socket_path: &str) -> Result<String, Status> {
     crate::services::bird_allowlist::validate_bird_command(command)
         .map_err(|e| Status::permission_denied(e.to_string()))?;
 
-    let mut socket = BirdSocket::connect()
+    let mut socket = BirdSocket::connect(socket_path)
         .await
         .map_err(|e| Status::unavailable(format!("Cannot connect to BIRD socket: {e}")))?;
 

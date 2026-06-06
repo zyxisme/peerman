@@ -27,6 +27,7 @@ pub struct Config {
     #[serde(default)]
     pub auth: AuthConfig,
     pub cluster: ClusterConfig,
+    pub bird: BirdConfig,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -82,6 +83,13 @@ pub struct AuthConfig {
     pub jwt_secret: String,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct BirdConfig {
+    #[serde(default = "default_bird_socket_path")]
+    pub socket_path: String,
+}
+
 // ---------------------------------------------------------------------------
 // Default value functions (for serde field-level defaults)
 // ---------------------------------------------------------------------------
@@ -108,6 +116,10 @@ fn default_sync_interval() -> u64 {
 
 fn default_username() -> String {
     "admin".into()
+}
+
+fn default_bird_socket_path() -> String {
+    "/run/bird/bird.ctl".into()
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +171,14 @@ impl Default for AuthConfig {
             password: String::new(),
             password_hash: String::new(),
             jwt_secret: String::new(),
+        }
+    }
+}
+
+impl Default for BirdConfig {
+    fn default() -> Self {
+        Self {
+            socket_path: default_bird_socket_path(),
         }
     }
 }

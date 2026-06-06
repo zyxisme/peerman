@@ -4,8 +4,6 @@ use tokio::net::UnixStream;
 
 use crate::error::AppError;
 
-const SOCKET_PATH: &str = "/var/run/bird.ctl";
-
 pub struct BirdResponse {
     pub lines: Vec<String>,
 }
@@ -16,11 +14,11 @@ pub struct BirdSocket {
 }
 
 impl BirdSocket {
-    pub async fn connect() -> Result<Self, AppError> {
-        let path = Path::new(SOCKET_PATH);
+    pub async fn connect(socket_path: &str) -> Result<Self, AppError> {
+        let path = Path::new(socket_path);
         if !path.exists() {
             return Err(AppError::Internal(format!(
-                "BIRD control socket not found at {SOCKET_PATH}"
+                "BIRD control socket not found at {socket_path}"
             )));
         }
 

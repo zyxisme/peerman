@@ -89,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
     let cluster_key = cfg.cluster.cluster_key.clone();
     let tunnel_ip_range = cfg.cluster.tunnel_ip_range.clone();
     let tunnel_ipv6_range = cfg.cluster.tunnel_ipv6_range.clone();
+    let bird_socket_path = cfg.bird.socket_path.clone();
     let cfg_arc = Arc::new(cfg);
     APP_CONFIG
         .set(cfg_arc.clone())
@@ -138,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         cluster_key: Arc::new(cluster_key.clone()),
         node_repo: state.node_repo.clone(),
         cache: state.cluster_cache.clone(),
+        bird_socket_path,
     };
     let flap_svc = FlapServiceImpl {
         flap_repo: state.flap_event_repo.clone(),

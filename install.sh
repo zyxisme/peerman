@@ -550,6 +550,8 @@ Wants=network-online.target
 Type=simple
 User=peerman
 Group=peerman
+SupplementaryGroups=bird
+AmbientCapabilities=CAP_NET_ADMIN
 ExecStart=/usr/local/bin/peerman -c /etc/peerman/config.toml
 Restart=always
 RestartSec=5
@@ -628,7 +630,7 @@ SUDOERS
     chmod 0440 /etc/sudoers.d/peerman
     success "sudoers installed: /etc/sudoers.d/peerman"
 
-    # Grant peerman write access to BIRD and WireGuard config directories
+    # Grant peerman access to BIRD control socket
     if getent group bird &>/dev/null; then
         usermod -aG bird peerman 2>/dev/null || true
     fi
@@ -636,6 +638,11 @@ SUDOERS
         chmod 775 /etc/bird
         chmod 664 /etc/bird/bird.conf 2>/dev/null || true
     fi
+    if [ -d /run/bird ]; then
+        chmod 775 /run/bird
+    fi
+
+    # Grant peerman write access to WireGuard config directory
     if [ -d /etc/wireguard ]; then
         chgrp peerman /etc/wireguard
         chmod 770 /etc/wireguard

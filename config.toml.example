@@ -26,3 +26,7 @@ jwt_secret = ""
 # peer_nodes = ["1.2.3.4:3000", "5.6.7.8:3000"]  # initial bootstrap peers (public IPs)
 # probe_interval_secs = 15  # health check interval (default 60)
 # sync_interval_secs = 30   # node list exchange interval (default 30)
+
+[bird]
+# BIRD control socket path (default: /run/bird/bird.ctl)
+# socket_path = "/run/bird/bird.ctl"
