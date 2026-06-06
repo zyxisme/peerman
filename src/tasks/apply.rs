@@ -32,8 +32,13 @@ pub fn spawn_config_apply(
             }
             if config_dirty.swap(false, Ordering::Relaxed) {
                 tracing::info!("Config dirty flag set, applying WG+BIRD configs...");
-                if let Err(e) =
-                    crate::grpc::peer_service::apply_wg_bird(&peer_state, &listen_addr, &pool, &apply_status).await
+                if let Err(e) = crate::grpc::peer_service::apply_wg_bird(
+                    &peer_state,
+                    &listen_addr,
+                    &pool,
+                    &apply_status,
+                )
+                .await
                 {
                     tracing::warn!("Auto-apply WG+BIRD failed: {e}");
                 }

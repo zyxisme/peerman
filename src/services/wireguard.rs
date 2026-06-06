@@ -527,14 +527,19 @@ mod tests {
 
     #[test]
     fn test_create_wg_interface_is_async_and_compiles() {
-        fn _assert_sig<'a>(name: &'a str, conf: &'a str) -> impl std::future::Future<Output = Result<(), crate::error::AppError>> + 'a {
+        fn _assert_sig<'a>(
+            name: &'a str,
+            conf: &'a str,
+        ) -> impl std::future::Future<Output = Result<(), crate::error::AppError>> + 'a {
             create_wg_interface(name, conf)
         }
     }
 
     #[test]
     fn test_remove_wg_interface_is_async_and_compiles() {
-        fn _assert_sig(name: &str) -> impl std::future::Future<Output = Result<(), crate::error::AppError>> + '_ {
+        fn _assert_sig(
+            name: &str,
+        ) -> impl std::future::Future<Output = Result<(), crate::error::AppError>> + '_ {
             remove_wg_interface(name)
         }
     }

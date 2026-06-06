@@ -39,7 +39,9 @@ pub async fn apply_wg_bird(
         .lock()
         .await;
 
-    apply_status.pending.store(true, std::sync::atomic::Ordering::Relaxed);
+    apply_status
+        .pending
+        .store(true, std::sync::atomic::Ordering::Relaxed);
 
     let peers = state
         .peer_repo
@@ -144,12 +146,16 @@ pub async fn apply_wg_bird(
     }
 
     if let Err(e) = crate::services::bird::apply_config(&bird_config) {
-        apply_status.pending.store(false, std::sync::atomic::Ordering::Relaxed);
+        apply_status
+            .pending
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         *apply_status.last_apply_error.lock().await = Some(e.to_string());
         return Err(Status::internal(e.to_string()));
     }
 
-    apply_status.pending.store(false, std::sync::atomic::Ordering::Relaxed);
+    apply_status
+        .pending
+        .store(false, std::sync::atomic::Ordering::Relaxed);
     *apply_status.last_apply_at.lock().await = Some(chrono::Utc::now().to_rfc3339());
     *apply_status.last_apply_error.lock().await = None;
 
@@ -259,6 +265,31 @@ impl PeerService for PeerServiceImpl {
         )
         .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
+        // Check WG interface name uniqueness
+        let new_iface = if req.wg_interface_name.is_empty() {
+            "wg0"
+        } else {
+            &req.wg_interface_name
+        };
+        let existing_peers = self
+            .state
+            .peer_repo
+            .list_all()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+        if existing_peers.iter().any(|p| {
+            let existing = if p.wg_interface_name.is_empty() {
+                "wg0"
+            } else {
+                &p.wg_interface_name
+            };
+            existing == new_iface
+        }) {
+            return Err(Status::already_exists(format!(
+                "Interface name '{new_iface}' is already in use by another peer"
+            )));
+        }
+
         let proto = create_request_to_proto(&req);
         let peer = self
             .state
@@ -308,6 +339,34 @@ impl PeerService for PeerServiceImpl {
         )
         .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
+        // Check WG interface name uniqueness (exclude current peer)
+        let new_iface = if req.wg_interface_name.is_empty() {
+            "wg0"
+        } else {
+            &req.wg_interface_name
+        };
+        let existing_peers = self
+            .state
+            .peer_repo
+            .list_all()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+        if existing_peers.iter().any(|p| {
+            if p.id == req.id {
+                return false;
+            }
+            let existing = if p.wg_interface_name.is_empty() {
+                "wg0"
+            } else {
+                &p.wg_interface_name
+            };
+            existing == new_iface
+        }) {
+            return Err(Status::already_exists(format!(
+                "Interface name '{new_iface}' is already in use by another peer"
+            )));
+        }
+
         let mut peer = self
             .state
             .peer_repo
@@ -336,11 +395,31 @@ impl PeerService for PeerServiceImpl {
     ) -> Result<Response<DeletePeerResponse>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
+
+        // Fetch the peer before deletion so we can clean up its WG interface
+        let peer = self
+            .state
+            .peer_repo
+            .find_by_id(&req.id)
+            .await
+            .map_err(|e| Status::not_found(e.to_string()))?;
+
+        let iface = if peer.wg_interface_name.is_empty() {
+            "wg0".to_string()
+        } else {
+            peer.wg_interface_name.clone()
+        };
+
         self.state
             .peer_repo
             .delete(&req.id)
             .await
-            .map_err(|e| Status::not_found(e.to_string()))?;
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        // Clean up WireGuard interface and config file
+        if let Err(e) = services::wireguard::remove_wg_interface(&iface).await {
+            tracing::warn!("Failed to remove WG interface {iface}: {e}");
+        }
 
         self.config_dirty
             .store(true, std::sync::atomic::Ordering::Relaxed);
