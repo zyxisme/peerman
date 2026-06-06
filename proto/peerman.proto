@@ -387,9 +387,26 @@ message NodeTracerouteResult {
 
 // ── Management Service ──
 
+message ApplyStatus {
+  string last_apply_at = 1;
+  bool pending = 2;
+  string last_error = 3;
+  repeated string managed_interfaces = 4;
+}
+
+message GetApplyStatusRequest {}
+message GetApplyStatusResponse {
+  ApplyStatus status = 1;
+}
+
+message ApplyConfigNowRequest {}
+message ApplyConfigNowResponse {}
+
 service ManagementService {
   rpc GetWireGuardStatus(GetWGStatusRequest) returns (WGStatusResponse);
   rpc GetBirdStatus(GetBirdStatusRequest) returns (BirdStatusResponse);
+  rpc GetApplyStatus(GetApplyStatusRequest) returns (GetApplyStatusResponse);
+  rpc ApplyConfigNow(ApplyConfigNowRequest) returns (ApplyConfigNowResponse);
 }
 
 message GetWGStatusRequest {

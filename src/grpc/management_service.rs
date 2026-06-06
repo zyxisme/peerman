@@ -1,7 +1,8 @@
 use tonic::{Request, Response, Status};
 
 use super::generated::{
-    BirdStatusResponse, GetBirdStatusRequest, GetWgStatusRequest, WgStatusResponse,
+    ApplyConfigNowRequest, ApplyConfigNowResponse, BirdStatusResponse, GetApplyStatusRequest,
+    GetApplyStatusResponse, GetBirdStatusRequest, GetWgStatusRequest, WgStatusResponse,
     management_service_server::ManagementService,
 };
 
@@ -39,5 +40,23 @@ impl ManagementService for ManagementServiceImpl {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(BirdStatusResponse { protocols }))
+    }
+
+    async fn get_apply_status(
+        &self,
+        request: Request<GetApplyStatusRequest>,
+    ) -> Result<Response<GetApplyStatusResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        // TODO: implement in Task 7
+        Err(Status::unimplemented("GetApplyStatus not yet implemented"))
+    }
+
+    async fn apply_config_now(
+        &self,
+        request: Request<ApplyConfigNowRequest>,
+    ) -> Result<Response<ApplyConfigNowResponse>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        // TODO: implement in Task 7
+        Err(Status::unimplemented("ApplyConfigNow not yet implemented"))
     }
 }
