@@ -5,7 +5,7 @@
 //! `BoxBody`, which is incompatible with axum's `Router::layer()`.
 
 use axum::body::Body;
-use http::{header, Request, Response};
+use http::{Request, Response, header};
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
@@ -86,10 +86,9 @@ where
         Box::pin(async move {
             // Rewrite headers: gRPC-Web → gRPC (body format is the same)
             let (mut parts, body) = req.into_parts();
-            parts.headers.insert(
-                header::CONTENT_TYPE,
-                "application/grpc".parse().unwrap(),
-            );
+            parts
+                .headers
+                .insert(header::CONTENT_TYPE, "application/grpc".parse().unwrap());
             parts
                 .headers
                 .insert(header::TE, "trailers".parse().unwrap());
@@ -107,10 +106,34 @@ where
 
             // Message frame: 0x00 + 4-byte length + message data
             if !resp_bytes.is_empty() {
+                // Tonic may already wrap the response in gRPC length-prefixed
+                // framing (0x00 + 4-byte BE length + message). Detect and
+                // extract the inner message to avoid double-wrapping, which
+                // causes ConnectRPC's parser to see a stray 0x00 byte and fail
+                // with "illegal tag: field no 0 wire type 0".
+                let message_data =
+                    if resp_bytes.len() >= 5 && (resp_bytes[0] == 0x00 || resp_bytes[0] == 0x01) {
+                        let msg_len = u32::from_be_bytes([
+                            resp_bytes[1],
+                            resp_bytes[2],
+                            resp_bytes[3],
+                            resp_bytes[4],
+                        ]) as usize;
+                        if 5 + msg_len == resp_bytes.len() {
+                            // Already framed — use the inner message directly
+                            &resp_bytes[5..]
+                        } else {
+                            // Length mismatch — treat as raw protobuf
+                            &resp_bytes
+                        }
+                    } else {
+                        &resp_bytes
+                    };
+
                 grpc_web_body.push(0x00);
-                let len = resp_bytes.len() as u32;
+                let len = message_data.len() as u32;
                 grpc_web_body.extend_from_slice(&len.to_be_bytes());
-                grpc_web_body.extend_from_slice(&resp_bytes);
+                grpc_web_body.extend_from_slice(message_data);
             }
 
             // Trailer frame: 0x80 + 4-byte length + trailer data
