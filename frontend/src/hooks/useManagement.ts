@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { create } from '@bufbuild/protobuf';
-import { GetWGStatusRequestSchema, GetBirdStatusRequestSchema } from '../lib/peerman_pb';
-import type { WGInterface, BirdProtocol } from '../lib/peerman_pb';
+import {
+  GetWGStatusRequestSchema,
+  GetBirdStatusRequestSchema,
+  GetApplyStatusRequestSchema,
+  ApplyConfigNowRequestSchema,
+} from '../lib/peerman_pb';
+import type { WGInterface, BirdProtocol, ApplyStatus } from '../lib/peerman_pb';
 import { mgmtClient } from '../lib/grpc';
 
 export function useWireGuardStatus(iface: string = '') {
@@ -52,4 +57,44 @@ export function useBirdStatus() {
   useEffect(() => { fetch(); }, [fetch]);
 
   return { protocols, loading, error, refetch: fetch };
+}
+
+export function useApplyStatus() {
+  const [status, setStatus] = useState<ApplyStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await mgmtClient.getApplyStatus(
+        create(GetApplyStatusRequestSchema, {})
+      );
+      setStatus(res.status ?? null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { status, loading, error, refetch: fetch };
+}
+
+export function useApplyConfigNow() {
+  const [loading, setLoading] = useState(false);
+
+  const apply = useCallback(async () => {
+    setLoading(true);
+    try {
+      await mgmtClient.applyConfigNow(create(ApplyConfigNowRequestSchema, {}));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { apply, loading };
 }

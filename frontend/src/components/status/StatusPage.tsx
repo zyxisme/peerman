@@ -1,16 +1,18 @@
 import { RefreshCw } from 'lucide-react';
-import { useWireGuardStatus, useBirdStatus } from '../../hooks/useManagement';
+import { useWireGuardStatus, useBirdStatus, useApplyStatus, useApplyConfigNow } from '../../hooks/useManagement';
 
 export default function StatusPage() {
   const wg = useWireGuardStatus();
   const bird = useBirdStatus();
+  const applyStatus = useApplyStatus();
+  const applyNow = useApplyConfigNow();
 
   return (
     <div className="space-y-lg animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-display-md text-ink">System Status</h1>
         <button
-          onClick={() => { wg.refetch(); bird.refetch(); }}
+          onClick={() => { wg.refetch(); bird.refetch(); applyStatus.refetch(); }}
           className="btn-ghost text-xs flex items-center gap-1"
         >
           <RefreshCw className="w-3 h-3" />
@@ -87,6 +89,55 @@ export default function StatusPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Config Status */}
+      <div className="card">
+        <h2 className="text-body-md-strong text-ink mb-md">Config Status</h2>
+        {applyStatus.loading && <div className="text-body-sm text-body">Loading...</div>}
+        {applyStatus.error && <div className="text-body-sm text-error">{applyStatus.error}</div>}
+        {!applyStatus.loading && !applyStatus.error && applyStatus.status && (
+          <div className="space-y-sm">
+            <div className="grid grid-cols-2 gap-sm text-body-sm">
+              <div>
+                <span className="text-mute">Status:</span>{' '}
+                <span className={`badge ${
+                  applyStatus.status.pending
+                    ? 'bg-yellow-500/20 text-yellow-500'
+                    : applyStatus.status.lastError
+                      ? 'bg-red-500/20 text-red-500'
+                      : 'bg-green-500/20 text-green-500'
+                }`}>
+                  {applyStatus.status.pending ? 'pending' : applyStatus.status.lastError ? 'error' : 'synced'}
+                </span>
+              </div>
+              <div>
+                <span className="text-mute">Last Apply:</span>{' '}
+                {applyStatus.status.lastApplyAt || '—'}
+              </div>
+            </div>
+            {applyStatus.status.lastError && (
+              <div className="text-body-sm text-error bg-error-soft px-md py-sm rounded-sm">
+                {applyStatus.status.lastError}
+              </div>
+            )}
+            {applyStatus.status.managedInterfaces.length > 0 && (
+              <div className="text-caption text-mute">
+                Managed interfaces: {applyStatus.status.managedInterfaces.join(', ')}
+              </div>
+            )}
+            <button
+              onClick={async () => {
+                await applyNow.apply();
+                applyStatus.refetch();
+              }}
+              disabled={applyNow.loading}
+              className="btn-primary text-sm mt-sm"
+            >
+              {applyNow.loading ? 'Applying...' : 'Apply Now'}
+            </button>
           </div>
         )}
       </div>

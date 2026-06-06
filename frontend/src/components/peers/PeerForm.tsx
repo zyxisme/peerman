@@ -6,6 +6,7 @@ import { CreatePeerRequestSchema, UpdatePeerRequestSchema } from '../../lib/peer
 import { peerClient } from '../../lib/grpc';
 import { usePeer, useGenerateKeypair } from '../../hooks/usePeers';
 import { useNodes } from '../../hooks/useNodes';
+import { useSettings } from '../../hooks/useSettings';
 
 export default function PeerForm() {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +15,7 @@ export default function PeerForm() {
   const { peer: existingPeer, loading: loadingPeer } = usePeer(id);
   const { generate, loading: genLoading } = useGenerateKeypair();
   const { nodes } = useNodes();
+  const { settings } = useSettings();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -64,6 +66,19 @@ export default function PeerForm() {
       setOriginNodeId(existingPeer.originNodeId);
     }
   }, [existingPeer]);
+
+  useEffect(() => {
+    if (!isEdit && settings) {
+      setWgListenPort(String(settings.wgDefaultListenPort));
+      setLocalAsn(settings.localAsn.toString());
+    }
+  }, [isEdit, settings]);
+
+  useEffect(() => {
+    if (!isEdit && name) {
+      setWgInterfaceName(sanitizeInterfaceName(name));
+    }
+  }, [isEdit, name]);
 
   const handleGenerate = async () => {
     const result = await generate();
@@ -152,8 +167,13 @@ export default function PeerForm() {
             <Input label="Name" value={name} onChange={setName} required />
             <Input label="Description" value={description} onChange={setDescription} />
             <Input label="Remote ASN" value={asn} onChange={setAsn} placeholder="424242XXXX" />
-            <Input label="Local ASN" value={localAsn} onChange={setLocalAsn} />
           </div>
+          <details className="mt-sm">
+            <summary className="text-caption text-mute cursor-pointer select-none">Advanced Identity</summary>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-sm mt-sm">
+              <Input label="Local ASN" value={localAsn} onChange={setLocalAsn} />
+            </div>
+          </details>
         </fieldset>
 
         {/* WireGuard */}
@@ -170,9 +190,14 @@ export default function PeerForm() {
             <Input label="Public Key" value={wgPublicKey} onChange={setWgPublicKey} mono />
             <Input label="Remote Address" value={wgRemoteAddress} onChange={setWgRemoteAddress} />
             <Input label="Remote Port" value={wgRemotePort} onChange={setWgRemotePort} type="number" />
-            <Input label="Listen Port" value={wgListenPort} onChange={setWgListenPort} type="number" />
-            <Input label="Interface Name" value={wgInterfaceName} onChange={setWgInterfaceName} placeholder="wg-dn42-peer" />
           </div>
+          <details className="mt-sm">
+            <summary className="text-caption text-mute cursor-pointer select-none">Advanced Settings</summary>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-sm mt-sm">
+              <Input label="Listen Port" value={wgListenPort} onChange={setWgListenPort} type="number" />
+              <Input label="Interface Name" value={wgInterfaceName} onChange={setWgInterfaceName} placeholder="wg-peer-name" />
+            </div>
+          </details>
         </fieldset>
 
         {/* Tunnel */}
@@ -217,6 +242,15 @@ export default function PeerForm() {
       </form>
     </div>
   );
+}
+
+function sanitizeInterfaceName(name: string): string {
+  return 'wg-' + name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 12);
 }
 
 function Input({
