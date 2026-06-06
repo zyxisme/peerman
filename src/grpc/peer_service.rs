@@ -30,7 +30,17 @@ pub async fn apply_wg_bird(
     state: &PeerState,
     listen_addr: &str,
     pool: &sqlx::SqlitePool,
+    apply_status: &crate::app_state::ApplyStatus,
 ) -> Result<(), Status> {
+    // Prevent concurrent apply
+    static APPLY_LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
+    let _guard = APPLY_LOCK
+        .get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await;
+
+    apply_status.pending.store(true, std::sync::atomic::Ordering::Relaxed);
+
     let peers = state
         .peer_repo
         .list_all()
@@ -42,26 +52,47 @@ pub async fn apply_wg_bird(
         .await
         .map_err(|e| Status::internal(e.to_string()))?;
 
-    // 1. WireGuard: full regenerate wg0.conf + apply
-    let wg_config: String = peers
+    // Track managed interfaces for status reporting
+    let interfaces: Vec<String> = peers
         .iter()
         .filter(|p| p.enabled)
-        .map(|p| crate::services::wireguard::generate_config(p, &settings))
-        .collect::<Vec<_>>()
-        .join("\n");
+        .map(|p| {
+            if p.wg_interface_name.is_empty() {
+                "wg0".to_string()
+            } else {
+                p.wg_interface_name.clone()
+            }
+        })
+        .collect();
+    *apply_status.managed_interfaces.lock().await = interfaces;
 
-    if !wg_config.is_empty() {
-        let conf_path = "/etc/wireguard/wg0.conf";
-        let tmp_path = "/etc/wireguard/wg0.conf.tmp";
-        std::fs::write(tmp_path, &wg_config)
-            .map_err(|e| Status::internal(format!("Cannot write wg0.conf: {e}")))?;
-        std::fs::set_permissions(tmp_path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|e| Status::internal(format!("Cannot set permissions on wg0.conf: {e}")))?;
-        std::fs::rename(tmp_path, conf_path)
-            .map_err(|e| Status::internal(format!("Cannot rename wg0.conf: {e}")))?;
-        crate::services::wireguard::apply_syncconf("wg0", conf_path)
-            .await
-            .map_err(|e| Status::internal(e.to_string()))?;
+    // 1. WireGuard: per-peer interface apply
+    for peer in peers.iter().filter(|p| p.enabled) {
+        let iface = if peer.wg_interface_name.is_empty() {
+            "wg0".to_string()
+        } else {
+            peer.wg_interface_name.clone()
+        };
+        let conf_path = format!("/etc/wireguard/{iface}.conf");
+        let tmp_path = format!("{conf_path}.tmp");
+        let config = crate::services::wireguard::generate_config(peer, &settings);
+
+        std::fs::write(&tmp_path, &config)
+            .map_err(|e| Status::internal(format!("Cannot write {conf_path}: {e}")))?;
+        std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| Status::internal(format!("Cannot set permissions on {conf_path}: {e}")))?;
+        std::fs::rename(&tmp_path, &conf_path)
+            .map_err(|e| Status::internal(format!("Cannot rename {conf_path}: {e}")))?;
+
+        if !crate::services::wireguard::interface_exists(&iface).await {
+            crate::services::wireguard::create_wg_interface(&iface, &conf_path)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+        } else {
+            crate::services::wireguard::apply_syncconf(&iface, &conf_path)
+                .await
+                .map_err(|e| Status::internal(e.to_string()))?;
+        }
     }
 
     // 2. BIRD: full regenerate bird.conf + apply
@@ -112,8 +143,15 @@ pub async fn apply_wg_bird(
         }
     }
 
-    crate::services::bird::apply_config(&bird_config)
-        .map_err(|e| Status::internal(e.to_string()))?;
+    if let Err(e) = crate::services::bird::apply_config(&bird_config) {
+        apply_status.pending.store(false, std::sync::atomic::Ordering::Relaxed);
+        *apply_status.last_apply_error.lock().await = Some(e.to_string());
+        return Err(Status::internal(e.to_string()));
+    }
+
+    apply_status.pending.store(false, std::sync::atomic::Ordering::Relaxed);
+    *apply_status.last_apply_at.lock().await = Some(chrono::Utc::now().to_rfc3339());
+    *apply_status.last_apply_error.lock().await = None;
 
     Ok(())
 }

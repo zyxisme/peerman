@@ -384,6 +384,7 @@ async fn main() -> anyhow::Result<()> {
         listen_addr.clone(),
         pool.clone(),
         shutdown.clone(),
+        state.apply_status.clone(),
     );
 
     // Wire SIGINT to graceful shutdown
