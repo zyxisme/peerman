@@ -62,6 +62,7 @@ sqlx macros (`query_as!`, `query!`) need DATABASE_URL at compile time. Use runti
 - **Proto field numbering:** Settings fields go up to 26 (`confederation_local_asn`). Always check existing field numbers before adding new ones to avoid conflicts.
 - Frontend proto: `protoc -I proto --es_out frontend/src/lib --es_opt target=ts peerman.proto` with `protoc-gen-es` in PATH (`frontend/node_modules/.bin`)
 - `@connectrpc/connect v2`: use `createClient()` (not `createPromiseClient`), messages via `create(Schema, {...})`
+- **gRPC-Web response framing gotcha:** tonic responses are already length-prefixed (`0x00` flag + 4-byte BE length + protobuf). The `GrpcWebLayer` middleware in `src/grpc_web.rs` must detect existing framing before re-wrapping. Double-wrapping causes ConnectRPC clients to fail with `ConnectError: illegal tag: field no 0 wire type 0`. The middleware checks `resp_bytes[0] == 0x00` and validates `5 + msg_len == resp_bytes.len()` to extract the inner message.
 
 ## SQLite WAL
 
