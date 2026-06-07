@@ -3,6 +3,7 @@ import { Pencil, Trash2, Eye, Cable } from 'lucide-react';
 import { usePeers } from '../../hooks/usePeers';
 import { useNodes } from '../../hooks/useNodes';
 import { peerClient } from '../../lib/grpc';
+import { ResponsiveTable } from '../ui/ResponsiveTable';
 
 export default function PeerTable() {
   const { peers, loading, error, refetch } = usePeers();
@@ -56,7 +57,7 @@ export default function PeerTable() {
           Add Peer
         </button>
       </div>
-      <table className="data-table">
+      <ResponsiveTable>
         <thead>
           <tr>
             <th>Name</th>
@@ -78,7 +79,7 @@ export default function PeerTable() {
               className={isStale ? 'opacity-50' : ''}
               title={isStale ? 'Node offline; data from cache' : undefined}
             >
-              <td>
+              <td data-label="Name">
                 <button
                   className="text-link hover:text-link-deep font-medium"
                   onClick={() => navigate(`/peers/${peer.id}`)}
@@ -86,23 +87,23 @@ export default function PeerTable() {
                   {peer.name}
                 </button>
               </td>
-              <td className="text-caption-mono">AS{peer.asn.toString()}</td>
-              <td className="text-caption-mono">
+              <td data-label="ASN" className="text-caption-mono">AS{peer.asn.toString()}</td>
+              <td data-label="Endpoint" className="text-caption-mono">
                 {peer.wgRemoteAddress}:{peer.wgRemotePort || '—'}
               </td>
-              <td className="text-caption-mono">
+              <td data-label="Tunnel" className="text-caption-mono">
                 {peer.ipv6TunnelLocal || peer.ipv4TunnelLocal || '—'}
               </td>
-              <td>
+              <td data-label="Sessions">
                 <span className="badge">
                   {peer.sessions === 0 ? 'IPv4' : peer.sessions === 1 ? 'IPv6' : 'Both'}
                   {peer.multiprotocol ? ' MP' : ''}
                 </span>
               </td>
-              <td className="text-caption text-mute">
+              <td data-label="Node" className="text-caption text-mute">
                 {peer.originNodeId ? nodeName(peer.originNodeId) : 'local'}
               </td>
-              <td>
+              <td data-label="Status">
                 <button
                   onClick={() => handleToggle(peer.id)}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
@@ -116,7 +117,7 @@ export default function PeerTable() {
                   />
                 </button>
               </td>
-              <td>
+              <td data-label="Actions">
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => navigate(`/peers/${peer.id}`)}
@@ -145,7 +146,7 @@ export default function PeerTable() {
           );
           })}
         </tbody>
-      </table>
+      </ResponsiveTable>
     </div>
   );
 }
