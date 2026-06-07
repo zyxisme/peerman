@@ -32,6 +32,9 @@ const DEFAULT_FORM = {
   enableBfd: false,
   bfdIntervalMs: '300',
   bfdMultiplier: '3',
+  clusterTunnelIpv6Range: '',
+  enableConfederation: false,
+  confederationLocalAsn: '0',
 };
 
 export default function SettingsPage() {
@@ -68,6 +71,9 @@ export default function SettingsPage() {
         enableBfd: settings.enableBfd,
         bfdIntervalMs: String(settings.bfdIntervalMs || '300'),
         bfdMultiplier: String(settings.bfdMultiplier || '3'),
+        clusterTunnelIpv6Range: settings.clusterTunnelIpv6Range || '',
+        enableConfederation: settings.enableConfederation || false,
+        confederationLocalAsn: String(settings.confederationLocalAsn || '0'),
       });
     }
   }, [settings]);
@@ -102,6 +108,9 @@ export default function SettingsPage() {
       enableBfd: form.enableBfd,
       bfdIntervalMs: Number(form.bfdIntervalMs || '300'),
       bfdMultiplier: Number(form.bfdMultiplier || '3'),
+      clusterTunnelIpv6Range: form.clusterTunnelIpv6Range,
+      enableConfederation: form.enableConfederation,
+      confederationLocalAsn: BigInt(form.confederationLocalAsn || '0'),
     });
 
     try {
@@ -227,6 +236,37 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-sm">
               <Input label="BFD Interval (ms)" value={f('bfdIntervalMs')} onChange={(v) => setForm((p) => ({ ...p, bfdIntervalMs: v }))} type="number" placeholder="300" />
               <Input label="BFD Multiplier" value={f('bfdMultiplier')} onChange={(v) => setForm((p) => ({ ...p, bfdMultiplier: v }))} type="number" placeholder="3" />
+            </div>
+          )}
+        </div>
+
+        {/* Cluster Configuration */}
+        <div className="card space-y-md">
+          <h2 className="text-body-sm-strong text-ink">Cluster Configuration</h2>
+          <p className="text-body-sm text-mute">IPv6 tunnel range and BGP confederation settings for multi-node clusters.</p>
+          <div className="grid grid-cols-1 gap-sm">
+            <Input
+              label="IPv6 Tunnel Range"
+              value={f('clusterTunnelIpv6Range')}
+              onChange={(v) => setForm((p) => ({ ...p, clusterTunnelIpv6Range: v }))}
+              placeholder="fd42:cluster::/48"
+            />
+          </div>
+          <Toggle
+            label="Enable BGP Confederation"
+            description="Use BGP confederation instead of iBGP full mesh for inter-node routing."
+            checked={form.enableConfederation}
+            onChange={(v) => setForm((p) => ({ ...p, enableConfederation: v }))}
+          />
+          {form.enableConfederation && (
+            <div className="grid grid-cols-1 gap-sm">
+              <Input
+                label="Confederation Local ASN"
+                value={f('confederationLocalAsn')}
+                onChange={(v) => setForm((p) => ({ ...p, confederationLocalAsn: v }))}
+                type="number"
+                placeholder="65000"
+              />
             </div>
           )}
         </div>
