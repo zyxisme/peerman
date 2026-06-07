@@ -18,6 +18,7 @@ Rust backend (tonic + axum + sqlx) + React frontend (Vite + TypeScript + Tailwin
 - `cargo test` — run all 71 unit tests
 - `cargo clippy` — lint check
 - `cargo fmt` — format all Rust code (separate from clippy, run both after changes)
+- **Always run `cargo fmt`** after any Rust code change — subagents and manual edits often miss this, causing CI fmt check failures.
 - `cd frontend && pnpm exec tsc --noEmit` — TypeScript type-check
 - **Disk space:** Machine has ~30GB disk. If `cargo test` fails with disk errors, clean other projects' target dirs: `rm -rf <other-project>/target`
 - **CI:** `.github/workflows/ci.yml` runs fmt, clippy, test, tsc on push/PR to master
@@ -128,6 +129,11 @@ Geist/Inter fonts loaded from Google Fonts CDN.
 - After proto changes, regenerate TS stubs: `PATH="frontend/node_modules/.bin:$PATH" protoc -I proto --es_out frontend/src/lib --es_opt target=ts proto/peerman.proto`
 - `pnpm exec tsc --noEmit` for fast type-check without full build.
 - **NavBar auth-aware links:** `NavBar.tsx` splits links into `publicLinks` (always visible) and `authLinks` (visible only when `isAuthenticated`). Write-operation routes (New Peer, Communities, Export, Settings) are in `authLinks`.
+- **Responsive breakpoints:** NavBar and tables use `md:` (768px) as the mobile/desktop boundary. Drawer CSS uses `max-width: 767px` media query to match.
+- **ResponsiveTable:** Tables use `<ResponsiveTable>` from `components/ui/ResponsiveTable.tsx`. Each `<td>` needs a `data-label` attribute (matching `<th>` text) for mobile card layout.
+- **Shared UI components:** `Input`, `Textarea`, `Toggle` live in `frontend/src/components/ui/`. Both PeerForm and SettingsForm import from there — don't create local copies.
+- **CSS z-index stacking:** nav-bar = z-50, drawer overlay = z-50, drawer content = z-60. Component CSS goes inside `@layer components` in globals.css.
+- **Design tokens:** Use semantic colors (`bg-success`, `bg-error`, `bg-warning`, `bg-success-bg`, `bg-error-bg`, `bg-warning-bg`). Never use raw Tailwind colors (`bg-green-500`, `bg-red-500`).
 
 ## Timestamps in SQLite
 
