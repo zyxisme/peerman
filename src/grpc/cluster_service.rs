@@ -4,7 +4,7 @@ use super::generated::{
     CommunityRule, DeleteCommunityRuleRequest, DeleteCommunityRuleResponse, DeleteNodeRequest,
     DeleteNodeResponse, ExchangeNodesRequest, ExchangeNodesResponse, GetPeerCommunitiesRequest,
     GetPeerCommunitiesResponse, HealthCheckRequest, HealthCheckResponse, ListCommunityRulesRequest,
-    ListCommunityRulesResponse, ListNodesRequest, ListNodesResponse, ListProbeResultsRequest,
+    GetNodeRequest, ListCommunityRulesResponse, ListNodesRequest, ListNodesResponse, ListProbeResultsRequest,
     ListProbeResultsResponse, Node, NodeInfo, ProbeResult, PullPeersRequest, PullPeersResponse,
     PushPeerRequest, PushPeerResponse, PushProbeResultRequest, PushProbeResultResponse,
     RegisterNodeRequest, RunProbeRequest, RunProbeResponse, SaveCommunityRuleRequest,
@@ -90,6 +90,21 @@ impl ClusterService for ClusterServiceImpl {
         Ok(Response::new(ListNodesResponse {
             nodes: nodes.iter().map(node_to_proto).collect(),
         }))
+    }
+
+    async fn get_node(
+        &self,
+        request: Request<GetNodeRequest>,
+    ) -> Result<Response<Node>, Status> {
+        crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
+        let req = request.into_inner();
+        let node = self
+            .node_repo
+            .find_by_id(&req.id)
+            .await
+            .map_err(|e| Status::not_found(e.to_string()))?;
+
+        Ok(Response::new(node_to_proto(&node)))
     }
 
     async fn register_node(

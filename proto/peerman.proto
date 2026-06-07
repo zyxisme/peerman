@@ -210,6 +210,7 @@ message SaveSettingsRequest {
 
 service ClusterService {
   rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+  rpc GetNode(GetNodeRequest) returns (Node);
   rpc RegisterNode(RegisterNodeRequest) returns (Node);
   rpc UpdateNode(UpdateNodeRequest) returns (Node);
   rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
@@ -267,6 +268,7 @@ message CommunityRule {
 // Node CRUD
 message ListNodesRequest {}
 message ListNodesResponse { repeated Node nodes = 1; }
+message GetNodeRequest { string id = 1; }
 message RegisterNodeRequest {
   string name = 1;
   string listen_addr = 2;

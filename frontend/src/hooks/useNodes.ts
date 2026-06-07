@@ -37,8 +37,30 @@ export function useClusterHealth(): 'all-online' | 'partial' | 'isolated' {
 }
 
 export function useNode(id: string | undefined) {
-  // getNode doesn't exist as an RPC — find from list
-  const { nodes, loading, error } = useNodes();
-  const node = nodes.find(n => n.id === id) ?? null;
+  const [node, setNode] = useState<Node | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchNode = useCallback(async () => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await clusterClient.getNode({ id });
+      setNode(res);
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchNode();
+  }, [fetchNode]);
+
   return { node, loading, error };
 }
