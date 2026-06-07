@@ -4,6 +4,9 @@ import { ArrowLeft } from 'lucide-react';
 import { create } from '@bufbuild/protobuf';
 import { SettingsSchema } from '../../lib/peerman_pb';
 import { useSettings } from '../../hooks/useSettings';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Toggle } from '../ui/Toggle';
 
 const DEFAULT_FORM = {
   localAsn: '4242420000',
@@ -236,67 +239,3 @@ export default function SettingsPage() {
   );
 }
 
-function Input({
-  label, value, onChange, type = 'text', placeholder,
-}: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-caption text-mute">{label}</label>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="form-input"
-      />
-    </div>
-  );
-}
-
-function Textarea({
-  label, value, onChange, placeholder, code,
-}: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; code?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-caption text-mute">{label}</label>
-      <textarea
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        className={code ? 'form-input font-mono' : 'form-input'}
-        style={code ? { fontFamily: 'Geist Mono, ui-monospace, monospace', fontSize: '13px' } : undefined}
-      />
-    </div>
-  );
-}
-
-function Toggle({
-  label, description, checked, onChange,
-}: {
-  label: string; description?: string; checked: boolean; onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start gap-sm">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${checked ? 'bg-cyan' : 'bg-hairline'}`}
-      >
-        <span
-          className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-4' : 'translate-x-0'}`}
-        />
-      </button>
-      <div className="flex flex-col gap-0.5">
-        <span className="text-body-sm-strong text-ink">{label}</span>
-        {description && <span className="text-caption text-mute">{description}</span>}
-      </div>
-    </div>
-  );
-}

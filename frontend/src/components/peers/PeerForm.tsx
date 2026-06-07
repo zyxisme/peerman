@@ -7,6 +7,8 @@ import { peerClient } from '../../lib/grpc';
 import { usePeer, useGenerateKeypair } from '../../hooks/usePeers';
 import { useNodes } from '../../hooks/useNodes';
 import { useSettings } from '../../hooks/useSettings';
+import { Input } from '../ui/Input';
+import { Toggle } from '../ui/Toggle';
 
 export default function PeerForm() {
   const { id } = useParams<{ id: string }>();
@@ -253,44 +255,3 @@ function sanitizeInterfaceName(name: string): string {
     .substring(0, 12);
 }
 
-function Input({
-  label, value, onChange, type = 'text', placeholder, required, mono,
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean; mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-caption text-mute">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        className={`form-input ${mono ? 'font-mono' : ''}`}
-      />
-    </div>
-  );
-}
-
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-caption text-mute">{label}</span>
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-          checked ? 'bg-primary' : 'bg-hairline-strong'
-        }`}
-      >
-        <span
-          className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-            checked ? 'translate-x-[18px]' : 'translate-x-[3px]'
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
