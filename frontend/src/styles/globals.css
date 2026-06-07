@@ -133,3 +133,36 @@
     @apply bg-canvas rounded-md px-md py-sm shadow-level-4 text-body-sm;
   }
 }
+
+/* Mobile drawer overlay */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 40;
+  animation: fade-in-overlay 0.2s ease-out;
+}
+
+@keyframes fade-in-overlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Mobile drawer content */
+.drawer-content {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background: white;
+  z-index: 50;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+  animation: slide-in-drawer 0.2s ease-out;
+  overflow-y: auto;
+}
+
+@keyframes slide-in-drawer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}

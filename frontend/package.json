@@ -12,6 +12,7 @@
     "@bufbuild/protobuf": "^2.0.0",
     "@connectrpc/connect": "^2.1.0",
     "@connectrpc/connect-web": "^2.1.0",
+    "@radix-ui/react-dialog": "^1.1.16",
     "clsx": "^2.1.1",
     "lucide-react": "^0.441.0",
     "react": "^18.3.1",
