@@ -88,11 +88,13 @@ Peerman 前端目前基本没有移动端适配，NavBar 溢出、数据表格�
 
 ### 受影响组件
 
-- `PeerTable.tsx`
-- `NodesTable.tsx`
-- `CommunityRules.tsx`
-- `FlapDashboard.tsx`（flap events 表格）
-- `ProbeDashboard.tsx`（probe results 表格）
+每个表格组件需要在 `<td>` 上手动添加 `data-label` 属性（值与对应 `<th>` 文本一致），以驱动移动端卡片布局的 label 显示。
+
+- `PeerTable.tsx` — 8 列，主字段 Name + Status 作为卡片头部
+- `NodesTable.tsx` — 主字段 Name
+- `CommunityRules.tsx` — 主字段 Community
+- `FlapDashboard.tsx`（flap events 表格）— 主字段 Peer
+- `ProbeDashboard.tsx`（probe results 表格）— 主字段 Source
 
 ### 新增文件
 
@@ -107,8 +109,7 @@ Peerman 前端目前基本没有移动端适配，NavBar 溢出、数据表格�
 
 ### 方案
 
-- `grid-cols-1 sm:grid-cols-3`（小屏幕单列，640px+ 三列）
-- 或 `grid-cols-2 sm:grid-cols-3`（小屏幕两列，最后一项 `col-span-2`）
+- `grid-cols-2 sm:grid-cols-3`（小屏幕两列，最后一项 `col-span-2`，640px+ 三列）
 
 ### 受影响组件
 
@@ -174,7 +175,17 @@ colors: {
 | `Textarea` | label + textarea + error | `components/ui/Textarea.tsx` |
 | `Toggle` | 开关切换，label + description | `components/ui/Toggle.tsx` |
 
-两个表单 import 同一组件，消除实现差异。
+两个表单 import 同一组件，消除实现差异。Toggle 组件接口统一为：
+
+```tsx
+interface ToggleProps {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+}
+```
 
 ## 7. 前后端断层修复
 
