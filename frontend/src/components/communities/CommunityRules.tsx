@@ -4,6 +4,7 @@ import { create } from '@bufbuild/protobuf';
 import { CommunityRuleSchema } from '../../lib/peerman_pb';
 import type { CommunityRule } from '../../lib/peerman_pb';
 import { useCommunityRules, useSaveCommunityRule, useDeleteCommunityRule } from '../../hooks/useCommunities';
+import { ResponsiveTable } from '../ui/ResponsiveTable';
 
 type Form = {
   description: string;
@@ -163,7 +164,7 @@ export default function CommunityRules() {
 
       {/* Rules Table */}
       <div className="card overflow-hidden !p-0">
-        <table className="data-table w-full">
+        <ResponsiveTable>
           <thead>
             <tr>
               <th>Description</th>
@@ -180,15 +181,15 @@ export default function CommunityRules() {
           <tbody>
             {rules.map(r => (
               <tr key={r.id}>
-                <td className="text-body-sm font-medium">{r.description}</td>
-                <td className="text-body-sm text-mute">{fmtInf(r.maxLatencyMs, 'ms')}</td>
-                <td className="text-body-sm text-mute">{r.maxPacketLossPct}%</td>
-                <td className="text-body-sm text-mute">{fmtInf(r.minBandwidthMbps, ' Mbps')}</td>
-                <td className="text-body-sm text-mute">{r.cryptoWeight || '-'}</td>
-                <td className="text-body-sm text-mute">{r.medPenalty || '-'}</td>
-                <td><code className="text-code text-body-sm">{r.communityIpv4}</code></td>
-                <td><code className="text-code text-body-sm">{r.communityIpv6}</code></td>
-                <td>
+                <td data-label="Description" className="text-body-sm font-medium">{r.description}</td>
+                <td data-label="Latency" className="text-body-sm text-mute">{fmtInf(r.maxLatencyMs, 'ms')}</td>
+                <td data-label="Loss" className="text-body-sm text-mute">{r.maxPacketLossPct}%</td>
+                <td data-label="Bandwidth" className="text-body-sm text-mute">{fmtInf(r.minBandwidthMbps, ' Mbps')}</td>
+                <td data-label="Crypto" className="text-body-sm text-mute">{r.cryptoWeight || '-'}</td>
+                <td data-label="MED" className="text-body-sm text-mute">{r.medPenalty || '-'}</td>
+                <td data-label="IPv4"><code className="text-code text-body-sm">{r.communityIpv4}</code></td>
+                <td data-label="IPv6"><code className="text-code text-body-sm">{r.communityIpv6}</code></td>
+                <td data-label="Actions">
                   <div className="flex items-center gap-1">
                     <button onClick={() => startEdit(r)} className="btn-secondary text-caption px-xs py-0.5">Edit</button>
                     <button onClick={() => handleDelete(r.id)} disabled={deleting} className="p-1 rounded-sm hover:bg-error-soft text-mute hover:text-error">
@@ -199,7 +200,7 @@ export default function CommunityRules() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
     </div>
   );

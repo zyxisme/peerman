@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { RotateCw, Activity, Calendar, BarChart3 } from 'lucide-react';
 import { useFlapEvents, useFlapStats } from '../../hooks/useFlaps';
 import { cn } from '../../lib/utils';
+import { ResponsiveTable } from '../ui/ResponsiveTable';
 
 const SOURCE_LABELS: Record<string, string> = {
   ibgp: 'iBGP',
@@ -47,7 +48,7 @@ export default function FlapDashboard() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-3 gap-lg">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-lg">
         <div className="card flex items-center gap-md">
           <Activity className="w-5 h-5 text-warning" />
           <div>
@@ -106,8 +107,8 @@ export default function FlapDashboard() {
               </p>
             </div>
           ) : (
-            <div className="card overflow-x-auto">
-              <table className="data-table">
+            <div className="card overflow-hidden !p-0">
+              <ResponsiveTable>
                 <thead>
                   <tr>
                     <th>Prefix</th>
@@ -120,14 +121,14 @@ export default function FlapDashboard() {
                 <tbody>
                   {activeEvents.map((e) => (
                     <tr key={e.id}>
-                      <td className="text-body-sm-strong font-mono">{e.prefix}</td>
-                      <td>
+                      <td data-label="Prefix" className="text-body-sm-strong font-mono">{e.prefix}</td>
+                      <td data-label="Type">
                         <span className="badge">{e.prefixType}</span>
                       </td>
-                      <td className="text-body-sm-strong text-warning">
+                      <td data-label="Changes" className="text-body-sm-strong text-warning">
                         {String(e.changeCount)}
                       </td>
-                      <td>
+                      <td data-label="Source">
                         <span
                           className={cn(
                             'badge',
@@ -139,13 +140,13 @@ export default function FlapDashboard() {
                           {SOURCE_LABELS[e.source] || e.source}
                         </span>
                       </td>
-                      <td className="text-body-sm text-body">
+                      <td data-label="Detected" className="text-body-sm text-body">
                         {relativeTime(e.detectedAt)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </ResponsiveTable>
             </div>
           )}
         </div>
@@ -155,8 +156,8 @@ export default function FlapDashboard() {
       {!loading && allEvents.length > 0 && (
         <div>
           <h2 className="text-display-sm text-ink mb-md">Recent History</h2>
-          <div className="card overflow-x-auto">
-            <table className="data-table">
+          <div className="card overflow-hidden !p-0">
+            <ResponsiveTable>
               <thead>
                 <tr>
                   <th>Prefix</th>
@@ -171,12 +172,12 @@ export default function FlapDashboard() {
               <tbody>
                 {allEvents.slice(0, 50).map((e) => (
                   <tr key={e.id}>
-                    <td className="text-body-sm-strong font-mono">{e.prefix}</td>
-                    <td>
+                    <td data-label="Prefix" className="text-body-sm-strong font-mono">{e.prefix}</td>
+                    <td data-label="Type">
                       <span className="badge">{e.prefixType}</span>
                     </td>
-                    <td className="text-body-sm-strong">{String(e.changeCount)}</td>
-                    <td>
+                    <td data-label="Changes" className="text-body-sm-strong">{String(e.changeCount)}</td>
+                    <td data-label="Source">
                       <span
                         className={cn(
                           'badge',
@@ -188,7 +189,7 @@ export default function FlapDashboard() {
                         {SOURCE_LABELS[e.source] || e.source}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <span
                         className={cn(
                           'badge',
@@ -200,16 +201,16 @@ export default function FlapDashboard() {
                         {e.active ? 'Active' : 'Resolved'}
                       </span>
                     </td>
-                    <td className="text-body-sm text-body">
+                    <td data-label="Detected" className="text-body-sm text-body">
                       {relativeTime(e.detectedAt)}
                     </td>
-                    <td className="text-body-sm text-mute">
+                    <td data-label="Resolved" className="text-body-sm text-mute">
                       {e.resolvedAt ? relativeTime(e.resolvedAt) : '—'}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         </div>
       )}

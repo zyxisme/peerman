@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { useNodes } from '../../hooks/useNodes';
 import { useProbes, useRunProbe } from '../../hooks/useProbes';
 import { cn } from '../../lib/utils';
+import { ResponsiveTable } from '../ui/ResponsiveTable';
 
 function latencyColor(ms: number): string {
   if (ms <= 0) return 'bg-canvas-soft';
@@ -104,7 +105,7 @@ export default function ProbeDashboard() {
 
       {/* Recent Probes Table */}
       <div className="card overflow-hidden !p-0">
-        <table className="data-table w-full">
+        <ResponsiveTable>
           <thead>
             <tr>
               <th>From</th>
@@ -119,21 +120,21 @@ export default function ProbeDashboard() {
           <tbody>
             {probes.slice(0, 50).map(p => (
               <tr key={p.id}>
-                <td className="text-body-sm">{nodes.find(n => n.id === p.fromNodeId)?.name ?? p.fromNodeId.slice(0, 8)}</td>
-                <td className="text-body-sm">{nodes.find(n => n.id === p.toNodeId)?.name ?? p.toNodeId.slice(0, 8)}</td>
-                <td className={cn('text-body-sm font-medium', p.avgLatencyMs < 5 ? 'text-success' : p.avgLatencyMs < 50 ? 'text-warning-deep' : 'text-error')}>
+                <td data-label="From" className="text-body-sm">{nodes.find(n => n.id === p.fromNodeId)?.name ?? p.fromNodeId.slice(0, 8)}</td>
+                <td data-label="To" className="text-body-sm">{nodes.find(n => n.id === p.toNodeId)?.name ?? p.toNodeId.slice(0, 8)}</td>
+                <td data-label="Avg" className={cn('text-body-sm font-medium', p.avgLatencyMs < 5 ? 'text-success' : p.avgLatencyMs < 50 ? 'text-warning-deep' : 'text-error')}>
                   {p.avgLatencyMs.toFixed(1)}ms
                 </td>
-                <td className="text-body-sm text-mute">{p.minLatencyMs.toFixed(1)}ms</td>
-                <td className="text-body-sm text-mute">{p.maxLatencyMs.toFixed(1)}ms</td>
-                <td className={cn('text-body-sm', p.packetLossPct > 0 ? 'text-error' : 'text-mute')}>
+                <td data-label="Min" className="text-body-sm text-mute">{p.minLatencyMs.toFixed(1)}ms</td>
+                <td data-label="Max" className="text-body-sm text-mute">{p.maxLatencyMs.toFixed(1)}ms</td>
+                <td data-label="Loss" className={cn('text-body-sm', p.packetLossPct > 0 ? 'text-error' : 'text-mute')}>
                   {p.packetLossPct.toFixed(1)}%
                 </td>
-                <td className="text-caption-mono text-mute">{p.probedAt?.slice(11, 19) ?? '—'}</td>
+                <td data-label="Time" className="text-caption-mono text-mute">{p.probedAt?.slice(11, 19) ?? '—'}</td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useNodes } from '../../hooks/useNodes';
 import { useRunProbe } from '../../hooks/useProbes';
 import { clusterClient } from '../../lib/grpc';
 import { cn } from '../../lib/utils';
+import { ResponsiveTable } from '../ui/ResponsiveTable';
 
 export default function NodesTable() {
   const { nodes, loading, error, refetch } = useNodes();
@@ -57,7 +58,7 @@ export default function NodesTable() {
       )}
 
       <div className="card overflow-hidden !p-0">
-        <table className="data-table w-full">
+        <ResponsiveTable>
           <thead>
             <tr>
               <th>Name</th>
@@ -71,14 +72,14 @@ export default function NodesTable() {
           <tbody>
             {nodes.map((node) => (
               <tr key={node.id}>
-                <td>
+                <td data-label="Name">
                   <Link to={`/nodes/${node.id}`} className="text-link font-medium no-underline hover:underline">
                     {node.name}
                   </Link>
                 </td>
-                <td><code className="text-code text-body-sm">{node.listenAddr}</code></td>
-                <td className="text-body-sm">AS{node.localAsn > 0n ? String(node.localAsn) : '—'}</td>
-                <td>
+                <td data-label="Address"><code className="text-code text-body-sm">{node.listenAddr}</code></td>
+                <td data-label="ASN" className="text-body-sm">AS{node.localAsn > 0n ? String(node.localAsn) : '—'}</td>
+                <td data-label="Status">
                   <span className={cn(
                     'inline-flex items-center gap-1.5 rounded-full px-xs py-0.5 text-caption font-medium',
                     node.online ? 'bg-link-bg-soft text-link-deep' : 'bg-canvas-soft text-mute'
@@ -87,8 +88,8 @@ export default function NodesTable() {
                     {node.online ? 'Online' : 'Offline'}
                   </span>
                 </td>
-                <td className="text-body-sm text-mute">{node.lastSeenAt?.slice(0, 19).replace('T', ' ') ?? '—'}</td>
-                <td>
+                <td data-label="Last Seen" className="text-body-sm text-mute">{node.lastSeenAt?.slice(0, 19).replace('T', ' ') ?? '—'}</td>
+                <td data-label="Actions">
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleProbe(nodes[0]?.id, node.id)}
@@ -118,7 +119,7 @@ export default function NodesTable() {
               </tr>
             )}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
     </div>
   );
