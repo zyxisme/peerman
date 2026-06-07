@@ -25,9 +25,9 @@ export default function NavBar() {
   const { isAuthenticated, username, logout } = useAuth();
   const health = useClusterHealth();
   const dotColor =
-    health === 'all-online' ? 'bg-green-500' :
-    health === 'partial' ? 'bg-yellow-500' :
-    'bg-red-500';
+    health === 'all-online' ? 'bg-success' :
+    health === 'partial' ? 'bg-warning' :
+    'bg-error';
   const dotTitle =
     health === 'all-online' ? 'All nodes online' :
     health === 'partial' ? 'Some nodes offline' :

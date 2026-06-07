@@ -27,15 +27,18 @@ export default {
           'bg-soft': '#d3e5ff',
         },
         success: '#0070f3',
+        'success-bg': 'rgba(0, 112, 243, 0.06)',
         error: {
           DEFAULT: '#ee0000',
           soft: '#f7d4d6',
           deep: '#c50000',
+          bg: 'rgba(238, 0, 0, 0.06)',
         },
         warning: {
           DEFAULT: '#f5a623',
           soft: '#ffefcf',
           deep: '#ab570a',
+          bg: 'rgba(245, 166, 35, 0.06)',
         },
         violet: {
           DEFAULT: '#7928ca',

@@ -79,7 +79,7 @@ export default function StatusPage() {
                     <td>{p.proto}</td>
                     <td>{p.table}</td>
                     <td>
-                      <span className={`badge ${p.state === 'up' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                      <span className={`badge ${p.state === 'up' ? 'bg-success-bg text-success' : 'bg-error-bg text-error'}`}>
                         {p.state}
                       </span>
                     </td>
@@ -105,10 +105,10 @@ export default function StatusPage() {
                 <span className="text-mute">Status:</span>{' '}
                 <span className={`badge ${
                   applyStatus.status.pending
-                    ? 'bg-yellow-500/20 text-yellow-500'
+                    ? 'bg-warning-bg text-warning'
                     : applyStatus.status.lastError
-                      ? 'bg-red-500/20 text-red-500'
-                      : 'bg-green-500/20 text-green-500'
+                      ? 'bg-error-bg text-error'
+                      : 'bg-success-bg text-success'
                 }`}>
                   {applyStatus.status.pending ? 'pending' : applyStatus.status.lastError ? 'error' : 'synced'}
                 </span>

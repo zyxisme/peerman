@@ -18,7 +18,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-bg">
+        <div className="flex items-center justify-center min-h-screen bg-canvas">
           <div className="card max-w-md text-center space-y-md">
             <h1 className="text-display-md text-ink">Something went wrong</h1>
             <p className="text-tertiary">{this.state.error.message}</p>
