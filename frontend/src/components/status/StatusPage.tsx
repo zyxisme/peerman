@@ -1,11 +1,13 @@
 import { RefreshCw } from 'lucide-react';
 import { useWireGuardStatus, useBirdStatus, useApplyStatus, useApplyConfigNow } from '../../hooks/useManagement';
+import { useRestartWireGuard } from '../../hooks/usePeers';
 
 export default function StatusPage() {
   const wg = useWireGuardStatus();
   const bird = useBirdStatus();
   const applyStatus = useApplyStatus();
   const applyNow = useApplyConfigNow();
+  const restartWg = useRestartWireGuard();
 
   return (
     <div className="space-y-lg animate-fade-in">
@@ -49,6 +51,19 @@ export default function StatusPage() {
             ))}
           </div>
         ))}
+        <div className="flex items-center gap-md mt-md">
+          <button
+            onClick={async () => {
+              if (!confirm('Are you sure? This will briefly disconnect all WireGuard peers.')) return;
+              await restartWg.restart();
+              wg.refetch();
+            }}
+            disabled={restartWg.loading}
+            className="btn-secondary-sm"
+          >
+            {restartWg.loading ? 'Restarting...' : 'Restart WireGuard'}
+          </button>
+        </div>
       </div>
 
       {/* BIRD */}

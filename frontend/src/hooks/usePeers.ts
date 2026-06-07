@@ -106,3 +106,18 @@ export function useBirdConfig(peerId: string | undefined) {
 
   return { content, loading };
 }
+
+export function useRestartWireGuard() {
+  const [loading, setLoading] = useState(false);
+
+  const restart = useCallback(async () => {
+    setLoading(true);
+    try {
+      await peerClient.restartWireGuard({});
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { restart, loading };
+}
