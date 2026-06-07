@@ -2,13 +2,13 @@ use tonic::{Request, Response, Status};
 
 use super::generated::{
     CommunityRule, DeleteCommunityRuleRequest, DeleteCommunityRuleResponse, DeleteNodeRequest,
-    DeleteNodeResponse, ExchangeNodesRequest, ExchangeNodesResponse, GetPeerCommunitiesRequest,
-    GetPeerCommunitiesResponse, HealthCheckRequest, HealthCheckResponse, ListCommunityRulesRequest,
-    GetNodeRequest, ListCommunityRulesResponse, ListNodesRequest, ListNodesResponse, ListProbeResultsRequest,
-    ListProbeResultsResponse, Node, NodeInfo, ProbeResult, PullPeersRequest, PullPeersResponse,
-    PushPeerRequest, PushPeerResponse, PushProbeResultRequest, PushProbeResultResponse,
-    RegisterNodeRequest, RunProbeRequest, RunProbeResponse, SaveCommunityRuleRequest,
-    UpdateNodeRequest, cluster_service_server::ClusterService,
+    DeleteNodeResponse, ExchangeNodesRequest, ExchangeNodesResponse, GetNodeRequest,
+    GetPeerCommunitiesRequest, GetPeerCommunitiesResponse, HealthCheckRequest, HealthCheckResponse,
+    ListCommunityRulesRequest, ListCommunityRulesResponse, ListNodesRequest, ListNodesResponse,
+    ListProbeResultsRequest, ListProbeResultsResponse, Node, NodeInfo, ProbeResult,
+    PullPeersRequest, PullPeersResponse, PushPeerRequest, PushPeerResponse, PushProbeResultRequest,
+    PushProbeResultResponse, RegisterNodeRequest, RunProbeRequest, RunProbeResponse,
+    SaveCommunityRuleRequest, UpdateNodeRequest, cluster_service_server::ClusterService,
 };
 
 use crate::cluster::auth::check_cluster_key;
@@ -92,10 +92,7 @@ impl ClusterService for ClusterServiceImpl {
         }))
     }
 
-    async fn get_node(
-        &self,
-        request: Request<GetNodeRequest>,
-    ) -> Result<Response<Node>, Status> {
+    async fn get_node(&self, request: Request<GetNodeRequest>) -> Result<Response<Node>, Status> {
         crate::auth::check_auth(&request, self.jwt_secret.as_ref())?;
         let req = request.into_inner();
         let node = self
