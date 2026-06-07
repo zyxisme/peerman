@@ -49,11 +49,11 @@ export default function LookingGlass() {
 
       {/* Controls */}
       <div className="card space-y-lg">
-        <div className="flex items-center gap-md">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-sm sm:gap-md">
           <select
             value={targetNodeId}
             onChange={(e) => setTargetNodeId(e.target.value)}
-            className="form-input w-48"
+            className="form-input sm:w-48"
           >
             <option value="">All Nodes</option>
             {nodes.map((n) => (
@@ -150,7 +150,7 @@ export default function LookingGlass() {
       {/* Traceroute section */}
       <div className="card space-y-md">
         <h2 className="text-display-sm text-ink">Traceroute</h2>
-        <form onSubmit={handleTrace} className="flex items-center gap-md">
+        <form onSubmit={handleTrace} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-sm sm:gap-md">
           <input
             type="text"
             value={traceTarget}
