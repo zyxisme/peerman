@@ -155,6 +155,59 @@
     animation: slide-in-drawer 0.2s ease-out;
     overflow-y: auto;
   }
+
+  /* Responsive table — card layout on mobile */
+  .responsive-table {
+    @apply w-full;
+  }
+
+  @media (max-width: 767px) {
+    .responsive-table thead {
+      display: none;
+    }
+
+    .responsive-table tbody tr {
+      display: block;
+      border: 1px solid #ebebeb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      background: white;
+    }
+
+    .responsive-table tbody tr:last-child {
+      margin-bottom: 0;
+    }
+
+    .responsive-table tbody td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: none;
+      font-size: 13px;
+    }
+
+    .responsive-table tbody td::before {
+      content: attr(data-label);
+      color: #888888;
+      font-size: 12px;
+      flex-shrink: 0;
+      margin-right: 12px;
+    }
+
+    .responsive-table tbody td:last-child {
+      border-top: 1px solid #ebebeb;
+      margin-top: 8px;
+      padding-top: 8px;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .responsive-table tbody td:last-child::before {
+      display: none;
+    }
+  }
 }
 
 @keyframes fade-in-overlay {
