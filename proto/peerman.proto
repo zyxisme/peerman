@@ -102,6 +102,9 @@ message Settings {
   // BGP Confederation
   bool enable_confederation = 25;
   int64 confederation_local_asn = 26;
+  // Node WG keypair
+  string node_wg_private_key = 27;
+  string node_wg_public_key = 28;
 }
 
 // ── Peer Service Requests / Responses ──
