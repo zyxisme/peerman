@@ -265,11 +265,20 @@ impl PeerService for PeerServiceImpl {
         )
         .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
-        // Check WG interface name uniqueness
-        let new_iface = if req.wg_interface_name.is_empty() {
+        let mut proto = create_request_to_proto(&req);
+        let settings = self
+            .state
+            .settings_repo
+            .load()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+        apply_dn42_defaults(&mut proto, &settings);
+
+        // Check WG interface name uniqueness (after auto-fill)
+        let new_iface = if proto.wg_interface_name.is_empty() {
             "wg0"
         } else {
-            &req.wg_interface_name
+            &proto.wg_interface_name
         };
         let existing_peers = self
             .state
@@ -290,7 +299,6 @@ impl PeerService for PeerServiceImpl {
             )));
         }
 
-        let proto = create_request_to_proto(&req);
         let peer = self
             .state
             .peer_repo
@@ -339,11 +347,20 @@ impl PeerService for PeerServiceImpl {
         )
         .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
-        // Check WG interface name uniqueness (exclude current peer)
-        let new_iface = if req.wg_interface_name.is_empty() {
+        let mut update_proto = update_request_to_proto(&req);
+        let settings = self
+            .state
+            .settings_repo
+            .load()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+        apply_dn42_defaults(&mut update_proto, &settings);
+
+        // Check WG interface name uniqueness (exclude current peer, after auto-fill)
+        let new_iface = if update_proto.wg_interface_name.is_empty() {
             "wg0"
         } else {
-            &req.wg_interface_name
+            &update_proto.wg_interface_name
         };
         let existing_peers = self
             .state
@@ -374,7 +391,7 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::not_found(e.to_string()))?;
 
-        peer.apply_proto(&update_request_to_proto(&req));
+        peer.apply_proto(&update_proto);
 
         let peer = self
             .state
@@ -573,6 +590,44 @@ impl PeerService for PeerServiceImpl {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(RestartWireGuardResponse {}))
+    }
+}
+
+/// Apply DN42 defaults to a peer proto for empty/zero fields.
+fn apply_dn42_defaults(peer: &mut Peer, settings: &crate::models::settings::Settings) {
+    use crate::services::dn42;
+
+    // Private key: use node keypair if not set
+    if peer.wg_private_key.is_empty() {
+        peer.wg_private_key = settings.node_wg_private_key.clone();
+    }
+
+    // Listen port: derive from local ASN if not set
+    if peer.wg_listen_port == 0 {
+        peer.wg_listen_port = dn42::listen_port_from_asn(settings.local_asn);
+    }
+
+    // Interface name: generate from name if not set
+    if peer.wg_interface_name.is_empty() {
+        peer.wg_interface_name = dn42::sanitize_interface_name(&peer.name);
+    }
+
+    // Local ASN: use settings default if not set
+    if peer.local_asn == 0 {
+        peer.local_asn = settings.local_asn;
+    }
+
+    // IPv6 link-local: derive from ASN if not set
+    if peer.ipv6_tunnel_local.is_empty() && peer.local_asn > 0 {
+        peer.ipv6_tunnel_local = dn42::link_local_from_asn(peer.local_asn);
+    }
+    if peer.ipv6_tunnel_remote.is_empty() && peer.asn > 0 {
+        peer.ipv6_tunnel_remote = dn42::link_local_from_asn(peer.asn);
+    }
+
+    // Remote port: derive from peer ASN if not set
+    if peer.wg_remote_port == 0 && peer.asn > 0 {
+        peer.wg_remote_port = dn42::listen_port_from_asn(peer.asn);
     }
 }
 
