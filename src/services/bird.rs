@@ -595,6 +595,8 @@ mod tests {
             cluster_tunnel_ipv6_range: String::new(),
             enable_confederation: false,
             confederation_local_asn: 0,
+            node_wg_private_key: String::new(),
+            node_wg_public_key: String::new(),
         }
     }
 

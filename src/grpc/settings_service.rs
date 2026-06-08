@@ -43,6 +43,8 @@ fn settings_to_proto(s: &crate::models::settings::Settings) -> Settings {
         cluster_tunnel_ipv6_range: s.cluster_tunnel_ipv6_range.clone(),
         enable_confederation: s.enable_confederation,
         confederation_local_asn: s.confederation_local_asn,
+        node_wg_private_key: String::new(), // redacted
+        node_wg_public_key: s.node_wg_public_key.clone(),
     }
 }
 
@@ -119,6 +121,13 @@ fn apply_settings(s: &mut crate::models::settings::Settings, proto: &Settings) {
     s.enable_confederation = proto.enable_confederation;
     if proto.confederation_local_asn != 0 {
         s.confederation_local_asn = proto.confederation_local_asn;
+    }
+    // Node WG keypair: allow empty (auto-generated in load), skip empty to preserve existing
+    if !proto.node_wg_private_key.is_empty() {
+        s.node_wg_private_key = proto.node_wg_private_key.clone();
+    }
+    if !proto.node_wg_public_key.is_empty() {
+        s.node_wg_public_key = proto.node_wg_public_key.clone();
     }
 }
 

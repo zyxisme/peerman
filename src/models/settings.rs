@@ -30,6 +30,8 @@ pub struct Settings {
     pub cluster_tunnel_ipv6_range: String,
     pub enable_confederation: bool,
     pub confederation_local_asn: i64,
+    pub node_wg_private_key: String,
+    pub node_wg_public_key: String,
 }
 
 #[derive(Clone)]
@@ -43,7 +45,8 @@ const SETTINGS_COLUMNS: &str = "local_asn, bird_template_name, bird_router_id, \
     roa_mode, roa_static_v4_url, roa_static_v6_url, roa_rtr_address, roa_rtr_port, \
     bird_import_limit, bird_export_filter, bird_import_filter, \
     enable_community_filters, enable_bfd, bfd_interval_ms, bfd_multiplier, \
-    cluster_tunnel_ipv6_range, enable_confederation, confederation_local_asn";
+    cluster_tunnel_ipv6_range, enable_confederation, confederation_local_asn, \
+    node_wg_private_key, node_wg_public_key";
 
 impl SettingsRepository {
     pub fn new(pool: SqlitePool) -> Self {
@@ -51,11 +54,25 @@ impl SettingsRepository {
     }
 
     pub async fn load(&self) -> Result<Settings, AppError> {
-        let row = sqlx::query_as::<_, Settings>(&format!(
+        let mut row = sqlx::query_as::<_, Settings>(&format!(
             "SELECT {SETTINGS_COLUMNS} FROM settings WHERE id = 1"
         ))
         .fetch_one(&self.pool)
         .await?;
+
+        // Auto-generate node WG keypair on first load
+        if row.node_wg_private_key.is_empty() {
+            let (private_key, public_key) = crate::services::wireguard::generate_keypair();
+            sqlx::query(
+                "UPDATE settings SET node_wg_private_key = ?, node_wg_public_key = ? WHERE id = 1",
+            )
+            .bind(&private_key)
+            .bind(&public_key)
+            .execute(&self.pool)
+            .await?;
+            row.node_wg_private_key = private_key;
+            row.node_wg_public_key = public_key;
+        }
 
         Ok(row)
     }
@@ -72,7 +89,8 @@ impl SettingsRepository {
              bird_import_limit = ?, bird_export_filter = ?, bird_import_filter = ?,
              enable_community_filters = ?, enable_bfd = ?, bfd_interval_ms = ?,
              bfd_multiplier = ?, cluster_tunnel_ipv6_range = ?,
-             enable_confederation = ?, confederation_local_asn = ?
+             enable_confederation = ?, confederation_local_asn = ?,
+             node_wg_private_key = ?, node_wg_public_key = ?
              WHERE id = 1",
         )
         .bind(settings.local_asn)
@@ -101,6 +119,8 @@ impl SettingsRepository {
         .bind(&settings.cluster_tunnel_ipv6_range)
         .bind(settings.enable_confederation)
         .bind(settings.confederation_local_asn)
+        .bind(&settings.node_wg_private_key)
+        .bind(&settings.node_wg_public_key)
         .execute(&self.pool)
         .await?;
 
