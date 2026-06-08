@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { usePeer, useWireGuardConfig, useBirdConfig } from '../../hooks/usePeers';
+import { useSettings } from '../../hooks/useSettings';
 import { peerClient } from '../../lib/grpc';
 import ConfigViewer from './ConfigViewer';
 
@@ -9,6 +10,7 @@ export default function PeerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { peer, loading, error } = usePeer(id);
+  const { settings } = useSettings();
   const [tab, setTab] = useState<'info' | 'wg' | 'bird'>('info');
 
   const wg = useWireGuardConfig(tab === 'wg' ? id : undefined);
@@ -84,6 +86,7 @@ export default function PeerDetail() {
             <Field label="Remote Port" value={String(peer.wgRemotePort)} mono />
             <Field label="Listen Port" value={String(peer.wgListenPort)} mono />
             <Field label="Interface" value={peer.wgInterfaceName} mono />
+            <Field label="Node Public Key" value={settings?.nodeWgPublicKey || '—'} mono />
           </Section>
 
           <Section title="Tunnel Addressing">
