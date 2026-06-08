@@ -545,4 +545,15 @@ mod tests {
             remove_wg_interface(name)
         }
     }
+
+    #[test]
+    fn test_generate_config_includes_link_local_allowed_ips() {
+        let peer = test_peer();
+        let settings = test_settings();
+        let config = generate_config(&peer, &settings);
+        assert!(
+            config.contains("fe80::/10"),
+            "AllowedIPs should include fe80::/10"
+        );
+    }
 }
