@@ -1,4 +1,4 @@
-/// DN42 convention helpers for ASN-derived values.
+//! DN42 convention helpers for ASN-derived values.
 
 /// Listen port: `2` + last 4 digits of ASN.
 /// Example: ASN 4242420365 → port 20365
